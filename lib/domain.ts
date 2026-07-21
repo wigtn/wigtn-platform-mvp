@@ -22,6 +22,7 @@ export type Review = {
   status: "published" | "hidden";
   employment: "재직" | "퇴사";
   verified: boolean;
+  flags?: Array<"privacy" | "report">;
 };
 
 export type Post = {
@@ -160,6 +161,7 @@ export const initialReviews: Review[] = [
     status: "published",
     employment: "재직",
     verified: true,
+    flags: ["privacy"],
   },
   {
     id: "r2",
@@ -170,6 +172,7 @@ export const initialReviews: Review[] = [
     status: "published",
     employment: "퇴사",
     verified: true,
+    flags: ["report"],
   },
   {
     id: "r3",
@@ -180,6 +183,7 @@ export const initialReviews: Review[] = [
     status: "published",
     employment: "재직",
     verified: true,
+    flags: ["report"],
   },
   {
     id: "r4",

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import {
   companies,
@@ -49,6 +49,39 @@ const reviewDimensions = [
   "매니저 코칭",
 ] as const;
 
+const companySignals: Record<string, string[]> = {
+  "northstar-cloud": [
+    "분기 초 계정 배분 기준을 공유합니다.",
+    "큰 딜에는 세일즈 엔지니어가 초반부터 참여합니다.",
+    "툴과 프로세스 변경이 잦다는 의견이 있습니다.",
+  ],
+  "orbit-bioworks": [
+    "입사 교육 이후에도 제품 사례 교육이 이어집니다.",
+    "단기 계약보다 고객 관계를 오래 관리하는 편입니다.",
+    "제품 지식을 꾸준히 따라가야 한다는 의견이 있습니다.",
+  ],
+  "ledger-lab": [
+    "새 파트너 후보를 담당자가 직접 제안할 수 있습니다.",
+    "제안부터 계약까지 한 담당자가 맡는 경우가 많습니다.",
+    "팀 사이 담당 범위를 직접 조율해야 할 때가 있습니다.",
+  ],
+  "harbor-robotics": [
+    "기술팀과 함께 고객의 도입 조건을 검토합니다.",
+    "제조 고객 특성상 계약 검토 기간이 긴 편입니다.",
+    "기술 설명과 현장 대응 역량이 중요하다는 의견이 있습니다.",
+  ],
+  "greenmile-commerce": [
+    "채널별 실적과 전환율을 기준으로 목표를 관리합니다.",
+    "프로모션 일정에 따라 업무량 차이가 큰 편입니다.",
+    "여러 판매 채널의 이해관계를 조율해야 합니다.",
+  ],
+  "mosaic-learning": [
+    "주간 통화 리뷰와 짧은 피드백이 자주 진행됩니다.",
+    "중소 고객을 빠르게 많이 경험할 수 있습니다.",
+    "반복 업무를 스스로 정리해야 한다는 의견이 있습니다.",
+  ],
+};
+
 const roleNames: Record<Role, string> = {
   guest: "비회원",
   sales: "일반 영업인",
@@ -56,11 +89,41 @@ const roleNames: Record<Role, string> = {
   admin: "운영 관리자",
 };
 
+const roleExperience: Record<
+  Role,
+  { icon: string; description: string; unlocks: string }
+> = {
+  guest: {
+    icon: "○",
+    description: "회사 리뷰와 공개 커뮤니티를 읽습니다.",
+    unlocks: "공개 회사 리뷰와 커뮤니티 열람",
+  },
+  sales: {
+    icon: "↗",
+    description: "프로필·게시글·답변 작성 흐름을 체험합니다.",
+    unlocks: "프로필 관리, 게시글·답변 작성",
+  },
+  verified: {
+    icon: "✓",
+    description: "재직 확인 배지가 붙는 리뷰와 답변을 작성합니다.",
+    unlocks: "재직 확인 리뷰와 인증 배지 작성",
+  },
+  admin: {
+    icon: "⌘",
+    description: "리뷰 검수·회원 인증·콘텐츠 운영 화면을 엽니다.",
+    unlocks: "리뷰 검수, 회원 인증, 콘텐츠 운영",
+  },
+};
+
+const roles = Object.keys(roleNames) as Role[];
+
 function useDemoState() {
   const [state, setState] = useState<DemoState>(baseline);
   const [ready, setReady] = useState(false);
+  const [isFirstVisit, setIsFirstVisit] = useState(false);
   useEffect(() => {
     const saved = window.localStorage.getItem("fieldnote-demo-v1");
+    setIsFirstVisit(!saved);
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as Partial<DemoState>;
@@ -90,22 +153,124 @@ function useDemoState() {
       return next;
     });
   };
-  return [state, updateState] as const;
+  return [state, updateState, { ready, isFirstVisit }] as const;
+}
+
+function useDialogFocus(open: boolean, onClose: () => void) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    if (!open) return;
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const focusable = () =>
+      Array.from(
+        dialog?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((element) => !element.hasAttribute("hidden"));
+
+    window.requestAnimationFrame(() => focusable()[0]?.focus());
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, [open]);
+
+  return dialogRef;
 }
 
 export function PlatformApp({ initialPath }: { initialPath: string }) {
-  const [state, setState] = useDemoState();
+  const [state, setState, demoMeta] = useDemoState();
   const [toast, setToast] = useState("");
+  const [rolePickerOpen, setRolePickerOpen] = useState(false);
+  const [mobileRoleSheetOpen, setMobileRoleSheetOpen] = useState(false);
+  const [pulseRoleControl, setPulseRoleControl] = useState(false);
+  const pulseTimerRef = useRef<number | null>(null);
   const router = useRouter();
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2600);
   };
+  const startRoleControlPulse = () => {
+    if (pulseTimerRef.current) window.clearTimeout(pulseTimerRef.current);
+    setPulseRoleControl(true);
+    pulseTimerRef.current = window.setTimeout(() => {
+      setPulseRoleControl(false);
+      pulseTimerRef.current = null;
+    }, 3000);
+  };
+  useEffect(() => {
+    const pendingToast = window.sessionStorage.getItem(
+      "fieldnote-pending-toast",
+    );
+    if (!pendingToast) return;
+    window.sessionStorage.removeItem("fieldnote-pending-toast");
+    notify(pendingToast);
+  }, []);
+  useEffect(() => {
+    if (window.sessionStorage.getItem("fieldnote-pending-role-pulse")) {
+      window.sessionStorage.removeItem("fieldnote-pending-role-pulse");
+      startRoleControlPulse();
+    }
+    return () => {
+      if (pulseTimerRef.current) window.clearTimeout(pulseTimerRef.current);
+    };
+  }, []);
   const reset = () => {
     window.localStorage.removeItem("fieldnote-demo-v1");
     setState(() => baseline);
     notify("데모 데이터가 초기화됐습니다.");
     router.push("/");
+  };
+
+  useEffect(() => {
+    if (demoMeta.ready && demoMeta.isFirstVisit) setRolePickerOpen(true);
+  }, [demoMeta.isFirstVisit, demoMeta.ready]);
+
+  const switchRole = (role: Role) => {
+    const roleMessage = `${roleNames[role]} 역할로 전환했습니다. 새로 볼 수 있는 것: ${roleExperience[role].unlocks}`;
+    setState((current) => ({ ...current, role }));
+    setMobileRoleSheetOpen(false);
+    if (role === "admin" || initialPath.startsWith("/admin")) {
+      window.sessionStorage.setItem("fieldnote-pending-toast", roleMessage);
+      router.push(role === "admin" ? "/admin" : "/");
+    } else notify(roleMessage);
+  };
+
+  const closeRolePicker = (role: Role = "guest") => {
+    if (role === "admin")
+      window.sessionStorage.setItem("fieldnote-pending-role-pulse", "true");
+    else startRoleControlPulse();
+    setRolePickerOpen(false);
+    switchRole(role);
   };
 
   let content;
@@ -115,7 +280,14 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
   else if (initialPath.startsWith("/companies/"))
     content = <CompanyDetail slug={initialPath.split("/")[2]} state={state} />;
   else if (initialPath === "/reviews/new")
-    content = <ReviewForm state={state} setState={setState} notify={notify} />;
+    content = (
+      <ReviewForm
+        state={state}
+        setState={setState}
+        notify={notify}
+        onRoleChange={switchRole}
+      />
+    );
   else if (initialPath === "/community")
     content = <Community state={state} setState={setState} notify={notify} />;
   else if (initialPath === "/posts/new")
@@ -127,6 +299,7 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
         state={state}
         setState={setState}
         notify={notify}
+        onRoleChange={switchRole}
       />
     );
   else if (initialPath === "/questions/new")
@@ -134,7 +307,14 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
       <QuestionForm state={state} setState={setState} notify={notify} />
     );
   else if (initialPath === "/account")
-    content = <Account state={state} setState={setState} notify={notify} />;
+    content = (
+      <Account
+        state={state}
+        setState={setState}
+        notify={notify}
+        onRoleChange={switchRole}
+      />
+    );
   else if (initialPath === "/compare") content = <Compare state={state} />;
   else if (initialPath === "/trust") content = <Trust />;
   else if (initialPath.startsWith("/admin"))
@@ -144,23 +324,35 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
         state={state}
         setState={setState}
         notify={notify}
+        onRoleChange={switchRole}
       />
     );
   else content = <NotFound />;
 
   return (
     <>
-      <Header role={state.role} />
+      <DemoRoleBar
+        role={state.role}
+        setRole={switchRole}
+        reset={reset}
+        openMobileSheet={() => setMobileRoleSheetOpen(true)}
+        mobileSheetOpen={mobileRoleSheetOpen}
+        pulse={pulseRoleControl}
+      />
+      <Header role={state.role} path={initialPath} />
       {content}
       {!initialPath.startsWith("/admin") ? <Footer /> : null}
-      <DemoDock
+      <RolePickerModal
+        open={rolePickerOpen}
+        selectRole={closeRolePicker}
+        dismiss={() => closeRolePicker("guest")}
+      />
+      <MobileRoleSheet
+        open={mobileRoleSheetOpen}
         role={state.role}
-        setRole={(role) => {
-          setState((current) => ({ ...current, role }));
-          notify(`${roleNames[role]} 역할로 전환했습니다.`);
-          if (role === "admin") router.push("/admin");
-        }}
+        setRole={switchRole}
         reset={reset}
+        close={() => setMobileRoleSheetOpen(false)}
       />
       {toast ? (
         <div className="toast" role="status">
@@ -171,7 +363,13 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
   );
 }
 
-function Header({ role }: { role: Role }) {
+function Header({ role, path }: { role: Role; path: string }) {
+  const navigation = [
+    ["/companies", "회사 리뷰"],
+    ["/community", "영업 Q&A"],
+    ["/compare", "회사 비교"],
+    ["/trust", "검증 정책"],
+  ] as const;
   return (
     <header className="site-header">
       <div className="header-inner">
@@ -179,10 +377,19 @@ function Header({ role }: { role: Role }) {
           FIELD<span>NOTE</span>
         </Link>
         <nav aria-label="주요 메뉴">
-          <Link href="/companies">회사 리뷰</Link>
-          <Link href="/community">영업 Q&amp;A</Link>
-          <Link href="/compare">회사 비교</Link>
-          <Link href="/trust">검증 정책</Link>
+          {navigation.map(([href, label]) => {
+            const active = path === href || path.startsWith(`${href}/`);
+            return (
+              <Link
+                className={active ? "active" : undefined}
+                aria-current={active ? "page" : undefined}
+                href={href}
+                key={href}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </nav>
         <div className="header-actions">
           <Link className="header-write" href="/reviews/new">
@@ -216,7 +423,8 @@ function Home({ state }: { state: DemoState }) {
               <em>입사 전에 확인하세요.</em>
             </h1>
             <p className="hero-lead">
-              현직자 리뷰로 회사별 영업 방식과 지원 체계를 비교할 수 있습니다.
+              현직자 리뷰에서 목표 수준, 인센티브 기준, 리드 배분 방식을
+              확인하세요.
             </p>
             <form
               className="hero-search"
@@ -443,30 +651,28 @@ function Home({ state }: { state: DemoState }) {
 
       <section className="page-shell section decision-section">
         <div className="decision-card compare-card">
-          <span>01</span>
           <div>
             <p className="kicker">회사 비교</p>
             <h2>
-              회사 두 곳의 점수를
+              결정 전에, 두 회사를
               <br />
-              항목별로 비교합니다.
+              나란히 보세요.
             </h2>
-            <p>목표, 인센티브, 리드 품질 등 6개 항목을 비교합니다.</p>
+            <p>목표·인센티브·리드 배분 등 핵심 조건의 차이를 확인합니다.</p>
           </div>
           <Link className="button primary" href="/compare">
             회사 비교하기
           </Link>
         </div>
         <div className="decision-card question-card">
-          <span>02</span>
           <div>
             <p className="kicker">영업 Q&amp;A</p>
             <h2>
-              실무 질문을 남기고
+              지원 전 궁금한 점,
               <br />
-              현직자 답변을 받으세요.
+              현직자에게 물어보세요.
             </h2>
-            <p>질문이 등록되면 관련 경험이 있는 회원에게 노출됩니다.</p>
+            <p>회사와 직무를 적어 올리면 해당 경험이 있는 회원이 답합니다.</p>
           </div>
           <Link className="button secondary" href="/questions/new">
             질문 올리기
@@ -492,7 +698,7 @@ function CompanyCard({
         <span className={`company-logo logo-${company.slug}`}>
           {company.name.slice(0, 1)}
         </span>
-        <span className="company-index">추천 {index}</span>
+        <span className="company-index">#{String(index).padStart(2, "0")}</span>
       </div>
       <p className="caption">
         {company.industry} · {company.type}
@@ -558,16 +764,33 @@ function Companies({ state }: { state: DemoState }) {
         </label>
         <span>{filtered.length}개 조직</span>
       </div>
-      <div className="company-list">
-        {filtered.map((company, index) => (
-          <CompanyCard
-            key={company.slug}
-            company={company}
-            score={companyScore(state.reviews, company.slug, company.score)}
-            index={index + 1}
-          />
-        ))}
-      </div>
+      {filtered.length ? (
+        <div className="company-list">
+          {filtered.map((company, index) => (
+            <CompanyCard
+              key={company.slug}
+              company={company}
+              score={companyScore(state.reviews, company.slug, company.score)}
+              index={index + 1}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state" role="status">
+          <span>검색 결과 0</span>
+          <h2>조건에 맞는 회사가 없습니다.</h2>
+          <p>회사명을 줄여 검색하거나 업종 필터를 초기화해 보세요.</p>
+          <button
+            className="button secondary"
+            onClick={() => {
+              setQuery("");
+              setIndustry("전체");
+            }}
+          >
+            검색 조건 초기화
+          </button>
+        </div>
+      )}
     </main>
   );
 }
@@ -684,9 +907,9 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
         <aside className="fit-checklist">
           <span>리뷰에서 언급된 팀 운영 방식</span>
           <ul>
-            <li>분기 초 계정 배분 기준을 공유합니다.</li>
-            <li>큰 딜에는 세일즈 엔지니어가 초반부터 참여합니다.</li>
-            <li>툴과 프로세스가 자주 바뀐다는 의견이 있습니다.</li>
+            {(companySignals[company.slug] ?? []).map((signal) => (
+              <li key={signal}>{signal}</li>
+            ))}
           </ul>
           <Link href="/questions/new">현직자에게 확인 질문하기 →</Link>
         </aside>
@@ -774,10 +997,12 @@ function ReviewForm({
   state,
   setState,
   notify,
+  onRoleChange,
 }: {
   state: DemoState;
   setState: (fn: (s: DemoState) => DemoState) => void;
   notify: (m: string) => void;
+  onRoleChange: (role: Role) => void;
 }) {
   const router = useRouter();
   const [companySlug, setCompanySlug] = useState(companies[0].slug);
@@ -813,6 +1038,25 @@ function ReviewForm({
         title="익명 리뷰 작성"
         description="개인이나 고객을 특정할 수 있는 정보는 제외해 주세요. 등록 전에 개인정보 포함 여부를 확인합니다."
       />
+      {state.role === "verified" ? (
+        <div className="role-feature-note is-unlocked">
+          <span className="role-access-badge">인증 영업인 전용</span>
+          <div>
+            <strong>
+              이 역할로 작성한 리뷰에는 재직 확인 표시가 붙습니다.
+            </strong>
+            <p>다른 방문자에게 작성자의 확인 수준만 공개됩니다.</p>
+          </div>
+        </div>
+      ) : (
+        <LockedRoleFeature
+          badge="인증 영업인 전용"
+          title="재직 확인 표시가 붙은 리뷰 작성"
+          description="인증 영업인 역할로 바꾸면 작성한 리뷰에 재직 확인 표시가 붙습니다."
+          targetRole="verified"
+          onRoleChange={onRoleChange}
+        />
+      )}
       <form className="form-panel" onSubmit={submit}>
         <label>
           회사
@@ -1177,11 +1421,13 @@ function PostDetail({
   state,
   setState,
   notify,
+  onRoleChange,
 }: {
   id: string;
   state: DemoState;
   setState: (fn: (s: DemoState) => DemoState) => void;
   notify: (m: string) => void;
+  onRoleChange: (role: Role) => void;
 }) {
   const post = state.posts.find((item) => item.id === id) ?? state.posts[0];
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
@@ -1273,11 +1519,16 @@ function PostDetail({
           </article>
         ))}
         {state.role === "guest" ? (
-          <div className="login-prompt">
-            <p>역할을 일반 영업인으로 전환하면 바로 답변할 수 있습니다.</p>
-          </div>
+          <LockedRoleFeature
+            badge="회원 전용"
+            title="현직자 답변 작성"
+            description="일반 영업인 역할부터 질문에 답변하고 대화를 이어갈 수 있습니다."
+            targetRole="sales"
+            onRoleChange={onRoleChange}
+          />
         ) : (
           <form className="comment-form" onSubmit={addComment}>
+            <span className="role-access-badge">회원 전용</span>
             <label>
               {replyingTo === null
                 ? "답변 작성"
@@ -1310,6 +1561,9 @@ function QuestionForm({
     "idle" | "queued" | "thinking" | "posted"
   >("idle");
   const [title, setTitle] = useState("");
+  const [context, setContext] = useState(
+    "고객이 제품 필요성은 인정하지만 예산 이야기는 계속 미룹니다. 첫 미팅에서 어떤 순서로 물어봐야 할까요?",
+  );
   const ask = (event: FormEvent) => {
     event.preventDefault();
     setStatus("queued");
@@ -1321,7 +1575,7 @@ function QuestionForm({
         id: `p-${Date.now()}`,
         board: "Q&A",
         title,
-        body: "질문 등록 시 입력한 상황 설명입니다.",
+        body: context,
         author: roleNames[state.role],
         badge: state.role === "verified" ? "검증 영업인 L2" : undefined,
         likes: 0,
@@ -1357,7 +1611,8 @@ function QuestionForm({
             <textarea
               rows={7}
               required
-              defaultValue="고객이 제품 필요성은 인정하지만 예산 이야기는 계속 미룹니다. 첫 미팅에서 어떤 순서로 물어봐야 할까요?"
+              value={context}
+              onChange={(event) => setContext(event.target.value)}
             />
           </label>
           <div className="similar-box">
@@ -1415,10 +1670,12 @@ function Account({
   state,
   setState,
   notify,
+  onRoleChange,
 }: {
   state: DemoState;
   setState: (fn: (s: DemoState) => DemoState) => void;
   notify: (m: string) => void;
+  onRoleChange: (role: Role) => void;
 }) {
   const mine = state.posts.filter(
     (post) => post.author === roleNames[state.role],
@@ -1492,28 +1749,39 @@ function Account({
               <h2>확인 배지</h2>
               <span>{state.badgeStatus}</span>
             </div>
-            <div className="badge-box">
-              <div>
-                <strong>L2</strong>
-                <span>재직·실적 검증</span>
+            {state.role === "guest" ? (
+              <LockedRoleFeature
+                badge="일반 영업인 이상"
+                title="재직·실적 확인 배지 신청"
+                description="일반 영업인 역할로 전환하면 비공개 자료 제출과 심사 상태를 체험할 수 있습니다."
+                targetRole="sales"
+                onRoleChange={onRoleChange}
+              />
+            ) : (
+              <div className="badge-box">
+                <div>
+                  <strong>L2</strong>
+                  <span>재직·실적 검증</span>
+                  <small className="role-access-badge">일반 영업인 이상</small>
+                </div>
+                <p>
+                  회사 이메일과 실적 자료는 비공개로 제출합니다. 프로필에는 확인
+                  결과만 표시됩니다.
+                </p>
+                <button
+                  className="button secondary"
+                  onClick={() => {
+                    setState((current) => ({
+                      ...current,
+                      badgeStatus: "검토중",
+                    }));
+                    notify("샘플 확인 자료를 제출했습니다.");
+                  }}
+                >
+                  샘플 자료로 신청
+                </button>
               </div>
-              <p>
-                회사 이메일과 실적 자료는 비공개로 제출합니다. 프로필에는 확인
-                결과만 표시됩니다.
-              </p>
-              <button
-                className="button secondary"
-                onClick={() => {
-                  setState((current) => ({
-                    ...current,
-                    badgeStatus: "검토중",
-                  }));
-                  notify("샘플 확인 자료를 제출했습니다.");
-                }}
-              >
-                샘플 자료로 신청
-              </button>
-            </div>
+            )}
           </section>
           <section>
             <h2>최근 활동</h2>
@@ -1553,43 +1821,69 @@ function Compare({ state }: { state: DemoState }) {
         description="영업환경 6개 항목의 점수와 리뷰를 나란히 확인합니다."
       />
       <div className="compare-select">
-        <select value={a} onChange={(e) => setA(e.target.value)}>
-          {companies.map((c) => (
-            <option value={c.slug} key={c.slug}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <label>
+          첫 번째 회사
+          <select value={a} onChange={(e) => setA(e.target.value)}>
+            {companies.map((c) => (
+              <option value={c.slug} key={c.slug} disabled={c.slug === b}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <span>VS</span>
-        <select value={b} onChange={(e) => setB(e.target.value)}>
-          {companies.map((c) => (
-            <option value={c.slug} key={c.slug}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <label>
+          두 번째 회사
+          <select value={b} onChange={(e) => setB(e.target.value)}>
+            {companies.map((c) => (
+              <option value={c.slug} key={c.slug} disabled={c.slug === a}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       <div className="compare-grid">
-        {selected.map((company) => (
-          <article key={company.slug}>
-            <p>{company.industry}</p>
-            <h2>{company.name}</h2>
-            <strong>
-              {companyScore(state.reviews, company.slug, company.score).toFixed(
-                1,
-              )}
-            </strong>
-            {Object.entries(company.scores).map(([label, value]) => (
-              <div className="compare-row" key={label}>
-                <span>{label}</span>
-                <b>{value.toFixed(1)}</b>
+        {selected.map((company, companyIndex) => {
+          const other = selected[companyIndex === 0 ? 1 : 0];
+          const score = companyScore(
+            state.reviews,
+            company.slug,
+            company.score,
+          );
+          const otherScore = companyScore(
+            state.reviews,
+            other.slug,
+            other.score,
+          );
+          return (
+            <article
+              className={score > otherScore ? "comparison-leader" : undefined}
+              key={company.slug}
+            >
+              <p>{company.industry}</p>
+              <h2>{company.name}</h2>
+              <div className="compare-score">
+                <strong>{score.toFixed(1)}</strong>
+                {score > otherScore ? (
+                  <span>종합 점수 +{(score - otherScore).toFixed(1)}</span>
+                ) : null}
               </div>
-            ))}
-            <Link className="text-link" href={`/companies/${company.slug}`}>
-              리뷰 자세히 보기 →
-            </Link>
-          </article>
-        ))}
+              {Object.entries(company.scores).map(([label, value]) => (
+                <div
+                  className={`compare-row ${value > other.scores[label] ? "leading" : ""}`}
+                  key={label}
+                >
+                  <span>{label}</span>
+                  <b>{value.toFixed(1)}</b>
+                </div>
+              ))}
+              <Link className="text-link" href={`/companies/${company.slug}`}>
+                리뷰 자세히 보기 →
+              </Link>
+            </article>
+          );
+        })}
       </div>
     </main>
   );
@@ -1600,18 +1894,29 @@ function Admin({
   state,
   setState,
   notify,
+  onRoleChange,
 }: {
   path: string;
   state: DemoState;
   setState: (fn: (s: DemoState) => DemoState) => void;
   notify: (m: string) => void;
+  onRoleChange: (role: Role) => void;
 }) {
   const [reviewFilter, setReviewFilter] = useState<
     "all" | "privacy" | "report"
   >("all");
-  const reviewQueue = state.reviews.slice(0, 3).filter((review) => {
-    if (reviewFilter === "privacy") return review.id === "r1";
-    if (reviewFilter === "report") return review.id !== "r1";
+  const flaggedReviews = state.reviews.filter((review) => review.flags?.length);
+  const reviewCounts = {
+    all: flaggedReviews.length,
+    privacy: flaggedReviews.filter((review) =>
+      review.flags?.includes("privacy"),
+    ).length,
+    report: flaggedReviews.filter((review) => review.flags?.includes("report"))
+      .length,
+  };
+  const reviewQueue = flaggedReviews.filter((review) => {
+    if (reviewFilter === "privacy") return review.flags?.includes("privacy");
+    if (reviewFilter === "report") return review.flags?.includes("report");
     return true;
   });
   if (state.role !== "admin")
@@ -1620,7 +1925,14 @@ function Admin({
         <PageTitle
           eyebrow="접근 권한"
           title="운영 관리자 역할이 필요합니다"
-          description="아래 데모 도크에서 운영 관리자 역할로 전환하세요."
+          description="운영 화면은 역할 차이를 보여주는 데모 기능입니다."
+        />
+        <LockedRoleFeature
+          badge="운영 관리자 전용"
+          title="검수·회원 인증·콘텐츠 운영"
+          description="운영 관리자 역할로 전환하면 신고 리뷰 대기열과 관리자 대시보드가 열립니다."
+          targetRole="admin"
+          onRoleChange={onRoleChange}
         />
       </main>
     );
@@ -1676,7 +1988,10 @@ function Admin({
   if (path === "/admin/reviews")
     panel = (
       <>
-        <AdminTitle title="검토할 리뷰" count="03" />
+        <AdminTitle
+          title="검토할 리뷰"
+          count={String(reviewCounts.all).padStart(2, "0")}
+        />
         <div className="admin-queue-toolbar">
           <div>
             <button
@@ -1684,21 +1999,21 @@ function Admin({
               aria-pressed={reviewFilter === "all"}
               onClick={() => setReviewFilter("all")}
             >
-              전체 3
+              전체 {reviewCounts.all}
             </button>
             <button
               className={reviewFilter === "privacy" ? "active" : ""}
               aria-pressed={reviewFilter === "privacy"}
               onClick={() => setReviewFilter("privacy")}
             >
-              개인정보 1
+              개인정보 {reviewCounts.privacy}
             </button>
             <button
               className={reviewFilter === "report" ? "active" : ""}
               aria-pressed={reviewFilter === "report"}
               onClick={() => setReviewFilter("report")}
             >
-              신고 2
+              신고 {reviewCounts.report}
             </button>
           </div>
           <span>목표 처리시간 2시간 · 현재 SLA 정상</span>
@@ -1716,7 +2031,10 @@ function Admin({
               </span>
               <strong>{review.title}</strong>
               <small>
-                {review.employment} · 평점 {review.score.toFixed(1)}
+                {review.employment} · 평점 {review.score.toFixed(1)} ·{" "}
+                {review.flags?.includes("privacy")
+                  ? "개인정보 탐지"
+                  : "신고 접수"}
               </small>
             </div>
             <span className={`admin-row-status ${review.status}`}>
@@ -2163,34 +2481,229 @@ function Footer() {
   );
 }
 
-function DemoDock({
+function RoleSegments({
+  role,
+  setRole,
+}: {
+  role: Role;
+  setRole: (role: Role) => void;
+}) {
+  return (
+    <div className="role-segments" role="group" aria-label="체험 역할 선택">
+      {roles.map((key) => (
+        <button
+          type="button"
+          className={role === key ? "active" : undefined}
+          aria-pressed={role === key}
+          onClick={() => setRole(key)}
+          key={key}
+        >
+          <span aria-hidden="true">{roleExperience[key].icon}</span>
+          <b>{roleNames[key]}</b>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function DemoRoleBar({
   role,
   setRole,
   reset,
+  openMobileSheet,
+  mobileSheetOpen,
+  pulse,
 }: {
   role: Role;
   setRole: (role: Role) => void;
   reset: () => void;
+  openMobileSheet: () => void;
+  mobileSheetOpen: boolean;
+  pulse: boolean;
 }) {
   return (
-    <aside className="demo-dock" aria-label="데모 역할 선택">
-      <div>
-        <span>공개 데모</span>
-        <strong>역할 변경</strong>
+    <aside
+      className={`demo-role-bar role-${role}${pulse ? " is-intro-pulse" : ""}`}
+      aria-label="데모 체험 상태"
+    >
+      <div className="page-shell demo-role-bar-inner">
+        <div className="demo-status-copy">
+          <span aria-hidden="true">◇</span>
+          <p>
+            <strong>데모 체험 중</strong>
+            <span>
+              현재 <b>{roleNames[role]}</b> 관점으로 보고 있습니다
+            </span>
+          </p>
+        </div>
+        <div className="demo-role-controls" data-testid="role-switch">
+          <div className="desktop-role-switch">
+            <RoleSegments role={role} setRole={setRole} />
+          </div>
+          <button
+            type="button"
+            className="mobile-role-trigger"
+            aria-haspopup="dialog"
+            aria-expanded={mobileSheetOpen}
+            onClick={openMobileSheet}
+          >
+            <span aria-hidden="true">{roleExperience[role].icon}</span>
+            <b>{roleNames[role]}</b>
+            <small>역할 변경</small>
+          </button>
+          <button type="button" className="demo-reset" onClick={reset}>
+            초기화
+          </button>
+        </div>
       </div>
-      <select
-        data-testid="role-switch"
-        aria-label="체험 역할"
-        value={role}
-        onChange={(event) => setRole(event.target.value as Role)}
-      >
-        {(Object.keys(roleNames) as Role[]).map((key) => (
-          <option value={key} key={key}>
-            {roleNames[key]}
-          </option>
-        ))}
-      </select>
-      <button onClick={reset}>초기화</button>
     </aside>
+  );
+}
+
+function RolePickerModal({
+  open,
+  selectRole,
+  dismiss,
+}: {
+  open: boolean;
+  selectRole: (role: Role) => void;
+  dismiss: () => void;
+}) {
+  const dialogRef = useDialogFocus(open, dismiss);
+  if (!open) return null;
+  return (
+    <div className="role-dialog-backdrop">
+      <div
+        className="role-picker-dialog"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="role-picker-title"
+        aria-describedby="role-picker-description"
+      >
+        <div className="role-picker-heading">
+          <span>FIELDNOTE ROLE PREVIEW</span>
+          <h2 id="role-picker-title">어떤 역할로 둘러보시겠어요?</h2>
+          <p id="role-picker-description">
+            역할에 따라 작성 기능과 운영 화면이 달라집니다.
+          </p>
+        </div>
+        <div className="role-picker-grid">
+          {roles.map((key) => (
+            <button
+              type="button"
+              className={`role-picker-card role-${key}`}
+              onClick={() => selectRole(key)}
+              key={key}
+            >
+              <span className="role-picker-icon" aria-hidden="true">
+                {roleExperience[key].icon}
+              </span>
+              <strong>{roleNames[key]}</strong>
+              <small>{roleExperience[key].description}</small>
+              <b>이 역할로 시작 →</b>
+            </button>
+          ))}
+        </div>
+        <div className="role-picker-footer">
+          <button type="button" onClick={dismiss}>
+            그냥 둘러보기 (비회원)
+          </button>
+          <p>언제든 화면 상단에서 역할을 바꿀 수 있어요.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileRoleSheet({
+  open,
+  role,
+  setRole,
+  reset,
+  close,
+}: {
+  open: boolean;
+  role: Role;
+  setRole: (role: Role) => void;
+  reset: () => void;
+  close: () => void;
+}) {
+  const dialogRef = useDialogFocus(open, close);
+  if (!open) return null;
+  return (
+    <div className="role-dialog-backdrop mobile-role-backdrop">
+      <div
+        className="mobile-role-sheet"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-role-sheet-title"
+      >
+        <div className="mobile-role-sheet-head">
+          <div>
+            <span>데모 역할</span>
+            <h2 id="mobile-role-sheet-title">다른 관점으로 둘러보기</h2>
+          </div>
+          <button type="button" aria-label="역할 전환 닫기" onClick={close}>
+            닫기
+          </button>
+        </div>
+        <RoleSegments role={role} setRole={setRole} />
+        <p>
+          역할을 바꾸면 사용할 수 있는 기능과 이동 가능한 화면이 달라집니다.
+        </p>
+        <button
+          type="button"
+          className="mobile-demo-reset"
+          onClick={() => {
+            reset();
+            close();
+          }}
+        >
+          데모 데이터 초기화
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LockedRoleFeature({
+  badge,
+  title,
+  description,
+  targetRole,
+  onRoleChange,
+}: {
+  badge: string;
+  title: string;
+  description: string;
+  targetRole: Role;
+  onRoleChange: (role: Role) => void;
+}) {
+  const switchLabels: Record<Role, string> = {
+    guest: "비회원으로 전환하기",
+    sales: "일반 영업인으로 전환해서 체험하기",
+    verified: "인증 영업인으로 전환해서 체험하기",
+    admin: "운영 관리자로 전환해서 체험하기",
+  };
+  return (
+    <div className="locked-role-feature">
+      <span className="locked-role-icon" aria-hidden="true">
+        ⌁
+      </span>
+      <div>
+        <span className="role-access-badge">{badge}</span>
+        <strong>{title}</strong>
+        <p>{description}</p>
+      </div>
+      <button
+        type="button"
+        className="button secondary"
+        onClick={() => onRoleChange(targetRole)}
+      >
+        {switchLabels[targetRole]}
+      </button>
+    </div>
   );
 }
