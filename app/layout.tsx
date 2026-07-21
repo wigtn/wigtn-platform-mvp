@@ -4,8 +4,9 @@ import type { ReactNode } from "react";
 import "./styles.css";
 
 export const metadata: Metadata = {
-  title: "FIELDNOTE — 영업 커리어 인텔리전스",
-  description: "영업인의 회사 선택과 현장 노하우를 연결하는 커뮤니티 플랫폼",
+  title: "FIELDNOTE | 영업직 회사 리뷰",
+  description:
+    "목표, 인센티브, 리드 배분 등 회사별 영업환경을 현직자 리뷰로 확인하세요.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

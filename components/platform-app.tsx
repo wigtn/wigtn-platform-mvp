@@ -152,6 +152,7 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
     <>
       <Header role={state.role} />
       {content}
+      {!initialPath.startsWith("/admin") ? <Footer /> : null}
       <DemoDock
         role={state.role}
         setRole={(role) => {
@@ -173,136 +174,304 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
 function Header({ role }: { role: Role }) {
   return (
     <header className="site-header">
-      <Link className="brand" href="/">
-        FIELDNOTE<span>•</span>
-      </Link>
-      <nav aria-label="주요 메뉴">
-        <Link href="/companies">회사 인사이트</Link>
-        <Link href="/community">커뮤니티</Link>
-        <Link href="/compare">회사 비교</Link>
-        <Link href="/trust">신뢰 정책</Link>
-      </nav>
-      <Link
-        className="header-role"
-        href={role === "admin" ? "/admin" : "/account"}
-      >
-        {roleNames[role]}
-      </Link>
+      <div className="header-inner">
+        <Link className="brand" href="/" aria-label="FIELDNOTE 홈">
+          FIELD<span>NOTE</span>
+        </Link>
+        <nav aria-label="주요 메뉴">
+          <Link href="/companies">회사 리뷰</Link>
+          <Link href="/community">영업 Q&amp;A</Link>
+          <Link href="/compare">회사 비교</Link>
+          <Link href="/trust">검증 정책</Link>
+        </nav>
+        <div className="header-actions">
+          <Link className="header-write" href="/reviews/new">
+            리뷰 작성
+          </Link>
+          <Link
+            className="header-role"
+            href={role === "admin" ? "/admin" : "/account"}
+          >
+            {role === "guest" ? "로그인 · 내 활동" : roleNames[role]}
+          </Link>
+        </div>
+      </div>
     </header>
   );
 }
 
 function Home({ state }: { state: DemoState }) {
-  const top = companies.slice(0, 3);
+  const top = companies.slice(0, 4);
+  const [query, setQuery] = useState("");
+  const router = useRouter();
   return (
     <main>
-      <section className="hero page-shell">
-        <div className="hero-copy reveal">
-          <p className="kicker">Sales career intelligence · 2026</p>
-          <h1>
-            영업의 다음 선택은,
-            <br />
-            <em>감이 아니라 데이터로.</em>
-          </h1>
-          <p className="hero-lead">
-            동료의 검증된 경험, 영업환경 점수, 현장의 답을 한곳에서 읽고
-            비교하세요.
-          </p>
-          <div className="hero-actions">
-            <Link className="button primary" href="/companies">
+      <section className="hero">
+        <div className="page-shell hero-layout">
+          <div className="hero-copy reveal">
+            <p className="hero-badge">영업직 회사 리뷰</p>
+            <h1>
+              목표, 인센티브, 리드 배분.
+              <br />
+              <em>입사 전에 확인하세요.</em>
+            </h1>
+            <p className="hero-lead">
+              현직자 리뷰로 회사별 영업 방식과 지원 체계를 비교할 수 있습니다.
+            </p>
+            <form
+              className="hero-search"
+              onSubmit={(event) => {
+                event.preventDefault();
+                router.push(`/companies?q=${encodeURIComponent(query)}`);
+              }}
+            >
+              <span aria-hidden="true">⌕</span>
+              <input
+                aria-label="회사 검색"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="회사명, 업종, 영업 유형으로 검색"
+              />
+              <button type="submit">회사 검색</button>
+            </form>
+            <div className="popular-searches">
+              <span>인기 검색</span>
+              {["B2B SaaS", "엔터프라이즈", "인센티브", "세일즈 리더"].map(
+                (item) => (
+                  <Link
+                    href={`/companies?q=${encodeURIComponent(item)}`}
+                    key={item}
+                  >
+                    {item}
+                  </Link>
+                ),
+              )}
+            </div>
+            <Link className="hero-explore-link" href="/companies">
               회사 탐색 시작
             </Link>
-            <Link className="text-link" href="/questions/new">
-              질문하고 AI 첫 답 받기 →
-            </Link>
           </div>
+          <aside className="career-preview" aria-label="추천 회사 미리보기">
+            <div className="preview-head">
+              <div>
+                <span>이번 주 많이 본 회사</span>
+                <strong>최근 조회가 늘어난 회사</strong>
+              </div>
+              <Link href="/companies">전체 보기</Link>
+            </div>
+            {top.slice(0, 3).map((company) => (
+              <Link
+                className="preview-company"
+                href={`/companies/${company.slug}`}
+                key={company.slug}
+              >
+                <span className={`company-logo logo-${company.slug}`}>
+                  {company.name.slice(0, 1)}
+                </span>
+                <span>
+                  <strong>{company.name}</strong>
+                  <small>
+                    {company.industry} · {company.type}
+                  </small>
+                </span>
+                <b>{company.score.toFixed(1)}</b>
+              </Link>
+            ))}
+            <div className="preview-proof">
+              <span>
+                <b>4,812</b> 재직 확인 회원
+              </span>
+              <span>
+                <b>1,260</b> 누적 회사 리뷰
+              </span>
+            </div>
+          </aside>
         </div>
-        <aside className="pulse-panel reveal delay">
-          <p className="caption">TODAY&apos;S SALES PULSE</p>
-          <strong>12,408</strong>
-          <span>오늘 읽힌 현장 경험</span>
-          <dl>
-            <div>
-              <dt>가장 많이 본 회사</dt>
-              <dd>노스스타 클라우드</dd>
-            </div>
-            <div>
-              <dt>가장 뜨거운 질문</dt>
-              <dd>엔터프라이즈 첫 미팅</dd>
-            </div>
-            <div>
-              <dt>새 실적 인증</dt>
-              <dd>28건</dd>
-            </div>
-          </dl>
-        </aside>
       </section>
 
-      <section className="ticker">
-        <span>합성 데이터 기반 공개 체험</span>
-        <span>역할 전환으로 전 기능 확인</span>
-        <span>실서비스 계약과 동일한 상태 모델</span>
+      <section className="trust-bar" aria-label="서비스 신뢰 지표">
+        <div className="page-shell trust-bar-inner">
+          <p>
+            <strong>리뷰 작성자는 공개되지 않습니다.</strong> 재직·실적 확인
+            여부만 리뷰에 표시합니다.
+          </p>
+          <Link href="/trust">검증 정책 보기 →</Link>
+        </div>
       </section>
 
-      <section className="page-shell section">
+      <section className="page-shell section home-companies">
         <div className="section-heading">
           <div>
-            <p className="kicker">Company intelligence</p>
-            <h2>지금 주목받는 영업 조직</h2>
+            <p className="kicker">회사 리뷰</p>
+            <h2>이번 주 많이 본 회사</h2>
+            <p>최근 조회수와 공개 리뷰를 기준으로 정리했습니다.</p>
           </div>
           <Link className="text-link" href="/companies">
-            전체 회사 보기 →
+            전체 회사 보기
           </Link>
         </div>
-        <div className="company-grid">
-          {top.map((company, index) => (
-            <CompanyCard
-              key={company.slug}
-              company={company}
-              score={companyScore(state.reviews, company.slug, company.score)}
-              index={index + 1}
-            />
-          ))}
+        <div className="recommendation-layout">
+          <article className="featured-company">
+            <div className="featured-company-topline">
+              <span>주간 추천 01</span>
+              <span>이번 주 관심도 +{top[0].trend}%</span>
+            </div>
+            <div className="featured-company-main">
+              <span className={`company-logo logo-${top[0].slug}`}>
+                {top[0].name.slice(0, 1)}
+              </span>
+              <div>
+                <p>
+                  {top[0].industry} · {top[0].type}
+                </p>
+                <h3>
+                  <Link href={`/companies/${top[0].slug}`}>{top[0].name}</Link>
+                </h3>
+                <p>{top[0].summary}</p>
+              </div>
+            </div>
+            <dl className="featured-company-signals">
+              <div>
+                <dt>종합 점수</dt>
+                <dd>
+                  {companyScore(
+                    state.reviews,
+                    top[0].slug,
+                    top[0].score,
+                  ).toFixed(1)}
+                </dd>
+              </div>
+              <div>
+                <dt>가장 높은 항목</dt>
+                <dd>세일즈 툴 4.7</dd>
+              </div>
+              <div>
+                <dt>재직 확인 리뷰</dt>
+                <dd>{top[0].reviewCount}건</dd>
+              </div>
+            </dl>
+            <div className="featured-company-actions">
+              <Link
+                className="button primary"
+                href={`/companies/${top[0].slug}`}
+              >
+                회사 리포트 보기
+              </Link>
+              <Link className="text-link" href="/compare">
+                비교 목록에 담기
+              </Link>
+            </div>
+          </article>
+          <div className="ranked-companies">
+            <div className="ranked-heading">
+              <span>순위</span>
+              <span>회사 / 높은 평가 항목</span>
+              <span>평점</span>
+            </div>
+            {top.slice(1).map((company, index) => (
+              <Link
+                className="ranked-company"
+                href={`/companies/${company.slug}`}
+                key={company.slug}
+              >
+                <strong>0{index + 2}</strong>
+                <span className={`company-logo logo-${company.slug}`}>
+                  {company.name.slice(0, 1)}
+                </span>
+                <span className="ranked-company-copy">
+                  <b>{company.name}</b>
+                  <small>
+                    {index === 0
+                      ? "매니저 코칭 4.5"
+                      : index === 1
+                        ? "세일즈 툴 4.4"
+                        : "계정 배분 4.3"}
+                  </small>
+                </span>
+                <span className="ranked-company-score">
+                  {companyScore(
+                    state.reviews,
+                    company.slug,
+                    company.score,
+                  ).toFixed(1)}
+                  <small>
+                    {company.trend >= 0
+                      ? `+${company.trend}%`
+                      : `${company.trend}%`}
+                  </small>
+                </span>
+              </Link>
+            ))}
+            <div className="ranked-note">
+              <span>평가 기준</span>
+              <p>최근 12개월 리뷰와 재직 확인 여부를 반영합니다.</p>
+              <Link href="/trust">산정 방식 확인 →</Link>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="dark-section">
-        <div className="page-shell editorial-grid">
+      <section className="insight-section">
+        <div className="page-shell insight-grid">
           <div>
-            <p className="kicker copper">Field notes</p>
-            <h2>
-              성과를 만든 사람들의
-              <br />
-              구체적인 문장
-            </h2>
-            <p>
-              숫자만 인증하지 않습니다. 어떤 선택과 반복이 결과를 바꿨는지
-              기록합니다.
-            </p>
+            <p className="kicker">커뮤니티</p>
+            <h2>최근 많이 본 글</h2>
+            <p>영업 실무, 이직, 팀 운영에 관한 질문과 경험을 모았습니다.</p>
+            <Link className="button secondary" href="/community">
+              커뮤니티 둘러보기
+            </Link>
           </div>
           <div className="story-list">
             {state.posts.slice(1, 4).map((post) => (
               <Link href={`/posts/${post.id}`} key={post.id}>
-                <span>{post.board}</span>
-                <h3>{post.title}</h3>
-                <small>
-                  {post.author} · 도움 {post.likes}
-                </small>
+                <span className="story-board">{post.board}</span>
+                <span className="story-copy">
+                  <h3>{post.title}</h3>
+                  <small>
+                    {post.author}
+                    {post.badge ? ` · ${post.badge}` : ""}
+                  </small>
+                </span>
+                <span className="story-stats">
+                  도움 {post.likes} · 댓글 {post.comments.length}
+                </span>
               </Link>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="page-shell section ai-strip">
-        <div>
-          <p className="kicker">AI + human answer</p>
-          <h2>답이 비어 있는 시간을 없앱니다.</h2>
-          <p>AI는 첫 관점을 제안하고, 검증된 현장 경험이 답을 완성합니다.</p>
+      <section className="page-shell section decision-section">
+        <div className="decision-card compare-card">
+          <span>01</span>
+          <div>
+            <p className="kicker">회사 비교</p>
+            <h2>
+              회사 두 곳의 점수를
+              <br />
+              항목별로 비교합니다.
+            </h2>
+            <p>목표, 인센티브, 리드 품질 등 6개 항목을 비교합니다.</p>
+          </div>
+          <Link className="button primary" href="/compare">
+            회사 비교하기
+          </Link>
         </div>
-        <Link className="button primary" href="/questions/new">
-          질문 직접 올려보기
-        </Link>
+        <div className="decision-card question-card">
+          <span>02</span>
+          <div>
+            <p className="kicker">영업 Q&amp;A</p>
+            <h2>
+              실무 질문을 남기고
+              <br />
+              현직자 답변을 받으세요.
+            </h2>
+            <p>질문이 등록되면 관련 경험이 있는 회원에게 노출됩니다.</p>
+          </div>
+          <Link className="button secondary" href="/questions/new">
+            질문 올리기
+          </Link>
+        </div>
       </section>
     </main>
   );
@@ -319,17 +488,25 @@ function CompanyCard({
 }) {
   return (
     <article className="company-card">
-      <div className="company-index">0{index}</div>
-      <p className="caption">{company.industry}</p>
+      <div className="company-card-head">
+        <span className={`company-logo logo-${company.slug}`}>
+          {company.name.slice(0, 1)}
+        </span>
+        <span className="company-index">추천 {index}</span>
+      </div>
+      <p className="caption">
+        {company.industry} · {company.type}
+      </p>
       <h3>
         <Link href={`/companies/${company.slug}`}>{company.name}</Link>
       </h3>
       <p>{company.summary}</p>
       <div className="score-line">
+        <span className="star">★</span>
         <strong>{score.toFixed(1)}</strong>
-        <span>/ 5.0 · 리뷰 {company.reviewCount}</span>
+        <span>리뷰 {company.reviewCount}</span>
         <b className={company.trend >= 0 ? "up" : "down"}>
-          {company.trend >= 0 ? "+" : ""}
+          관심도 {company.trend >= 0 ? "+" : ""}
           {company.trend}%
         </b>
       </div>
@@ -340,6 +517,9 @@ function CompanyCard({
 function Companies({ state }: { state: DemoState }) {
   const [query, setQuery] = useState("");
   const [industry, setIndustry] = useState("전체");
+  useEffect(() => {
+    setQuery(new URLSearchParams(window.location.search).get("q") ?? "");
+  }, []);
   const filtered = companies.filter(
     (company) =>
       (industry === "전체" || company.industry === industry) &&
@@ -348,9 +528,9 @@ function Companies({ state }: { state: DemoState }) {
   return (
     <main className="page-shell page">
       <PageTitle
-        eyebrow="Company explorer"
-        title="나에게 맞는 영업 조직을 찾으세요"
-        description="직함이 아니라 실제 영업 방식과 지원 환경으로 비교합니다."
+        eyebrow="회사 리뷰"
+        title="회사 리뷰 찾기"
+        description="회사명이나 업종을 검색하고 영업환경 점수를 비교하세요."
       />
       <div className="filter-bar">
         <label>
@@ -410,16 +590,48 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
       return [label, value];
     }),
   );
+  const rankedDimensions = Object.entries(dimensionScores).sort(
+    ([, a], [, b]) => b - a,
+  );
+  const strongest = rankedDimensions[0];
+  const weakest = rankedDimensions[rankedDimensions.length - 1];
   return (
-    <main className="page-shell page">
+    <main className="page-shell page company-detail-page">
+      <nav className="breadcrumb" aria-label="현재 위치">
+        <Link href="/companies">회사 탐색</Link>
+        <span>/</span>
+        <span>{company.name}</span>
+      </nav>
       <div className="company-hero">
-        <div>
-          <p className="kicker">
-            {company.industry} · {company.type}
-          </p>
-          <h1>{company.name}</h1>
-          <p>{company.summary}</p>
-          <div className="hero-actions">
+        <div className="company-identity">
+          <span
+            className={`company-logo company-logo-large logo-${company.slug}`}
+          >
+            {company.name.slice(0, 1)}
+          </span>
+          <div>
+            <p className="kicker">
+              {company.industry} · {company.type}
+            </p>
+            <h1>{company.name}</h1>
+            <p>{company.summary}</p>
+            <div className="company-facts">
+              <span>리뷰 {company.reviewCount}건</span>
+              <span>최근 업데이트 3일 전</span>
+              <span>최근 12개월 리뷰 반영</span>
+            </div>
+          </div>
+        </div>
+        <div className="company-decision-box">
+          <div className="score-monument">
+            <span>영업환경 종합</span>
+            <strong>{score.toFixed(1)}</strong>
+            <small>
+              재직 확인 리뷰{" "}
+              {reviews.filter((review) => review.verified).length}건 포함
+            </small>
+          </div>
+          <div className="company-decision-actions">
             <Link className="button primary" href="/reviews/new">
               익명 리뷰 작성
             </Link>
@@ -428,18 +640,63 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
             </Link>
           </div>
         </div>
-        <div className="score-monument">
-          <span>영업환경 종합</span>
-          <strong>{score.toFixed(1)}</strong>
-          <small>
-            검증 리뷰 {reviews.filter((review) => review.verified).length}건
-            포함
-          </small>
-        </div>
       </div>
-      <section className="section-tight">
+      <nav className="company-tabs" aria-label="회사 정보 섹션">
+        <a href="#overview">리뷰 요약</a>
+        <a href="#environment">영업환경 6축</a>
+        <a href="#reviews">현직자 리뷰 {reviews.length}</a>
+      </nav>
+      <section className="decision-overview" id="overview">
+        <div className="decision-summary">
+          <p className="kicker">리뷰 요약</p>
+          <h2>리뷰에서 확인된 주요 내용</h2>
+          <div className="decision-findings">
+            <article>
+              <span className="finding-label positive">강점</span>
+              <div>
+                <strong>
+                  {strongest[0]} {strongest[1].toFixed(1)}
+                </strong>
+                <p>6개 평가 항목 중 가장 높은 점수입니다.</p>
+              </div>
+            </article>
+            <article>
+              <span className="finding-label caution">확인</span>
+              <div>
+                <strong>
+                  {weakest[0]} {weakest[1].toFixed(1)}
+                </strong>
+                <p>6개 평가 항목 중 가장 낮은 점수입니다.</p>
+              </div>
+            </article>
+            <article>
+              <span className="finding-label neutral">변화</span>
+              <div>
+                <strong>
+                  관심도 {company.trend >= 0 ? "+" : ""}
+                  {company.trend}%
+                </strong>
+                <p>지난 4주 대비 회사 상세 조회수 변화입니다.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+        <aside className="fit-checklist">
+          <span>리뷰에서 언급된 팀 운영 방식</span>
+          <ul>
+            <li>분기 초 계정 배분 기준을 공유합니다.</li>
+            <li>큰 딜에는 세일즈 엔지니어가 초반부터 참여합니다.</li>
+            <li>툴과 프로세스가 자주 바뀐다는 의견이 있습니다.</li>
+          </ul>
+          <Link href="/questions/new">현직자에게 확인 질문하기 →</Link>
+        </aside>
+      </section>
+      <section className="section-tight" id="environment">
         <div className="section-heading">
-          <h2>영업환경 6축</h2>
+          <div>
+            <p className="kicker">항목별 점수</p>
+            <h2>영업환경 6축</h2>
+          </div>
           <span className="trust-chip">
             표본 {company.reviewCount} · 최근 12개월
           </span>
@@ -456,28 +713,57 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
           ))}
         </div>
       </section>
-      <section className="section-tight">
+      <section className="section-tight" id="reviews">
         <div className="section-heading">
-          <h2>익명 경험 리뷰</h2>
-          <Link className="text-link" href="/trust">
-            익명성 보호 방식 →
-          </Link>
+          <div>
+            <p className="kicker">회사 리뷰</p>
+            <h2>재직자·퇴사자 리뷰</h2>
+          </div>
+          <div className="review-heading-actions">
+            <span>최신순</span>
+            <Link className="text-link" href="/trust">
+              검증·익명성 기준
+            </Link>
+          </div>
         </div>
-        <div className="review-list">
-          {reviews.map((review) => (
-            <article key={review.id}>
+        <div className="review-layout">
+          <div className="review-list">
+            {reviews.map((review) => (
+              <article key={review.id}>
+                <div>
+                  <span className="trust-chip">
+                    {review.verified ? "재직 검증" : "일반"}
+                  </span>
+                  <span>{review.employment}</span>
+                  <strong>★ {review.score.toFixed(1)}</strong>
+                </div>
+                <h3>{review.title}</h3>
+                <p>{review.body}</p>
+                <small>최근 12개월 경험 · 개인 식별정보 분리 보관</small>
+              </article>
+            ))}
+          </div>
+          <aside className="review-guide">
+            <strong>리뷰를 읽는 기준</strong>
+            <p>점수 하나보다 같은 항목이 반복해서 언급되는지 확인하세요.</p>
+            <dl>
               <div>
-                <span className="trust-chip">
-                  {review.verified ? "재직 검증" : "일반"}
-                </span>
-                <span>{review.employment}</span>
-                <strong>{review.score.toFixed(1)}</strong>
+                <dt>재직 검증</dt>
+                <dd>이메일·증빙 확인</dd>
               </div>
-              <h3>{review.title}</h3>
-              <p>{review.body}</p>
-              <small>작성자 정보는 별도 암호화 영역에 격리됩니다.</small>
-            </article>
-          ))}
+              <div>
+                <dt>최근 리뷰</dt>
+                <dd>12개월 이내</dd>
+              </div>
+              <div>
+                <dt>현재 공개</dt>
+                <dd>{reviews.length}건</dd>
+              </div>
+            </dl>
+            <Link className="button secondary" href="/reviews/new">
+              내 경험 남기기
+            </Link>
+          </aside>
         </div>
       </section>
     </main>
@@ -523,9 +809,9 @@ function ReviewForm({
   return (
     <main className="page-shell page narrow">
       <PageTitle
-        eyebrow="Anonymous review"
-        title="다음 영업인을 위한 솔직한 기록"
-        description="개인을 특정할 수 있는 정보는 쓰지 말아주세요. 공개 전 자동 안전 검사를 거칩니다."
+        eyebrow="회사 리뷰"
+        title="익명 리뷰 작성"
+        description="개인이나 고객을 특정할 수 있는 정보는 제외해 주세요. 등록 전에 개인정보 포함 여부를 확인합니다."
       />
       <form className="form-panel" onSubmit={submit}>
         <label>
@@ -630,10 +916,12 @@ function Community({
   notify: (m: string) => void;
 }) {
   const [board, setBoard] = useState("전체");
+  const [search, setSearch] = useState("");
   const posts = state.posts.filter(
     (post) =>
       !state.hiddenPostIds.includes(post.id) &&
-      (board === "전체" || post.board === board),
+      (board === "전체" || post.board === board) &&
+      `${post.title}${post.body}${post.author}`.includes(search),
   );
   const toggleSave = (id: string) => {
     setState((current) => ({
@@ -645,55 +933,151 @@ function Community({
     notify("스크랩 상태가 변경됐습니다.");
   };
   return (
-    <main className="page-shell page">
-      <PageTitle
-        eyebrow="Sales community"
-        title="현장에서 바로 쓰이는 답"
-        description="질문, 실적, 실패와 노하우가 검증 수준과 함께 쌓입니다."
-      />
-      <div className="board-tabs">
-        {["전체", "자유", "Q&A", "실적", "노하우"].map((value) => (
-          <button
-            className={board === value ? "active" : ""}
-            onClick={() => setBoard(value)}
-            key={value}
-          >
-            {value}
-          </button>
-        ))}
-        <div className="board-create-actions">
-          <Link className="button secondary" href="/posts/new">
-            게시글 작성
-          </Link>
-          <Link className="button primary" href="/questions/new">
-            질문 작성
-          </Link>
+    <main className="page community-page">
+      <section className="community-hero">
+        <div className="page-shell community-hero-inner">
+          <div>
+            <p className="kicker">영업 커뮤니티</p>
+            <h1>
+              먼저 검색하고,
+              <br />
+              없으면 질문하세요.
+            </h1>
+            <p>영업 질문과 현장 사례를 검색할 수 있습니다.</p>
+          </div>
+          <div className="community-hero-actions">
+            <Link className="button primary" href="/questions/new">
+              질문 작성
+            </Link>
+            <Link className="button secondary" href="/posts/new">
+              경험 공유
+            </Link>
+          </div>
+          <dl className="community-stats">
+            <div>
+              <dt>답변 완료율</dt>
+              <dd>94%</dd>
+            </div>
+            <div>
+              <dt>첫 답변까지</dt>
+              <dd>평균 18분</dd>
+            </div>
+            <div>
+              <dt>검증 영업인</dt>
+              <dd>4,812명</dd>
+            </div>
+          </dl>
         </div>
-      </div>
-      <div className="feed">
-        {posts.map((post) => (
-          <article key={post.id}>
-            <div className="post-meta">
-              <span>{post.board}</span>
-              <strong>{post.author}</strong>
-              {post.badge ? <b>{post.badge}</b> : null}
-            </div>
-            <h2>
-              <Link href={`/posts/${post.id}`}>{post.title}</Link>
-            </h2>
-            <p>{post.body}</p>
-            <div className="post-actions">
-              <span>도움 {post.likes}</span>
-              <span>댓글 {post.comments.length}</span>
-              {post.ai ? (
-                <span className="ai-label">AI 첫 답변 완료</span>
-              ) : null}
-              <button onClick={() => toggleSave(post.id)}>
-                {post.saved ? "스크랩됨" : "스크랩"}
+      </section>
+      <div className="page-shell community-workspace">
+        <aside className="community-channels">
+          <span className="rail-label">주제별 탐색</span>
+          <nav className="board-tabs" aria-label="커뮤니티 게시판">
+            {["전체", "Q&A", "노하우", "실적", "자유"].map((value) => (
+              <button
+                className={board === value ? "active" : ""}
+                onClick={() => setBoard(value)}
+                key={value}
+              >
+                <span>{value}</span>
+                <b>
+                  {value === "전체"
+                    ? state.posts.length
+                    : state.posts.filter((post) => post.board === value).length}
+                </b>
               </button>
-            </div>
-          </article>
-        ))}
+            ))}
+          </nav>
+          <div className="channel-guide">
+            <strong>좋은 질문의 조건</strong>
+            <p>
+              상황, 시도한 방법, 원하는 결과를 함께 적으면 더 구체적인 답을 받을
+              수 있습니다.
+            </p>
+            <Link href="/questions/new">질문 가이드 보기 →</Link>
+          </div>
+        </aside>
+        <section className="community-main">
+          <div className="community-toolbar">
+            <label>
+              <span className="visually-hidden">커뮤니티 검색</span>
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="질문과 노하우 검색"
+              />
+            </label>
+            <span>{posts.length}개 결과 · 최신순</span>
+          </div>
+          <div className="feed">
+            {posts.map((post) => (
+              <article
+                key={post.id}
+                className={post.board === "Q&A" ? "question-post" : ""}
+              >
+                <div className="post-index">
+                  {post.board === "Q&A"
+                    ? "Q"
+                    : post.board === "노하우"
+                      ? "N"
+                      : post.board === "실적"
+                        ? "R"
+                        : "F"}
+                </div>
+                <div className="post-content">
+                  <div className="post-meta">
+                    <span>{post.board}</span>
+                    <strong>{post.author}</strong>
+                    {post.badge ? <b>{post.badge}</b> : null}
+                  </div>
+                  <h2>
+                    <Link href={`/posts/${post.id}`}>{post.title}</Link>
+                  </h2>
+                  <p>{post.body}</p>
+                  <div className="post-actions">
+                    <span>도움 {post.likes}</span>
+                    <span>답변 {post.comments.length}</span>
+                    {post.ai ? (
+                      <span className="ai-label">첫 답변 완료</span>
+                    ) : null}
+                    <button onClick={() => toggleSave(post.id)}>
+                      {post.saved ? "스크랩됨" : "스크랩"}
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+        <aside className="community-rail">
+          <section>
+            <span className="rail-label">지금 많이 찾는 주제</span>
+            <ol>
+              <li>
+                <Link href="/community">엔터프라이즈 첫 미팅</Link>
+                <span>42</span>
+              </li>
+              <li>
+                <Link href="/community">인센티브 협상</Link>
+                <span>31</span>
+              </li>
+              <li>
+                <Link href="/community">영업 리더 이직</Link>
+                <span>28</span>
+              </li>
+              <li>
+                <Link href="/community">ROI 제안서</Link>
+                <span>19</span>
+              </li>
+            </ol>
+          </section>
+          <section className="answer-standard">
+            <span>답변자 확인 정보</span>
+            <strong>경력·재직·실적 확인 여부를 표시합니다.</strong>
+            <p>답변자 이름 옆의 확인 배지를 참고하세요.</p>
+            <Link href="/trust">검증 정책 →</Link>
+          </section>
+        </aside>
       </div>
     </main>
   );
@@ -739,9 +1123,9 @@ function PostForm({
   return (
     <main className="page-shell page narrow">
       <PageTitle
-        eyebrow="Publish a field note"
-        title="성과와 실패를 재사용 가능한 기록으로"
-        description="데모에서는 이미지 파일명만 보관하며 실제 파일은 외부로 전송하지 않습니다."
+        eyebrow="커뮤니티"
+        title="게시글 작성"
+        description="영업 경험이나 업무 자료를 공유할 수 있습니다. 데모에서는 첨부 파일의 이름만 저장합니다."
       />
       <form className="form-panel" onSubmit={submit}>
         <label>
@@ -780,7 +1164,7 @@ function PostForm({
         <label>
           이미지 첨부
           <input name="images" type="file" accept="image/*" multiple />
-          <small>JPG·PNG·WebP · 실서비스는 private Storage를 사용합니다.</small>
+          <small>JPG·PNG·WebP · 데모에서는 파일 이름만 저장합니다.</small>
         </label>
         <button className="button primary">게시글 등록</button>
       </form>
@@ -840,14 +1224,12 @@ function PostDetail({
         ) : null}
         {post.ai === "posted" ? (
           <aside className="ai-answer">
-            <span>AI FIRST TAKE · 안전 검토 완료</span>
-            <h3>
-              첫 미팅의 목표를 ‘다음 의사결정이 가능한 상태’로 잡아보세요.
-            </h3>
+            <span>AI 초안 · 개인정보 검사 완료</span>
+            <h3>첫 미팅에서 승인자와 다음 일정을 확인하세요.</h3>
             <p>
-              경제적 구매자, 문제의 비용, 내부 의사결정 이벤트를 확인하고 다음
-              회의의 참석자와 산출물을 합의하면 좋습니다. 실제 조직별 경험은
-              아래 현장 답변을 함께 참고하세요.
+              예산 승인자, 현재 문제로 발생하는 비용, 구매 일정을 확인하세요.
+              미팅이 끝나기 전에 다음 회의 참석자와 준비 자료도 정해두는 것이
+              좋습니다.
             </p>
           </aside>
         ) : null}
@@ -874,7 +1256,7 @@ function PostDetail({
       </article>
       <section className="comments">
         <h2>
-          현장 답변 <span>{post.comments.length}</span>
+          회원 답변 <span>{post.comments.length}</span>
         </h2>
         {post.comments.map((comment, index) => (
           <article key={`${comment}-${index}`}>
@@ -898,7 +1280,7 @@ function PostDetail({
           <form className="comment-form" onSubmit={addComment}>
             <label>
               {replyingTo === null
-                ? "경험으로 답변하기"
+                ? "답변 작성"
                 : `${replyingTo + 1}번 답변에 답글 쓰기`}
               <textarea name="comment" rows={4} required />
             </label>
@@ -931,7 +1313,7 @@ function QuestionForm({
   const ask = (event: FormEvent) => {
     event.preventDefault();
     setStatus("queued");
-    notify("질문이 등록됐습니다. AI 마중물을 준비합니다.");
+    notify("질문을 등록했습니다. AI 초안을 작성 중입니다.");
     window.setTimeout(() => setStatus("thinking"), 1200);
     window.setTimeout(() => {
       setStatus("posted");
@@ -939,7 +1321,7 @@ function QuestionForm({
         id: `p-${Date.now()}`,
         board: "Q&A",
         title,
-        body: "평가자가 직접 등록한 데모 질문입니다.",
+        body: "질문 등록 시 입력한 상황 설명입니다.",
         author: roleNames[state.role],
         badge: state.role === "verified" ? "검증 영업인 L2" : undefined,
         likes: 0,
@@ -953,9 +1335,9 @@ function QuestionForm({
   return (
     <main className="page-shell page narrow">
       <PageTitle
-        eyebrow="Ask the field"
-        title="질문을 구체화하면, 답도 빨라집니다"
-        description="AI는 6–10초 데모로 압축되며 실서비스에서는 60–120초 내 첫 답변을 목표로 합니다."
+        eyebrow="영업 Q&A"
+        title="커뮤니티에 질문하기"
+        description="질문 등록 후 AI 초안이 먼저 표시되고, 이후 회원 답변을 받을 수 있습니다."
       />
       {status === "idle" ? (
         <form className="form-panel" onSubmit={ask}>
@@ -975,7 +1357,7 @@ function QuestionForm({
             <textarea
               rows={7}
               required
-              defaultValue="고객이 문제에는 공감하지만 예산 이야기를 미루고 있습니다. 관계를 해치지 않고 의사결정 조건을 확인하고 싶습니다."
+              defaultValue="고객이 제품 필요성은 인정하지만 예산 이야기는 계속 미룹니다. 첫 미팅에서 어떤 순서로 물어봐야 할까요?"
             />
           </label>
           <div className="similar-box">
@@ -992,13 +1374,13 @@ function QuestionForm({
             className={`progress-step ${status !== "queued" ? "done" : "active"}`}
           >
             <b>01</b>
-            <span>질문 안전 검사</span>
+            <span>질문 내용 검사</span>
           </div>
           <div
             className={`progress-step ${status === "thinking" ? "active" : status === "posted" ? "done" : ""}`}
           >
             <b>02</b>
-            <span>AI 첫 관점 생성</span>
+            <span>AI 초안 작성</span>
           </div>
           <div
             className={`progress-step ${status === "posted" ? "active" : ""}`}
@@ -1008,12 +1390,11 @@ function QuestionForm({
           </div>
           {status === "posted" ? (
             <div className="ai-result">
-              <span>AI FIRST TAKE</span>
-              <h2>예산이 아니라 ‘결정 조건’을 먼저 물어보세요.</h2>
+              <span>AI 초안</span>
+              <h2>예산 승인 절차와 결정 기준을 먼저 확인하세요.</h2>
               <p>
-                “이 문제가 해결됐다고 판단하려면 어떤 지표와 내부 합의가
-                필요할까요?”로 시작해 경제적 영향과 승인 주체를 함께 확인해
-                보세요.
+                먼저 예산을 승인하는 사람과 검토 순서를 물어보세요. 이어서 도입
+                여부를 결정할 지표와 내부 일정을 확인하면 됩니다.
               </p>
               <Link className="button primary" href="/community">
                 커뮤니티에서 보기
@@ -1021,7 +1402,7 @@ function QuestionForm({
             </div>
           ) : (
             <p className="thinking">
-              답변을 준비하는 동안 관련 노하우를 추천하고 있습니다…
+              질문 내용을 확인하고 AI 초안을 작성하고 있습니다.
             </p>
           )}
         </div>
@@ -1045,9 +1426,9 @@ function Account({
   return (
     <main className="page-shell page">
       <PageTitle
-        eyebrow="My fieldnote"
-        title="경험이 쌓일수록 신뢰도 함께 쌓입니다"
-        description="활동, 스크랩, 검증 상태를 한곳에서 관리합니다."
+        eyebrow="마이페이지"
+        title="내 활동 관리"
+        description="프로필, 작성 글, 스크랩, 확인 배지를 관리합니다."
       />
       <div className="account-grid">
         <aside className="profile-panel">
@@ -1108,7 +1489,7 @@ function Account({
           </section>
           <section>
             <div className="section-heading">
-              <h2>검증 배지</h2>
+              <h2>확인 배지</h2>
               <span>{state.badgeStatus}</span>
             </div>
             <div className="badge-box">
@@ -1117,8 +1498,8 @@ function Account({
                 <span>재직·실적 검증</span>
               </div>
               <p>
-                회사 이메일과 최근 실적을 분리된 비공개 금고에 제출합니다. 공개
-                화면에는 검증 결과만 표시됩니다.
+                회사 이메일과 실적 자료는 비공개로 제출합니다. 프로필에는 확인
+                결과만 표시됩니다.
               </p>
               <button
                 className="button secondary"
@@ -1127,10 +1508,10 @@ function Account({
                     ...current,
                     badgeStatus: "검토중",
                   }));
-                  notify("합성 증빙이 업로드되어 검토중으로 전환됐습니다.");
+                  notify("샘플 확인 자료를 제출했습니다.");
                 }}
               >
-                합성 증빙으로 신청 체험
+                샘플 자료로 신청
               </button>
             </div>
           </section>
@@ -1147,7 +1528,7 @@ function Account({
                 ))}
               <Link href="/posts/p2">
                 <span>댓글</span>
-                <strong>ROI 문서 구조에 경험을 덧붙였습니다.</strong>
+                <strong>ROI 문서 글에 댓글을 작성했습니다.</strong>
               </Link>
             </div>
           </section>
@@ -1167,9 +1548,9 @@ function Compare({ state }: { state: DemoState }) {
   return (
     <main className="page-shell page">
       <PageTitle
-        eyebrow="Side by side"
-        title="두 회사를 같은 질문으로 비교하세요"
-        description="평균 점수보다 나에게 중요한 영업 조건의 차이를 봅니다."
+        eyebrow="회사 비교"
+        title="회사 두 곳 비교"
+        description="영업환경 6개 항목의 점수와 리뷰를 나란히 확인합니다."
       />
       <div className="compare-select">
         <select value={a} onChange={(e) => setA(e.target.value)}>
@@ -1225,11 +1606,19 @@ function Admin({
   setState: (fn: (s: DemoState) => DemoState) => void;
   notify: (m: string) => void;
 }) {
+  const [reviewFilter, setReviewFilter] = useState<
+    "all" | "privacy" | "report"
+  >("all");
+  const reviewQueue = state.reviews.slice(0, 3).filter((review) => {
+    if (reviewFilter === "privacy") return review.id === "r1";
+    if (reviewFilter === "report") return review.id !== "r1";
+    return true;
+  });
   if (state.role !== "admin")
     return (
       <main className="page-shell page narrow">
         <PageTitle
-          eyebrow="Permission required"
+          eyebrow="접근 권한"
           title="운영 관리자 역할이 필요합니다"
           description="아래 데모 도크에서 운영 관리자 역할로 전환하세요."
         />
@@ -1237,30 +1626,102 @@ function Admin({
     );
   const nav = (
     <nav className="admin-nav">
-      <Link href="/admin">대시보드</Link>
-      <Link href="/admin/reviews">리뷰 운영</Link>
-      <Link href="/admin/companies">회사·XLSX</Link>
-      <Link href="/admin/placements">홈 배치</Link>
-      <Link href="/admin/members">회원</Link>
-      <Link href="/admin/content">콘텐츠</Link>
+      <div className="admin-nav-brand">
+        <strong>FIELDNOTE 운영</strong>
+        <span>관리자 화면</span>
+      </div>
+      <span className="admin-nav-label">요약</span>
+      <Link className={path === "/admin" ? "active" : ""} href="/admin">
+        대시보드
+      </Link>
+      <span className="admin-nav-label">검토 작업</span>
+      <Link
+        className={path === "/admin/reviews" ? "active" : ""}
+        href="/admin/reviews"
+      >
+        리뷰 운영 <b>3</b>
+      </Link>
+      <Link
+        className={path === "/admin/members" ? "active" : ""}
+        href="/admin/members"
+      >
+        회원 <b>8</b>
+      </Link>
+      <Link
+        className={path === "/admin/content" ? "active" : ""}
+        href="/admin/content"
+      >
+        콘텐츠 <b>4</b>
+      </Link>
+      <span className="admin-nav-label">데이터 관리</span>
+      <Link
+        className={path === "/admin/companies" ? "active" : ""}
+        href="/admin/companies"
+      >
+        회사·XLSX
+      </Link>
+      <Link
+        className={path === "/admin/placements" ? "active" : ""}
+        href="/admin/placements"
+      >
+        홈 배치
+      </Link>
+      <div className="admin-nav-status">
+        <i />
+        <span>모든 시스템 정상</span>
+      </div>
     </nav>
   );
   let panel;
   if (path === "/admin/reviews")
     panel = (
       <>
-        <AdminTitle title="리뷰 신고·분쟁 큐" count="03" />
-        {state.reviews.slice(0, 3).map((review) => (
-          <div className="admin-row" key={review.id}>
+        <AdminTitle title="검토할 리뷰" count="03" />
+        <div className="admin-queue-toolbar">
+          <div>
+            <button
+              className={reviewFilter === "all" ? "active" : ""}
+              aria-pressed={reviewFilter === "all"}
+              onClick={() => setReviewFilter("all")}
+            >
+              전체 3
+            </button>
+            <button
+              className={reviewFilter === "privacy" ? "active" : ""}
+              aria-pressed={reviewFilter === "privacy"}
+              onClick={() => setReviewFilter("privacy")}
+            >
+              개인정보 1
+            </button>
+            <button
+              className={reviewFilter === "report" ? "active" : ""}
+              aria-pressed={reviewFilter === "report"}
+              onClick={() => setReviewFilter("report")}
+            >
+              신고 2
+            </button>
+          </div>
+          <span>목표 처리시간 2시간 · 현재 SLA 정상</span>
+        </div>
+        <div className="admin-list-head" aria-hidden="true">
+          <span>리뷰</span>
+          <span>상태</span>
+          <span>처리</span>
+        </div>
+        {reviewQueue.map((review) => (
+          <div className="admin-row admin-review-row" key={review.id}>
             <div>
               <span>
                 {companies.find((c) => c.slug === review.companySlug)?.name}
               </span>
               <strong>{review.title}</strong>
               <small>
-                {review.status === "hidden" ? "블라인드됨" : "공개중"}
+                {review.employment} · 평점 {review.score.toFixed(1)}
               </small>
             </div>
+            <span className={`admin-row-status ${review.status}`}>
+              {review.status === "hidden" ? "비공개" : "공개"}
+            </span>
             <button
               onClick={() => {
                 setState((current) => ({
@@ -1275,7 +1736,7 @@ function Admin({
                       : item,
                   ),
                 }));
-                notify("상태 변경과 사유가 감사로그에 기록됐습니다.");
+                notify("리뷰 공개 상태를 변경했습니다.");
               }}
             >
               {review.status === "hidden" ? "복구" : "블라인드"}
@@ -1305,7 +1766,7 @@ function Admin({
               manualCompanies: [name, ...current.manualCompanies],
             }));
             form.reset();
-            notify("회사 기초정보가 수기 등록됐습니다.");
+            notify("회사를 등록했습니다.");
           }}
         >
           <label>
@@ -1331,8 +1792,8 @@ function Admin({
           </div>
         ))}
         <div className="import-box">
-          <span>XLSX DRY-RUN</span>
-          <h2>회사 1,240행 일괄 등록</h2>
+          <span>엑셀 파일 사전 검사</span>
+          <h2>회사 1,240개 일괄 등록</h2>
           <p>필수값, 중복 회사, 수식·악성 셀을 저장 전에 검사합니다.</p>
           {state.imported ? (
             <div className="import-result">
@@ -1345,20 +1806,18 @@ function Admin({
             className="button primary"
             onClick={() => {
               setState((current) => ({ ...current, imported: true }));
-              notify(
-                "dry-run이 완료됐습니다. 아직 DB에는 반영되지 않았습니다.",
-              );
+              notify("파일 검사를 마쳤습니다. 아직 저장하지 않았습니다.");
             }}
           >
-            샘플 XLSX dry-run
+            샘플 파일 검사
           </button>
         </div>
         <div className="crawler-box">
-          <span>CRAWLER CANDIDATE PREVIEW</span>
-          <h2>외부 회사 후보 수집</h2>
+          <span>외부 회사 후보 미리보기</span>
+          <h2>새 회사 후보 확인</h2>
           <p>
-            robots 정책·출처·수집시각을 보존하고 자동 게시 없이 병합 후보만
-            생성합니다.
+            출처와 수집 시각을 기록하고, 기존 회사와 중복되는지 먼저 확인합니다.
+            확인 전에는 공개되지 않습니다.
           </p>
           {state.crawlPreviewed ? (
             <div className="import-result">
@@ -1374,10 +1833,10 @@ function Admin({
                 ...current,
                 crawlPreviewed: true,
               }));
-              notify("크롤러 후보 미리보기가 생성됐습니다.");
+              notify("새 회사 후보를 불러왔습니다.");
             }}
           >
-            후보 수집 dry-run
+            후보 불러오기
           </button>
         </div>
       </>
@@ -1387,10 +1846,8 @@ function Admin({
       <>
         <AdminTitle title="홈 콘텐츠 배치" count="08" />
         <div className="placement-preview">
-          <span>
-            {state.placementsPublished ? "PUBLISHED" : "DRAFT PREVIEW"}
-          </span>
-          <h2>영업환경이 좋은 조직, 이번 주의 세 곳</h2>
+          <span>{state.placementsPublished ? "게시 중" : "미리보기"}</span>
+          <h2>이번 주 추천 회사 3곳</h2>
           <p>노스스타 클라우드 · 오빗 바이오웍스 · 모자이크 러닝</p>
           <button
             className="button primary"
@@ -1401,8 +1858,8 @@ function Admin({
               }));
               notify(
                 state.placementsPublished
-                  ? "배치를 draft로 되돌렸습니다."
-                  : "홈 배치가 게시됐습니다.",
+                  ? "추천 영역을 미리보기 상태로 변경했습니다."
+                  : "추천 영역을 게시했습니다.",
               );
             }}
           >
@@ -1428,7 +1885,7 @@ function Admin({
                     ...current,
                     badgeStatus: "승인",
                   }));
-                  notify("승인 처리와 사유가 감사로그에 기록됐습니다.");
+                  notify("확인 배지 신청을 승인했습니다.");
                 }}
               >
                 승인
@@ -1439,7 +1896,7 @@ function Admin({
                     ...current,
                     badgeStatus: "반려",
                   }));
-                  notify("반려 처리와 사유가 감사로그에 기록됐습니다.");
+                  notify("확인 배지 신청을 반려했습니다.");
                 }}
               >
                 반려
@@ -1470,7 +1927,7 @@ function Admin({
                     ? current.hiddenPostIds.filter((id) => id !== post.id)
                     : [...current.hiddenPostIds, post.id],
                 }));
-                notify("콘텐츠 공개 상태와 사유가 감사로그에 기록됐습니다.");
+                notify("게시글 공개 상태를 변경했습니다.");
               }}
             >
               {state.hiddenPostIds.includes(post.id) ? "복구" : "블라인드"}
@@ -1483,43 +1940,114 @@ function Admin({
     panel = (
       <>
         <AdminTitle title="오늘의 운영 우선순위" count="07" />
+        <section className="priority-brief">
+          <div>
+            <span>가장 먼저 처리할 작업</span>
+            <h2>개인정보 탐지로 보류된 리뷰 1건</h2>
+            <p>게시 기한까지 38분 남았습니다. 원문과 탐지 구간을 확인하세요.</p>
+          </div>
+          <Link className="button primary" href="/admin/reviews">
+            검토 시작
+          </Link>
+        </section>
         <div className="admin-metrics">
           <article>
-            <span>검증 대기</span>
+            <div>
+              <span>검증 대기</span>
+              <b>정상</b>
+            </div>
             <strong>8</strong>
-            <small>24시간 내 처리 92%</small>
+            <small>24시간 내 처리율 92% · 가장 오래된 건 3시간</small>
+            <Link href="/admin/members">대기열 열기 →</Link>
           </article>
           <article>
-            <span>신고 리뷰</span>
+            <div>
+              <span>신고 리뷰</span>
+              <b className="urgent">주의</b>
+            </div>
             <strong>3</strong>
-            <small>고위험 1건</small>
+            <small>고위험 1건 · 오늘 신규 2건</small>
+            <Link href="/admin/reviews">분쟁 큐 열기 →</Link>
           </article>
           <article>
-            <span>AI 실패</span>
+            <div>
+              <span>AI 답변 오류</span>
+              <b>정상</b>
+            </div>
             <strong>0</strong>
-            <small>재시도 큐 정상</small>
+            <small>재시도 대기 없음 · 마지막 점검 2분 전</small>
+            <Link href="/admin/content">상태 확인 →</Link>
           </article>
         </div>
-        <div className="audit-feed">
-          <h2>최근 운영 로그</h2>
-          {[
-            "홈 placement 미리보기 생성",
-            "회사 중복 후보 4건 병합 제안",
-            "리뷰 개인정보 탐지로 자동 보류",
-          ].map((item) => (
-            <p key={item}>
-              <span>방금 전</span>
-              {item}
-              <b>trace 확인 →</b>
-            </p>
-          ))}
+        <div className="admin-dashboard-lower">
+          <section className="work-queue">
+            <div className="admin-section-head">
+              <div>
+                <span>대기 작업</span>
+                <h2>내 작업 대기열</h2>
+              </div>
+              <b>우선순위순</b>
+            </div>
+            {[
+              ["P1", "리뷰", "개인정보 탐지 구간 확인", "38분 남음"],
+              ["P2", "회원", "재직 증빙 8건 검토", "오늘 18:00"],
+              ["P3", "회사", "중복 후보 4건 병합", "내일"],
+            ].map(([priority, type, title, due]) => (
+              <Link
+                href={
+                  type === "리뷰"
+                    ? "/admin/reviews"
+                    : type === "회원"
+                      ? "/admin/members"
+                      : "/admin/companies"
+                }
+                className="work-queue-row"
+                key={title}
+              >
+                <span className={`priority priority-${priority.toLowerCase()}`}>
+                  {priority}
+                </span>
+                <span>{type}</span>
+                <strong>{title}</strong>
+                <small>{due}</small>
+              </Link>
+            ))}
+          </section>
+          <section className="audit-feed">
+            <div className="admin-section-head">
+              <div>
+                <span>처리 기록</span>
+                <h2>최근 운영 로그</h2>
+              </div>
+            </div>
+            {[
+              "홈 추천 영역 미리보기 생성",
+              "회사 중복 후보 4건 확인 요청",
+              "리뷰 개인정보 탐지로 자동 보류",
+            ].map((item, index) => (
+              <p key={item}>
+                <span>{index === 0 ? "방금 전" : `${index * 7}분 전`}</span>
+                {item}
+                <b>기록 보기 →</b>
+              </p>
+            ))}
+          </section>
         </div>
       </>
     );
   return (
     <main className="admin-shell">
       {nav}
-      <section className="admin-panel">{panel}</section>
+      <section className="admin-panel">
+        <div className="admin-contextbar">
+          <span>2026년 7월 21일 · 운영 관리자</span>
+          <div>
+            <i />
+            실시간 동기화
+          </div>
+        </div>
+        {panel}
+      </section>
     </main>
   );
 }
@@ -1528,17 +2056,17 @@ function Trust() {
   return (
     <main className="page-shell page">
       <PageTitle
-        eyebrow="Trust by design"
-        title="익명은 숨김이 아니라, 분리된 책임입니다"
-        description="리뷰 신뢰와 작성자 보호를 동시에 지키는 운영 원칙입니다."
+        eyebrow="운영 정책"
+        title="리뷰 작성자 보호 및 검증 정책"
+        description="작성자 정보 보관, 재직 확인, 신고 처리 기준을 안내합니다."
       />
       <div className="trust-grid">
         <article>
           <b>01</b>
-          <h2>작성자 식별 분리</h2>
+          <h2>작성자 정보 분리 보관</h2>
           <p>
-            공개 리뷰와 식별키를 다른 권한 영역에 저장합니다. 일반 운영자는
-            연결할 수 없습니다.
+            공개 리뷰와 작성자 식별정보는 별도 권한 영역에 저장합니다. 일반
+            운영자는 작성자를 확인할 수 없습니다.
           </p>
         </article>
         <article>
@@ -1551,18 +2079,17 @@ function Trust() {
         </article>
         <article>
           <b>03</b>
-          <h2>AI는 보조자</h2>
+          <h2>AI 답변 표시</h2>
           <p>
-            개인정보·공격 표현을 차단하고 출처 없는 단정은 피합니다. 모든 AI
-            답변에 라벨을 붙입니다.
+            AI가 작성한 초안에는 별도 표시를 붙입니다. 개인정보가 포함된 질문은
+            답변 작성 전에 보류합니다.
           </p>
         </article>
         <article>
           <b>04</b>
-          <h2>모든 운영은 감사 가능</h2>
+          <h2>운영 이력 기록</h2>
           <p>
-            블라인드, 복구, 승인과 반려는 사유·담당자·trace와 함께 남고 멱등하게
-            처리됩니다.
+            비공개, 복구, 승인, 반려 처리에는 담당자와 처리 사유가 기록됩니다.
           </p>
         </article>
       </div>
@@ -1591,7 +2118,7 @@ function AdminTitle({ title, count }: { title: string; count: string }) {
   return (
     <header className="admin-title">
       <div>
-        <p>OPERATIONS CONSOLE</p>
+        <p>관리자 도구</p>
         <h1>{title}</h1>
       </div>
       <strong>{count}</strong>
@@ -1613,6 +2140,29 @@ function NotFound() {
   );
 }
 
+function Footer() {
+  return (
+    <footer className="site-footer">
+      <div className="page-shell footer-inner">
+        <div className="footer-brand">
+          <Link className="brand" href="/">
+            FIELD<span>NOTE</span>
+          </Link>
+          <p>
+            영업직 종사자를 위한 회사 리뷰·커뮤니티 서비스입니다. 공개 데모의
+            회사와 회원 정보는 모두 샘플 데이터입니다.
+          </p>
+        </div>
+        <nav className="footer-links" aria-label="하단 메뉴">
+          <Link href="/companies">회사 리뷰</Link>
+          <Link href="/community">영업 Q&amp;A</Link>
+          <Link href="/trust">개인정보·검증 정책</Link>
+        </nav>
+      </div>
+    </footer>
+  );
+}
+
 function DemoDock({
   role,
   setRole,
@@ -1625,8 +2175,8 @@ function DemoDock({
   return (
     <aside className="demo-dock" aria-label="데모 역할 선택">
       <div>
-        <span>LIVE DEMO</span>
-        <strong>역할을 바꿔 전 기능 체험</strong>
+        <span>공개 데모</span>
+        <strong>역할 변경</strong>
       </div>
       <select
         data-testid="role-switch"
