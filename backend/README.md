@@ -16,6 +16,8 @@
 
 Node 22+, Docker, Supabase CLI가 필요합니다.
 
+백엔드는 WIGTN 코어 6종을 GitHub Packages의 정확한 beta 버전으로 설치합니다. 로컬에서는 `read:packages` 권한이 있는 토큰을 `NODE_AUTH_TOKEN`으로 주입해야 하며, 토큰 값은 `.npmrc`나 저장소에 커밋하지 않습니다. GitHub Actions는 저장소에 부여된 package `Read` 권한과 `GITHUB_TOKEN`을 사용합니다.
+
 ```bash
 cd backend
 npm ci
@@ -34,4 +36,4 @@ npm run verify
 
 ## 코어 재사용 경계
 
-`core/`는 검증된 WIGTN 코어 모듈의 프로젝트 스냅샷입니다. 프로젝트 고유 회사 리뷰, 회사 가져오기, 메인 배치 로직은 `src/`와 마지막 도메인 migration에 위치합니다. 종료 회고에서 범용성이 확인된 코드만 원본 코어 저장소로 승격합니다.
+런타임 의존성은 `@wigtn/*@0.1.0-beta.1`로 고정되어 GitHub Packages에서 설치됩니다. `core/`는 기존 구현의 이력과 비교를 위한 프로젝트 스냅샷일 뿐 패키지 매니저의 fallback이나 canonical source가 아닙니다. 프로젝트 고유 회사 리뷰, 회사 가져오기, 메인 배치 로직은 `src/`와 마지막 도메인 migration에 위치합니다. 종료 회고에서 범용성이 확인된 코드만 원본 코어 저장소로 승격합니다.
