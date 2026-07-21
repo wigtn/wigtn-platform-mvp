@@ -117,6 +117,29 @@ const roleExperience: Record<
 
 const roles = Object.keys(roleNames) as Role[];
 
+const demoAccounts: Record<
+  Exclude<Role, "guest">,
+  { name: string; title: string; destination: string }
+> = {
+  sales: {
+    name: "윤서진",
+    title: "Enterprise AE · 프로필과 답변 작성",
+    destination: "/account",
+  },
+  verified: {
+    name: "한도윤",
+    title: "재직 확인 완료 · 검증 리뷰와 배지",
+    destination: "/account",
+  },
+  admin: {
+    name: "FIELDNOTE 운영팀",
+    title: "리뷰 검수 · 회원 인증 · 콘텐츠 운영",
+    destination: "/admin",
+  },
+};
+
+const accountRoles = Object.keys(demoAccounts) as Array<Exclude<Role, "guest">>;
+
 function useDemoState() {
   const [state, setState] = useState<DemoState>(baseline);
   const [ready, setReady] = useState(false);
@@ -175,7 +198,10 @@ function useDialogFocus(open: boolean, onClose: () => void) {
         ) ?? [],
       ).filter((element) => !element.hasAttribute("hidden"));
 
-    window.requestAnimationFrame(() => focusable()[0]?.focus());
+    window.requestAnimationFrame(() => {
+      const preferred = dialog?.querySelector<HTMLElement>("[data-autofocus]");
+      (preferred ?? focusable()[0])?.focus();
+    });
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -211,6 +237,7 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
   const [state, setState, demoMeta] = useDemoState();
   const [toast, setToast] = useState("");
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
+  const [accountLoginOpen, setAccountLoginOpen] = useState(false);
   const [mobileRoleSheetOpen, setMobileRoleSheetOpen] = useState(false);
   const [pulseRoleControl, setPulseRoleControl] = useState(false);
   const pulseTimerRef = useRef<number | null>(null);
@@ -255,14 +282,26 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
     if (demoMeta.ready && demoMeta.isFirstVisit) setRolePickerOpen(true);
   }, [demoMeta.isFirstVisit, demoMeta.ready]);
 
-  const switchRole = (role: Role) => {
+  const switchRole = (role: Role, destination?: string) => {
     const roleMessage = `${roleNames[role]} 역할로 전환했습니다. 새로 볼 수 있는 것: ${roleExperience[role].unlocks}`;
     setState((current) => ({ ...current, role }));
     setMobileRoleSheetOpen(false);
-    if (role === "admin" || initialPath.startsWith("/admin")) {
+    const nextPath =
+      destination ??
+      (role === "admin"
+        ? "/admin"
+        : initialPath.startsWith("/admin")
+          ? "/"
+          : undefined);
+    if (nextPath) {
       window.sessionStorage.setItem("fieldnote-pending-toast", roleMessage);
-      router.push(role === "admin" ? "/admin" : "/");
+      router.push(nextPath);
     } else notify(roleMessage);
+  };
+
+  const loginWithDemoAccount = (role: Exclude<Role, "guest">) => {
+    setAccountLoginOpen(false);
+    switchRole(role, demoAccounts[role].destination);
   };
 
   const closeRolePicker = (role: Role = "guest") => {
@@ -339,13 +378,27 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
         mobileSheetOpen={mobileRoleSheetOpen}
         pulse={pulseRoleControl}
       />
-      <Header role={state.role} path={initialPath} />
+      <Header
+        role={state.role}
+        path={initialPath}
+        openAccountLogin={() => setAccountLoginOpen(true)}
+      />
       {content}
       {!initialPath.startsWith("/admin") ? <Footer /> : null}
       <RolePickerModal
         open={rolePickerOpen}
         selectRole={closeRolePicker}
         dismiss={() => closeRolePicker("guest")}
+      />
+      <AccountLoginModal
+        open={accountLoginOpen}
+        currentRole={state.role}
+        login={loginWithDemoAccount}
+        continueAsGuest={() => {
+          setAccountLoginOpen(false);
+          switchRole("guest");
+        }}
+        close={() => setAccountLoginOpen(false)}
       />
       <MobileRoleSheet
         open={mobileRoleSheetOpen}
@@ -363,7 +416,15 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
   );
 }
 
-function Header({ role, path }: { role: Role; path: string }) {
+function Header({
+  role,
+  path,
+  openAccountLogin,
+}: {
+  role: Role;
+  path: string;
+  openAccountLogin: () => void;
+}) {
   const navigation = [
     ["/companies", "회사 리뷰"],
     ["/community", "영업 Q&A"],
@@ -395,12 +456,14 @@ function Header({ role, path }: { role: Role; path: string }) {
           <Link className="header-write" href="/reviews/new">
             리뷰 작성
           </Link>
-          <Link
+          <button
+            type="button"
             className="header-role"
-            href={role === "admin" ? "/admin" : "/account"}
+            aria-haspopup="dialog"
+            onClick={openAccountLogin}
           >
-            {role === "guest" ? "로그인 · 내 활동" : roleNames[role]}
-          </Link>
+            {role === "guest" ? "데모 계정 로그인" : `${roleNames[role]} 계정`}
+          </button>
         </div>
       </div>
     </header>
@@ -2610,6 +2673,80 @@ function RolePickerModal({
             그냥 둘러보기 (비회원)
           </button>
           <p>언제든 화면 상단에서 역할을 바꿀 수 있어요.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AccountLoginModal({
+  open,
+  currentRole,
+  login,
+  continueAsGuest,
+  close,
+}: {
+  open: boolean;
+  currentRole: Role;
+  login: (role: Exclude<Role, "guest">) => void;
+  continueAsGuest: () => void;
+  close: () => void;
+}) {
+  const dialogRef = useDialogFocus(open, close);
+  if (!open) return null;
+  return (
+    <div className="role-dialog-backdrop">
+      <div
+        className="account-login-dialog"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="account-login-title"
+        aria-describedby="account-login-description"
+      >
+        <div className="account-login-heading">
+          <div>
+            <span>DEMO ACCOUNT</span>
+            <h2 id="account-login-title">어떤 계정으로 로그인할까요?</h2>
+            <p id="account-login-description">
+              비밀번호 없이 권한별 화면과 기능을 바로 체험할 수 있습니다.
+            </p>
+          </div>
+          <button type="button" aria-label="계정 로그인 닫기" onClick={close}>
+            닫기
+          </button>
+        </div>
+        <div className="account-login-list">
+          {accountRoles.map((role) => {
+            const account = demoAccounts[role];
+            const isCurrent = currentRole === role;
+            return (
+              <button
+                type="button"
+                className={`account-login-card role-${role}${isCurrent ? " is-current" : ""}`}
+                aria-pressed={isCurrent}
+                data-autofocus={role === "sales" ? "true" : undefined}
+                onClick={() => login(role)}
+                key={role}
+              >
+                <span className="account-avatar" aria-hidden="true">
+                  {roleExperience[role].icon}
+                </span>
+                <span className="account-login-copy">
+                  <small>{roleNames[role]}</small>
+                  <strong>{account.name}</strong>
+                  <span>{account.title}</span>
+                </span>
+                <b>{isCurrent ? "현재 계정 열기" : "이 계정으로 로그인"} →</b>
+              </button>
+            );
+          })}
+        </div>
+        <div className="account-login-footer">
+          <p>모든 계정과 활동 데이터는 포트폴리오용 샘플입니다.</p>
+          <button type="button" onClick={continueAsGuest}>
+            로그인 없이 둘러보기
+          </button>
         </div>
       </div>
     </div>

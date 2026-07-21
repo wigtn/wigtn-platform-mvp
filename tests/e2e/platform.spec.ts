@@ -56,6 +56,33 @@ test("첫 방문 역할 선택과 포커스 순환이 동작한다", async ({ pa
   await expect(page.getByText("새로 볼 수 있는 것: 리뷰 검수")).toBeVisible();
 });
 
+test("헤더에서 권한별 데모 계정으로 로그인한다", async ({ page }) => {
+  await page.getByRole("button", { name: "데모 계정 로그인" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "어떤 계정으로 로그인할까요?",
+  });
+  await expect(dialog).toBeVisible();
+  const salesAccount = dialog.getByRole("button", {
+    name: /일반 영업인 윤서진/,
+  });
+  await expect(salesAccount).toBeFocused();
+  await expect(
+    dialog.getByRole("button", { name: /인증 영업인 한도윤/ }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: /운영 관리자 FIELDNOTE 운영팀/ }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: /인증 영업인 한도윤/ }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.locator(".demo-role-bar")).toHaveClass(/role-verified/);
+  await expect(
+    page.getByRole("heading", { name: "내 활동 관리" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("새로 볼 수 있는 것: 재직 확인 리뷰"),
+  ).toBeVisible();
+});
+
 test("회사 탐색부터 익명 리뷰 통계 반영까지 연결된다", async ({ page }) => {
   await page.getByRole("link", { name: "회사 탐색 시작" }).click();
   await page.getByTestId("company-search").fill("노스스타");
