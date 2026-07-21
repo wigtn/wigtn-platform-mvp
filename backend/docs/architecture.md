@@ -17,6 +17,12 @@ browser redesign
 The browser receives only a publishable Supabase key. `OUTBOX_DATABASE_URL`, bot credentials, service-role keys, and `OPENAI_API_KEY` stay in server-side secret storage.
 Database migrations leave the direct application and outbox roles as `NOLOGIN`; the local seed enables fixture credentials only for repeatable tests, while hosted credentials are provisioned by deployment automation.
 
+## Bid demo boundary
+
+The evaluator sees no login screen. The browser obtains a unique Supabase anonymous session and calls `bootstrap_demo_experience`. Anonymous users still carry the `authenticated` database role, so the backend deliberately leaves their profile pending and denies all real member/admin commands. Supported demo actions instead write to a private, per-user ledger with idempotency, payload limits, rate limits, 24-hour expiry, reset, and AI-answer polling. This makes every screen interactive without contaminating community posts, company statistics, moderation queues, or another evaluator's session.
+
+The demo adapter lives under `backend/src/demo`; no existing frontend component, route, style, or browser-state file is changed. A permanent signed-in user is never replaced by an anonymous session.
+
 ## Reused core modules
 
 | Core snapshot       | Used here for                                                                       | Project customization                                                           |

@@ -50,6 +50,12 @@ High-risk commands require a recent TOTP factor and active session in the databa
 
 Upload `.csv` or `.xlsx` to the private `company-imports` bucket under `<user-id>/...`. The server runs `parseCompanyImport`, displays the dry-run row errors, and only then calls `import_companies(..., dry_run=false, ...)`. Legacy `.xls` is intentionally rejected; save it as `.xlsx` to avoid an unmaintained parser.
 
-## Demo integration note
+## Login-free bid demo
 
-The old frontend still uses local mock state until the redesign branch binds these reads/RPCs. This backend does not alter that frontend. For an evaluator build, the frontend may sign in a seeded demo member/admin behind a non-production demo gate, but service-role and OpenAI keys must never be shipped to the browser.
+The redesign should call `ensureDemoExperience(supabase)` once from a dynamically rendered client boundary. If no permanent user session exists, it performs `signInAnonymously()` and then calls `bootstrap_demo_experience`. There is no login screen or shared demo password.
+
+Use `executeDemoAction(supabase, action, payload, idempotencyKey)` for demo writes. The supported action keys are returned by bootstrap and cover community posts/comments/reactions/bookmarks, company reviews, grade/badge applications, delayed AI answers, member review, company import, moderation, and placement publishing. Use `get_demo_experience` to restore state after refresh and `reset_demo_experience` for the “처음부터 다시 체험” control.
+
+Anonymous demo writes are real database writes to a private per-visitor ledger, not browser mocks. They intentionally do not call production commands or alter shared aggregates. When bootstrap returns `mode: live` for a permanent member, the frontend must use the real commands listed above instead.
+
+Hosted deployment must enable anonymous sign-ins, use dynamic rendering for session-sensitive pages, add Turnstile/CAPTCHA at the edge, retain the backend's per-user rate limit, and schedule deletion of expired anonymous Auth users. Only the Supabase publishable key belongs in the browser; service-role, direct DB, bot, and OpenAI credentials remain server-only.
