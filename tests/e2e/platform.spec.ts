@@ -1,4 +1,21 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+
+async function switchRole(page: Page, roleName: string) {
+  const control = page.getByTestId("role-switch");
+  const desktopButton = control.getByRole("button", {
+    name: roleName,
+    exact: true,
+  });
+  if (await desktopButton.isVisible()) {
+    await desktopButton.click();
+    return;
+  }
+  await control.getByRole("button").click();
+  await page
+    .getByRole("dialog", { name: "다른 관점으로 둘러보기" })
+    .getByRole("button", { name: roleName, exact: true })
+    .click();
+}
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -6,6 +23,37 @@ test.beforeEach(async ({ page }) => {
     window.localStorage.removeItem("fieldnote-demo-v1"),
   );
   await page.reload();
+  await page.getByRole("button", { name: "그냥 둘러보기 (비회원)" }).click();
+});
+
+test("첫 방문 역할 선택과 포커스 순환이 동작한다", async ({ page }) => {
+  await page.evaluate(() =>
+    window.localStorage.removeItem("fieldnote-demo-v1"),
+  );
+  await page.reload();
+  const dialog = page.getByRole("dialog", {
+    name: "어떤 역할로 둘러보시겠어요?",
+  });
+  await expect(dialog).toBeVisible();
+  const guestCard = dialog.getByRole("button", {
+    name: /비회원 회사 리뷰와 공개 커뮤니티를 읽습니다/,
+  });
+  await expect(guestCard).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(
+    dialog.getByRole("button", { name: "그냥 둘러보기 (비회원)" }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(guestCard).toBeFocused();
+  await dialog
+    .getByRole("button", {
+      name: /운영 관리자 리뷰 검수·회원 인증·콘텐츠 운영 화면을 엽니다/,
+    })
+    .click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.locator(".demo-role-bar")).toHaveClass(/role-admin/);
+  await expect(page.locator(".demo-role-bar")).toHaveClass(/is-intro-pulse/);
+  await expect(page.getByText("새로 볼 수 있는 것: 리뷰 검수")).toBeVisible();
 });
 
 test("회사 탐색부터 익명 리뷰 통계 반영까지 연결된다", async ({ page }) => {
@@ -59,18 +107,33 @@ test("일반 게시글과 이미지 첨부 메타데이터를 등록한다", asy
 
 test("질문 등록 후 AI 첫 답변 상태 전이가 완료된다", async ({ page }) => {
   await page.goto("/questions/new");
+  const context =
+    "결재 담당자와 실제 사용 부서가 다릅니다. 다음 미팅 참석자를 어떻게 정해야 할까요?";
   await page
     .getByTestId("question-title")
     .fill("예산 질문을 자연스럽게 꺼내는 방법이 궁금합니다");
+  await page.getByLabel("상황 설명").fill(context);
   await page.getByRole("button", { name: "질문 등록" }).click();
   await expect(page.getByText("질문 내용 검사")).toBeVisible();
   await expect(
     page.getByText("예산 승인 절차와 결정 기준을 먼저 확인하세요."),
   ).toBeVisible({ timeout: 8_000 });
+  await page.getByRole("link", { name: "커뮤니티에서 보기" }).click();
+  await expect(page.getByText(context)).toBeVisible();
+});
+
+test("회사 검색 빈 상태에서 조건을 바로 초기화할 수 있다", async ({ page }) => {
+  await page.goto("/companies");
+  await page.getByTestId("company-search").fill("없는 회사 이름");
+  await expect(page.getByText("조건에 맞는 회사가 없습니다.")).toBeVisible();
+  await page.getByRole("button", { name: "검색 조건 초기화" }).click();
+  await expect(
+    page.getByRole("heading", { name: "노스스타 클라우드" }),
+  ).toBeVisible();
 });
 
 test("프로필 수정과 검증 배지 신청 상태가 저장된다", async ({ page }) => {
-  await page.getByTestId("role-switch").selectOption("sales");
+  await switchRole(page, "일반 영업인");
   await page.goto("/account");
   await page.getByLabel("표시 이름").fill("입찰 평가자");
   await page.getByLabel("경력 한 줄").fill("엔터프라이즈 세일즈 · 10년차");
@@ -83,7 +146,7 @@ test("프로필 수정과 검증 배지 신청 상태가 저장된다", async ({
 });
 
 test("관리자 역할로 리뷰 블라인드와 복구를 체험한다", async ({ page }) => {
-  await page.getByTestId("role-switch").selectOption("admin");
+  await switchRole(page, "운영 관리자");
   await expect(page).toHaveURL(/\/admin$/);
   await page.getByRole("link", { name: "리뷰 운영" }).click();
   const blind = page
@@ -97,7 +160,7 @@ test("관리자 역할로 리뷰 블라인드와 복구를 체험한다", async 
 test("관리자가 회사 수기 등록과 콘텐츠 블라인드를 실행한다", async ({
   page,
 }) => {
-  await page.getByTestId("role-switch").selectOption("admin");
+  await switchRole(page, "운영 관리자");
   await page.goto("/admin/companies");
   await page.getByLabel("회사 수기 등록").fill("위그튼 세일즈랩");
   await page.getByRole("button", { name: "등록", exact: true }).click();
@@ -122,4 +185,16 @@ test("모바일 핵심 화면에 수평 오버플로가 없다", async ({ page }
   );
   expect(overflow).toBe(false);
   await expect(page.getByTestId("role-switch")).toBeVisible();
+});
+
+test("잠긴 답변 기능에서 역할을 바로 전환할 수 있다", async ({ page }) => {
+  await page.goto("/posts/p1");
+  await expect(page.getByText("현직자 답변 작성")).toBeVisible();
+  await page
+    .getByRole("button", {
+      name: "일반 영업인으로 전환해서 체험하기",
+    })
+    .click();
+  await expect(page.getByText("새로 볼 수 있는 것: 프로필 관리")).toBeVisible();
+  await expect(page.getByLabel("답변 작성")).toBeVisible();
 });
