@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   verify:
@@ -32,6 +33,8 @@ jobs:
   backend-verify:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     defaults:
       run:
         working-directory: backend

@@ -34,7 +34,7 @@ The demo adapter lives under `backend/src/demo`; no existing frontend component,
 | `notification-file` | private upload conventions                                                          | company import bucket and policies                                              |
 | `api-contracts`     | environment and API contract conventions                                            | project RPC contract is documented separately                                   |
 
-The files under `core/` are a project snapshot, not a new canonical source. They were security-updated for current test dependencies, while project logic stays outside them.
+Runtime imports resolve the exact `@wigtn/*@0.1.0-beta.1` versions from GitHub Packages. The files under `core/` remain only as historical project snapshots; they are neither package-manager dependencies nor a fallback canonical source. Project logic stays outside them.
 
 ## Project-specific decisions
 
