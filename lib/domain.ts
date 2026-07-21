@@ -47,7 +47,7 @@ export const companies: Company[] = [
     score: 4.4,
     reviewCount: 18,
     trend: 12,
-    summary: "명확한 ICP와 세일즈 엔지니어 협업이 강한 성장기 조직",
+    summary: "분기 초 계정 배분 기준을 공유하고 큰 딜에는 SE가 동행합니다.",
     scores: {
       "목표 현실성": 4.2,
       "인센티브 투명성": 4.6,
@@ -65,7 +65,8 @@ export const companies: Company[] = [
     score: 4.1,
     reviewCount: 23,
     trend: 7,
-    summary: "전문 교육과 장기 고객관계에 투자하는 안정형 세일즈 조직",
+    summary:
+      "입사 후 제품 교육이 이어지고 병원·연구기관 고객을 장기 관리합니다.",
     scores: {
       "목표 현실성": 4.4,
       "인센티브 투명성": 3.9,
@@ -83,7 +84,7 @@ export const companies: Company[] = [
     score: 3.8,
     reviewCount: 15,
     trend: -2,
-    summary: "빠른 실행과 높은 자율성이 공존하는 파트너 중심 조직",
+    summary: "파트너 영업 담당자가 제안부터 계약까지 직접 맡는 편입니다.",
     scores: {
       "목표 현실성": 3.5,
       "인센티브 투명성": 4.1,
@@ -101,7 +102,7 @@ export const companies: Company[] = [
     score: 4.0,
     reviewCount: 11,
     trend: 9,
-    summary: "긴 세일즈 사이클을 기술 신뢰로 돌파하는 제조 DX 조직",
+    summary: "기술팀과 함께 제조 고객의 도입 검토를 길게 진행합니다.",
     scores: {
       "목표 현실성": 4.1,
       "인센티브 투명성": 3.8,
@@ -119,7 +120,7 @@ export const companies: Company[] = [
     score: 3.6,
     reviewCount: 29,
     trend: 3,
-    summary: "데이터 기반 채널 운영을 빠르게 경험할 수 있는 대규모 조직",
+    summary: "채널별 실적과 전환율을 기준으로 영업 계획을 관리합니다.",
     scores: {
       "목표 현실성": 3.2,
       "인센티브 투명성": 3.7,
@@ -137,7 +138,7 @@ export const companies: Company[] = [
     score: 4.2,
     reviewCount: 9,
     trend: 15,
-    summary: "짧은 피드백 주기와 체계적인 콜 코칭이 돋보이는 팀",
+    summary: "주간 콜 리뷰와 짧은 피드백이 자주 이뤄집니다.",
     scores: {
       "목표 현실성": 4.0,
       "인센티브 투명성": 4.4,
@@ -153,8 +154,8 @@ export const initialReviews: Review[] = [
   {
     id: "r1",
     companySlug: "northstar-cloud",
-    title: "목표와 지원 체계가 같은 방향을 봅니다",
-    body: "분기 초 계정 배분 기준이 공개되고, 큰 딜에는 세일즈 엔지니어가 초반부터 함께합니다. 숫자의 근거를 질문할 수 있는 문화가 가장 좋았습니다.",
+    title: "계정 배분 기준이 공개돼 있어요",
+    body: "분기 초에 계정 배분 기준을 공유합니다. 큰 딜은 초반부터 세일즈 엔지니어가 같이 들어옵니다. 목표가 왜 그렇게 잡혔는지도 팀장에게 물어볼 수 있었습니다.",
     score: 4.6,
     status: "published",
     employment: "재직",
@@ -163,8 +164,8 @@ export const initialReviews: Review[] = [
   {
     id: "r2",
     companySlug: "northstar-cloud",
-    title: "성장 속도만큼 프로세스 변화도 빠릅니다",
-    body: "툴과 프로세스가 자주 바뀌어 적응력은 필요합니다. 대신 실험 결과를 공유하고 잘못된 목표를 조정하는 속도도 빠릅니다.",
+    title: "프로세스 변경이 잦은 편입니다",
+    body: "영업 툴과 보고 방식이 자주 바뀝니다. 적응이 빠른 사람에게는 괜찮지만 안정적인 방식을 선호하면 피곤할 수 있습니다. 효과가 없으면 다시 바꾸는 속도도 빠릅니다.",
     score: 4.1,
     status: "published",
     employment: "퇴사",
@@ -173,8 +174,8 @@ export const initialReviews: Review[] = [
   {
     id: "r3",
     companySlug: "orbit-bioworks",
-    title: "제품 교육이 실제 현장에서 힘이 됩니다",
-    body: "입사 교육 이후에도 케이스 스터디가 이어집니다. 단기 성과보다 관계와 전문성을 중시하는 분에게 맞습니다.",
+    title: "제품 교육은 꾸준히 받습니다",
+    body: "입사 교육이 끝난 뒤에도 사례 교육이 계속 있습니다. 단기 계약보다 고객 관계를 오래 관리하는 영업 방식에 가깝습니다.",
     score: 4.3,
     status: "published",
     employment: "재직",
@@ -183,8 +184,8 @@ export const initialReviews: Review[] = [
   {
     id: "r4",
     companySlug: "ledger-lab",
-    title: "자율성이 큰 만큼 우선순위 판단이 중요합니다",
-    body: "새 파트너를 직접 제안하고 움직일 수 있습니다. 다만 팀 간 역할이 선명하지 않은 시기가 있어 조율 역량이 필요합니다.",
+    title: "파트너 발굴을 직접 제안할 수 있습니다",
+    body: "새 파트너 후보를 직접 찾고 제안할 수 있습니다. 팀 사이 역할이 명확하지 않을 때가 있어 일정과 담당 범위를 스스로 조율해야 합니다.",
     score: 3.7,
     status: "published",
     employment: "퇴사",
@@ -197,7 +198,7 @@ export const initialPosts: Post[] = [
     id: "p1",
     board: "Q&A",
     title: "엔터프라이즈 첫 미팅에서 꼭 확인하는 세 가지는?",
-    body: "의사결정 구조가 복잡한 고객과 첫 미팅을 앞두고 있습니다. 니즈 외에 무엇을 확인해야 다음 단계가 선명해질까요?",
+    body: "의사결정 구조가 복잡한 고객과 첫 미팅을 앞두고 있습니다. 필요 사항 외에 무엇을 확인해야 다음 미팅으로 이어갈 수 있을까요?",
     author: "파이프라인메이커",
     badge: "검증 영업인 L2",
     likes: 42,
@@ -211,8 +212,8 @@ export const initialPosts: Post[] = [
   {
     id: "p2",
     board: "노하우",
-    title: "할인 없이 계약을 닫은 ROI 문서 구조",
-    body: "문제 비용, 변화 후 지표, 실행 리스크 세 장으로 줄였더니 가격 협상이 가치 협상으로 바뀌었습니다.",
+    title: "할인 요청이 나왔을 때 공유한 ROI 문서",
+    body: "현재 문제로 드는 비용, 도입 후 달라지는 지표, 실행할 때 생길 수 있는 위험을 세 장으로 정리했습니다. 가격보다 도입 효과를 먼저 이야기할 수 있었습니다.",
     author: "윤서진",
     badge: "B2B 전문가",
     likes: 87,
@@ -222,8 +223,8 @@ export const initialPosts: Post[] = [
   {
     id: "p3",
     board: "실적",
-    title: "분기 128% 달성, 리드 수보다 바꾼 한 가지",
-    body: "리드 점수보다 다음 행동의 명확성을 기준으로 파이프라인을 정리했습니다. 3주 뒤 stalled 딜이 절반으로 줄었습니다.",
+    title: "분기 128% 달성하면서 바꾼 파이프라인 기준",
+    body: "리드 점수보다 다음 일정이 잡혀 있는지를 기준으로 파이프라인을 정리했습니다. 3주 이상 후속 일정이 없던 딜이 절반으로 줄었습니다.",
     author: "한도윤",
     badge: "실적 인증",
     likes: 126,
@@ -233,8 +234,8 @@ export const initialPosts: Post[] = [
   {
     id: "p4",
     board: "자유",
-    title: "첫 영업 리더 이직, 팀 규모와 제품 중 무엇을 볼까요",
-    body: "플레이어에서 매니저로 넘어가는 시점이라 성장기 팀을 보고 있습니다. 경험자분들의 기준이 궁금합니다.",
+    title: "첫 영업 리더 이직, 팀 규모와 제품 중 뭘 봐야 할까요?",
+    body: "실무자에서 매니저로 옮기는 시점이라 성장 중인 팀을 알아보고 있습니다. 첫 리더 역할을 고를 때 어떤 조건을 확인하셨는지 궁금합니다.",
     author: "세일즈러너",
     likes: 31,
     saved: false,
