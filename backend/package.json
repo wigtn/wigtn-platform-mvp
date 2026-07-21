@@ -1,0 +1,45 @@
+{
+  "name": "wigtn-platform-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:lint": "supabase db lint --level warning",
+    "db:types": "supabase gen types typescript --local > src/database.types.ts",
+    "format": "prettier --write . ../.github/workflows/ci.yml",
+    "format:check": "prettier --check . ../.github/workflows/ci.yml",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "test:db": "vitest run --config vitest.db.config.ts",
+    "worker": "tsx src/worker.ts",
+    "verify": "npm run typecheck && npm run test && npm run test:db"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.110.7",
+    "@wigtn/ai-pipeline-sdk": "file:core/ai-pipeline-sdk",
+    "@wigtn/api-contracts": "file:core/api-contracts",
+    "@wigtn/auth-membership": "file:core/auth-membership",
+    "@wigtn/backoffice-frame": "file:core/backoffice-frame",
+    "@wigtn/content-engine": "file:core/content-engine",
+    "@wigtn/notification-file": "file:core/notification-file",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "exceljs": "4.4.0",
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.0",
+    "@types/pg": "8.11.10",
+    "prettier": "3.9.5",
+    "tsx": "4.23.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  },
+  "overrides": {
+    "ajv": "8.20.0",
+    "uuid": "11.1.1"
+  }
+}

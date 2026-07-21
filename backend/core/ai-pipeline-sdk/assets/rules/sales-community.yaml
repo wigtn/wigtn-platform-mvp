@@ -1,0 +1,36 @@
+# rules/sales-community.yaml (contract-v0 §3) — 프로젝트별 가드레일 룰 원본.
+# SDK는 이 파일을 파싱한 객체를 validateRule()로 검증한다. 코드 상수는 src/samples.ts.
+version: 1
+project: sales-community
+enabled: true
+
+triggers:
+  boards: [qna]
+  delaySeconds: 90
+  skipIfHumanAnswered: true
+
+provider:
+  name: openai
+  model: gpt-4o-mini
+  timeoutSeconds: 30
+
+promptPack: sales-mentor-v1
+
+guardrails:
+  pre:
+    moderation: true
+    blockCategories: [self_harm, sexual, hate]
+    denylistRefs: [company-names]
+  post:
+    moderation: true
+    companyNameFilter: true
+    numericClaimFilter: true
+    legalRiskCategories: [defamation, medical_advice, financial_advice]
+    denylistRefs: [profanity-ko]
+    onViolation: skip
+
+fallback:
+  onSkip: "커뮤니티 답변을 기다려요"
+  onError: silent
+
+label: "🤖 AI 답변"
