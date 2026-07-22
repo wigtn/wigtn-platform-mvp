@@ -31,7 +31,13 @@
  * `graphql_public` 을 건드리면 안 되기 때문이다.
  */
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -135,11 +141,51 @@ function render(sql) {
   return out;
 }
 
-const files = readdirSync(SRC).filter((f) => f.endsWith(".sql")).sort();
+/**
+ * 마이그레이션보다 먼저 나가야 하는 것.
+ *
+ * Supabase 는 `public` 스키마에만 anon·authenticated 의 USAGE 를 기본으로
+ * 준다. 프로젝트별 스키마를 만들면 그게 없어서, 테이블 권한과 RLS 를 아무리
+ * 잘 맞춰도 요청이 통째로 막힌다.
+ *
+ *     {"code":"42501","message":"permission denied for schema stg_fieldnote"}
+ *
+ * 비공개 스키마는 **주지 않는다.** 거기 SECURITY DEFINER 함수들이 RLS 를
+ * 우회하므로, 브라우저에서 직접 부를 수 있으면 안 된다. 공개 래퍼만 열어 준다.
+ */
+function bootstrapSql() {
+  if (APP_SCHEMA === "public") return null;
+  return [
+    `-- 생성물이다. backend/scripts/render-migrations.mjs 가 만든다.`,
+    `create schema if not exists ${APP_SCHEMA};`,
+    `create schema if not exists ${APP_PRIVATE_SCHEMA};`,
+    ``,
+    `grant usage on schema ${APP_SCHEMA} to anon, authenticated, service_role;`,
+    ``,
+    `-- ${APP_PRIVATE_SCHEMA} 는 일부러 뺀다. SECURITY DEFINER 함수가 RLS 를`,
+    `-- 우회하므로 브라우저에서 직접 부를 수 있으면 안 된다.`,
+    ``,
+  ].join("\n");
+}
+
+const files = readdirSync(SRC)
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
 if (files.length === 0) throw new Error(`마이그레이션이 없다: ${SRC}`);
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
+
+const bootstrap = bootstrapSql();
+if (bootstrap) {
+  // 파일 이름이 정렬 맨 앞이어야 한다. 뒤로 가면 스키마가 없는 채로
+  // 마이그레이션이 먼저 돌아 죽는다.
+  writeFileSync(
+    join(OUT, "00000000000000_schema_bootstrap.sql"),
+    bootstrap,
+    "utf8",
+  );
+}
 
 let changed = 0;
 for (const name of files) {

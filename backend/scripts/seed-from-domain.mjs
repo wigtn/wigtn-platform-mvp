@@ -27,9 +27,8 @@
 
 import { createHash } from "node:crypto";
 
-const { companies, initialReviews, initialPosts } = await import(
-  "../../lib/domain.ts"
-);
+const { companies, initialReviews, initialPosts } =
+  await import("../../lib/domain.ts");
 
 /** 같은 이름은 항상 같은 UUID 가 되게. 다시 돌려도 행이 안 늘어난다. */
 function uuidFor(kind, key) {
@@ -38,7 +37,8 @@ function uuidFor(kind, key) {
     h.slice(0, 8),
     h.slice(8, 12),
     `5${h.slice(13, 16)}`,
-    ((parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80).toString(16) + h.slice(18, 20),
+    ((parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80).toString(16) +
+      h.slice(18, 20),
     h.slice(20, 32),
   ].join("-");
 }
@@ -66,12 +66,41 @@ const DIMENSIONS = Object.keys(AXIS_KEY);
 
 // 게시판 이름(화면) → slug(DB)
 const BOARDS = [
-  { label: "Q&A", slug: "qna", title: "Q&A", desc: "영업 실무 질문과 답변", pos: 10, ai: true },
-  { label: "노하우", slug: "howto", title: "노하우", desc: "검증된 방법을 정리해 공유합니다", pos: 20, ai: false },
-  { label: "실적", slug: "deals", title: "실적", desc: "성사된 거래와 그 과정", pos: 30, ai: false },
-  { label: "자유", slug: "free", title: "자유", desc: "커리어와 일상 이야기", pos: 40, ai: false },
+  {
+    label: "Q&A",
+    slug: "qna",
+    title: "Q&A",
+    desc: "영업 실무 질문과 답변",
+    pos: 10,
+    ai: true,
+  },
+  {
+    label: "노하우",
+    slug: "howto",
+    title: "노하우",
+    desc: "검증된 방법을 정리해 공유합니다",
+    pos: 20,
+    ai: false,
+  },
+  {
+    label: "실적",
+    slug: "deals",
+    title: "실적",
+    desc: "성사된 거래와 그 과정",
+    pos: 30,
+    ai: false,
+  },
+  {
+    label: "자유",
+    slug: "free",
+    title: "자유",
+    desc: "커리어와 일상 이야기",
+    pos: 40,
+    ai: false,
+  },
 ];
-const CAPABILITIES = "array['posts','comments','reactions','bookmarks','reports']";
+const CAPABILITIES =
+  "array['posts','comments','reactions','bookmarks','reports']";
 
 // 리뷰 작성자는 화면에 안 나온다(익명 리뷰). 그래도 행은 있어야 한다.
 //
@@ -79,21 +108,51 @@ const CAPABILITIES = "array['posts','comments','reactions','bookmarks','reports'
 // (company_id, user_id) 고유 제약이 걸려 있다 - 한 회사에 한 사람이 리뷰
 // 하나. 처음엔 한 명으로 다 돌렸다가 노스스타 리뷰 2건에서 막혔다.
 // 실제 서비스의 규칙이라 시드를 규칙에 맞추는 게 맞다.
-const REVIEW_AUTHORS = initialReviews.map((r, i) => ({
+/*
+  정적 데이터의 리뷰는 6개 회사 중 3개만 덮는다. 그런데 화면은 회사 카드에
+  6곳 모두 평점을 그린다 - 정적 배열이 리뷰와 무관하게 score 를 들고 있었기
+  때문이다.
+
+  DB 에서는 평점이 **리뷰에서 계산된다**(company_review_stats 트리거). 그래서
+  리뷰가 없는 회사는 `0.0 / 리뷰 0` 으로 뜬다. 화면이 고장 난 것처럼 보인다.
+
+  숫자를 회사 레코드에 따로 박아 넣는 건 거짓말이다 - 리뷰가 없는데 평점이
+  있는 상태가 된다. 그래서 **없는 회사에는 리뷰를 만든다.** 회사의 6축 값을
+  그대로 쓰므로 화면에 나오던 점수가 그대로 나온다.
+*/
+const SYNTHESIZED = companies
+  .filter((c) => !initialReviews.some((r) => r.companySlug === c.slug))
+  .map((c) => ({
+    id: `auto-${c.slug}`,
+    companySlug: c.slug,
+    title: `${c.name} 영업환경 정리`,
+    body: c.summary,
+    score: c.score,
+    dimensions: c.scores,
+    status: "published",
+    employment: "재직",
+    verified: true,
+  }));
+const allReviews = [...initialReviews, ...SYNTHESIZED];
+
+const REVIEW_AUTHORS = allReviews.map((r, i) => ({
   handle: `reviewer${i + 1}`,
   name: `리뷰 작성자 ${i + 1}`,
 }));
 const ADMIN = { handle: "admin", name: "운영 관리자" };
 
-const people = [
-  ...new Set(initialPosts.map((p) => p.author)),
-].map((name) => ({ handle: `u_${uuidFor("handle", name).slice(0, 8)}`, name }));
+const people = [...new Set(initialPosts.map((p) => p.author))].map((name) => ({
+  handle: `u_${uuidFor("handle", name).slice(0, 8)}`,
+  name,
+}));
 const allPeople = [...people, ...REVIEW_AUTHORS, ADMIN];
 
 const out = [];
 const w = (s) => out.push(s);
 
-w(`-- 생성물이다. 고치지 말고 backend/scripts/seed-from-domain.mjs 를 고칠 것.`);
+w(
+  `-- 생성물이다. 고치지 말고 backend/scripts/seed-from-domain.mjs 를 고칠 것.`,
+);
 w(`-- 출처: lib/domain.ts (화면이 쓰던 정적 데이터)`);
 w(`-- 전부 합성 데이터. 실제 인물·회사가 아니다.`);
 w(``);
@@ -103,11 +162,17 @@ w(``);
 w(`-- ── 계정 ────────────────────────────────────────────────────────`);
 w(`-- 토큰 컬럼을 빈 문자열로 채운다. GoTrue 가 non-null string 으로 스캔해서`);
 w(`-- NULL 이면 로그인 경로가 "Database error querying schema" 로 죽는다.`);
-w(`insert into auth.users (id, instance_id, aud, role, email, encrypted_password,`);
+w(
+  `insert into auth.users (id, instance_id, aud, role, email, encrypted_password,`,
+);
 w(`                        email_confirmed_at, created_at, updated_at,`);
 w(`                        confirmation_token, recovery_token, email_change,`);
-w(`                        email_change_token_new, email_change_token_current,`);
-w(`                        phone_change, phone_change_token, reauthentication_token)`);
+w(
+  `                        email_change_token_new, email_change_token_current,`,
+);
+w(
+  `                        phone_change, phone_change_token, reauthentication_token)`,
+);
 w(`values`);
 w(
   allPeople
@@ -123,7 +188,9 @@ w(
 w(`on conflict (id) do nothing;`);
 w(``);
 w(`-- 프로필 행은 auth 트리거가 이미 만들었다. 표시 이름만 채운다.`);
-w(`insert into stg_fieldnote.profiles (user_id, handle, display_name, account_status) values`);
+w(
+  `insert into stg_fieldnote.profiles (user_id, handle, display_name, account_status) values`,
+);
 w(
   allPeople
     .map(
@@ -140,20 +207,24 @@ w(``);
 
 w(`-- ── 회사 ────────────────────────────────────────────────────────`);
 w(`insert into stg_fieldnote.companies`);
-w(`  (id, slug, name, normalized_name, industry, sales_type, source, is_active) values`);
+w(`  (id, slug, name, normalized_name, industry, sales_type, summary,`);
+w(`   interest_trend, source, is_active) values`);
 w(
   companies
     .map(
       (c) =>
         `  (${q(uuidFor("company", c.slug))}, ${q(c.slug)}, ${q(c.name)},` +
         ` stg_fieldnote_private.normalize_company_name(${q(c.name)}),` +
-        ` ${q(c.industry)}, ${q(c.type)}, 'manual', true)`,
+        ` ${q(c.industry)}, ${q(c.type)}, ${q(c.summary)}, ${c.trend}, 'manual', true)`,
     )
     .join(",\n"),
 );
 w(`on conflict (id) do update set`);
 w(`  name = excluded.name, industry = excluded.industry,`);
-w(`  sales_type = excluded.sales_type, is_active = excluded.is_active;`);
+w(`  sales_type = excluded.sales_type, summary = excluded.summary,`);
+w(
+  `  interest_trend = excluded.interest_trend, is_active = excluded.is_active;`,
+);
 w(``);
 
 w(`-- ── 리뷰 ────────────────────────────────────────────────────────`);
@@ -163,7 +234,7 @@ w(`insert into stg_fieldnote.company_reviews`);
 w(`  (id, company_id, title, body, employment_status, overall_score,`);
 w(`   score_dimensions, status, verification_level, published_at) values`);
 w(
-  initialReviews
+  allReviews
     .map((r) => {
       const company = companies.find((c) => c.slug === r.companySlug);
       // 개별 축 점수가 없는 리뷰는 회사 평균을 쓴다. 화면이 축을 항상
@@ -191,11 +262,13 @@ w(`  overall_score = excluded.overall_score,`);
 w(`  score_dimensions = excluded.score_dimensions,`);
 w(`  status = excluded.status;`);
 w(``);
-w(`-- 작성자 신원은 비공개 스키마로 갈라 둔다(화면의 "작성자 정보 분리 보관").`);
+w(
+  `-- 작성자 신원은 비공개 스키마로 갈라 둔다(화면의 "작성자 정보 분리 보관").`,
+);
 w(`insert into stg_fieldnote_private.company_review_authors`);
 w(`  (review_id, company_id, user_id, create_idempotency_key) values`);
 w(
-  initialReviews
+  allReviews
     .map(
       (r, i) =>
         `  (${q(uuidFor("review", r.id))}, ${q(uuidFor("company", r.companySlug))},` +
@@ -225,9 +298,13 @@ w(``);
 
 w(`-- ── 글 ──────────────────────────────────────────────────────────`);
 w(`-- created_at 을 흩뿌린다. 전부 now() 면 "최신순"이 매번 다르게 나온다.`);
-const boardBySlugLabel = Object.fromEntries(BOARDS.map((b) => [b.label, b.slug]));
+const boardBySlugLabel = Object.fromEntries(
+  BOARDS.map((b) => [b.label, b.slug]),
+);
 w(`insert into stg_fieldnote.posts`);
-w(`  (id, board_id, author_id, title, body, status, created_at, updated_at) values`);
+w(
+  `  (id, board_id, author_id, title, body, status, created_at, updated_at) values`,
+);
 w(
   initialPosts
     .map((p, i) => {
@@ -243,23 +320,36 @@ w(
 w(`on conflict (id) do update set`);
 w(`  title = excluded.title, body = excluded.body, status = excluded.status;`);
 w(``);
-w(`insert into stg_fieldnote.post_contents (post_id, source, sanitized_html, format_version)`);
+w(
+  `insert into stg_fieldnote.post_contents (post_id, source, sanitized_html, format_version)`,
+);
 w(`select p.id,`);
 w(`       jsonb_build_object('version', 1, 'blocks',`);
-w(`         jsonb_build_array(jsonb_build_object('type','paragraph','text', p.body))),`);
+w(
+  `         jsonb_build_array(jsonb_build_object('type','paragraph','text', p.body))),`,
+);
 w(`       '<p>' || p.body || '</p>', 1`);
 w(`  from stg_fieldnote.posts p`);
-w(` where p.id in (${initialPosts.map((p) => q(uuidFor("post", p.id))).join(", ")})`);
+w(
+  ` where p.id in (${initialPosts.map((p) => q(uuidFor("post", p.id))).join(", ")})`,
+);
 w(`on conflict (post_id) do update set`);
 w(`  source = excluded.source, sanitized_html = excluded.sanitized_html;`);
 w(``);
 
 w(`-- ── 답변 ────────────────────────────────────────────────────────`);
 const comments = initialPosts.flatMap((p) =>
-  p.comments.map((body, i) => ({ post: p.id, board: boardBySlugLabel[p.board], body, i })),
+  p.comments.map((body, i) => ({
+    post: p.id,
+    board: boardBySlugLabel[p.board],
+    body,
+    i,
+  })),
 );
 if (comments.length) {
-  w(`insert into stg_fieldnote.comments (id, post_id, board_id, author_id, body, created_at) values`);
+  w(
+    `insert into stg_fieldnote.comments (id, post_id, board_id, author_id, body, created_at) values`,
+  );
   w(
     comments
       .map((c, n) => {
@@ -286,7 +376,10 @@ w(
   initialPosts
     .flatMap((p) =>
       people
-        .slice(0, Math.min(people.length, Math.max(1, Math.round(p.likes / 40))))
+        .slice(
+          0,
+          Math.min(people.length, Math.max(1, Math.round(p.likes / 40))),
+        )
         .map(
           (person) =>
             `  (${q(uuidFor("post", p.id))}, ${q(uuidFor("user", person.handle))}, 'like')`,

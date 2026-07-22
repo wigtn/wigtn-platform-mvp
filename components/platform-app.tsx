@@ -5,17 +5,43 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 import {
-  companies,
+  companies as seedCompanies,
   companyScore,
   initialPosts,
   initialReviews,
+  type Company,
   type Post,
   type Review,
   type Role,
 } from "@/lib/domain";
+import {
+  ensureDemoSession,
+  loadMyActions,
+  loadPublicData,
+  recordAction,
+  resetMyDemo,
+} from "@/lib/demo-store";
+import { supabaseConfigured } from "@/lib/supabase";
+
+/*
+  회사 목록은 이 파일 39곳에서 `companies` 라는 이름으로 쓰인다. DB 에서
+  받아오도록 바꾸면서 그 39곳을 전부 고치면 실수가 난다.
+
+  그래서 import 이름만 `seedCompanies` 로 바꾸고, 쓰는 컴포넌트마다
+  `const companies = useCompanies(state)` 한 줄로 가린다. 나머지 줄은
+  그대로다.
+
+  DB 가 아직 안 붙었거나(설정 없음) 조회가 실패하면 시드 배열로 돌아간다 -
+  화면이 통째로 비는 것보다 낫다.
+*/
+function pickCompanies(state: { companies?: Company[] }): Company[] {
+  return state.companies?.length ? state.companies : seedCompanies;
+}
 
 type DemoState = {
   role: Role;
+  /** DB 에서 받은 회사 목록. 못 받았으면 비어 있고 시드로 되돌아간다. */
+  companies?: Company[];
   reviews: Review[];
   posts: Post[];
   placementsPublished: boolean;
@@ -140,43 +166,191 @@ const demoAccounts: Record<
 
 const accountRoles = Object.keys(demoAccounts) as Array<Exclude<Role, "guest">>;
 
+const VISIT_KEY = "fieldnote-visited-v2";
+
+/**
+ * 화면 상태의 출처.
+ *
+ * 전에는 전부 localStorage 였다. 이제 공개 데이터는 Supabase 에서 읽고,
+ * 방문자가 한 일은 서버의 **방문자별 액션 원장**에 쌓인다(RLS 로 격리).
+ * 화면이 보는 모양(`DemoState`)은 그대로라 렌더 코드는 안 바뀐다.
+ *
+ * 역할 전환·"처음 방문인가" 같은 **화면 설정**만 localStorage 에 남는다.
+ * 이건 데이터가 아니라 이 브라우저의 보기 상태다.
+ *
+ * DB 가 안 붙거나 조회가 실패하면 시드 데이터로 돌아간다. 포트폴리오 링크를
+ * 타고 온 사람에게 빈 화면을 보이는 것이 제일 나쁘다.
+ */
 function useDemoState() {
   const [state, setState] = useState<DemoState>(baseline);
   const [ready, setReady] = useState(false);
   const [isFirstVisit, setIsFirstVisit] = useState(false);
+  const [live, setLive] = useState(false);
+
   useEffect(() => {
-    const saved = window.localStorage.getItem("fieldnote-demo-v1");
-    setIsFirstVisit(!saved);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as Partial<DemoState>;
-        setState({
-          ...baseline,
-          ...parsed,
-          reviews: parsed.reviews ?? baseline.reviews,
-          posts: parsed.posts ?? baseline.posts,
-          manualCompanies: parsed.manualCompanies ?? [],
-          hiddenPostIds: parsed.hiddenPostIds ?? [],
-          profile: { ...baseline.profile, ...parsed.profile },
-        });
-      } catch {
-        window.localStorage.removeItem("fieldnote-demo-v1");
+    let cancelled = false;
+    setIsFirstVisit(!window.localStorage.getItem(VISIT_KEY));
+    window.localStorage.setItem(VISIT_KEY, "1");
+
+    const savedRole = window.localStorage.getItem(
+      "fieldnote-role",
+    ) as Role | null;
+
+    (async () => {
+      if (!supabaseConfigured) {
+        if (!cancelled) setReady(true);
+        return;
       }
-    }
-    setReady(true);
+      try {
+        // profiles 는 authenticated 에만 열려 있다. 세션을 먼저 연다.
+        await ensureDemoSession();
+        const data = await loadPublicData();
+        const actions = await loadMyActions();
+        if (cancelled || !data) return;
+        setState((current) => {
+          const base: DemoState = {
+            ...current,
+            role: savedRole ?? current.role,
+            companies: data.companies,
+            reviews: data.reviews,
+            posts: data.posts,
+          };
+          return replayActions(base, actions, data.boardIds);
+        });
+        setLive(true);
+      } catch (error) {
+        // 여기서 던지면 화면이 통째로 안 뜬다. 시드로 계속 간다.
+        console.warn(
+          "[fieldnote] DB 연결 실패, 시드 데이터로 표시합니다",
+          error,
+        );
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
-  useEffect(() => {
-    if (ready)
-      window.localStorage.setItem("fieldnote-demo-v1", JSON.stringify(state));
-  }, [ready, state]);
+
   const updateState = (update: (current: DemoState) => DemoState) => {
     setState((current) => {
       const next = update(current);
-      window.localStorage.setItem("fieldnote-demo-v1", JSON.stringify(next));
+      // 역할은 화면 설정이라 브라우저에 남긴다. 새로고침해도 유지된다.
+      window.localStorage.setItem("fieldnote-role", next.role);
       return next;
     });
   };
-  return [state, updateState, { ready, isFirstVisit }] as const;
+
+  return [state, updateState, { ready, isFirstVisit, live }] as const;
+}
+
+/**
+ * 내가 한 일을 공개 데이터 위에 겹친다.
+ *
+ * 서버는 방문자의 쓰기를 공용 테이블이 아니라 원장에 적는다. 그래서 화면을
+ * 그리려면 [공용 시드] + [내 원장] 을 합쳐야 한다. 전에 localStorage 에
+ * 통째로 저장하던 것을 대신한다.
+ *
+ * 오래된 것부터 순서대로 적용한다 - 좋아요를 눌렀다 취소한 기록이 있으면
+ * 순서가 곧 결과다.
+ */
+function replayActions(
+  base: DemoState,
+  actions: Array<{
+    action: string;
+    request: Record<string, unknown>;
+    response: Record<string, unknown>;
+  }>,
+  boardIds: Record<string, string>,
+): DemoState {
+  const slugOf = Object.fromEntries(
+    Object.entries(boardIds).map(([slug, id]) => [id, slug]),
+  );
+  const boardLabel: Record<string, Post["board"]> = {
+    qna: "Q&A",
+    howto: "노하우",
+    deals: "실적",
+    free: "자유",
+  };
+
+  let next = base;
+  for (const entry of actions) {
+    const req = entry.request ?? {};
+    const res = entry.response ?? {};
+    switch (entry.action) {
+      case "community.post.create": {
+        const slug = slugOf[String(req.boardId)] ?? "free";
+        next = {
+          ...next,
+          posts: [
+            {
+              id: String(res.id ?? crypto.randomUUID()),
+              board: boardLabel[slug] ?? "자유",
+              title: String(req.title ?? ""),
+              body: String(req.body ?? ""),
+              author: next.profile.name,
+              likes: 0,
+              saved: false,
+              comments: [],
+              ai: req.askAi ? "queued" : undefined,
+            },
+            ...next.posts,
+          ],
+        };
+        break;
+      }
+      case "community.comment.create": {
+        const postId = String(req.postId);
+        next = {
+          ...next,
+          posts: next.posts.map((post) =>
+            post.id === postId
+              ? {
+                  ...post,
+                  comments: [...post.comments, String(req.body ?? "")],
+                }
+              : post,
+          ),
+        };
+        break;
+      }
+      case "community.reaction.toggle": {
+        const postId = String(req.postId);
+        next = {
+          ...next,
+          posts: next.posts.map((post) =>
+            post.id === postId ? { ...post, likes: post.likes + 1 } : post,
+          ),
+        };
+        break;
+      }
+      case "community.bookmark.toggle": {
+        const postId = String(req.postId);
+        next = {
+          ...next,
+          posts: next.posts.map((post) =>
+            post.id === postId ? { ...post, saved: !post.saved } : post,
+          ),
+        };
+        break;
+      }
+      case "membership.badge.submit":
+        next = { ...next, badgeStatus: "검토중" };
+        break;
+      case "admin.placement.publish":
+        next = { ...next, placementsPublished: true };
+        break;
+      case "admin.company.import":
+        next = { ...next, imported: true };
+        break;
+      default:
+        // 모르는 액션은 건너뛴다. 서버가 기능을 늘려도 화면이 안 죽는다.
+        break;
+    }
+  }
+  return next;
 }
 
 function useDialogFocus(open: boolean, onClose: () => void) {
@@ -471,6 +645,8 @@ function Header({
 }
 
 function Home({ state }: { state: DemoState }) {
+  // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
+  const companies = pickCompanies(state);
   const top = companies.slice(0, 4);
   const [query, setQuery] = useState("");
   const router = useRouter();
@@ -751,7 +927,9 @@ function CompanyCard({
   score,
   index,
 }: {
-  company: (typeof companies)[number];
+  // 전에는 `(typeof companies)[number]` 였다. 회사 목록이 모듈 상수가
+  // 아니라 DB 에서 오므로 타입을 직접 가리킨다.
+  company: Company;
   score: number;
   index: number;
 }) {
@@ -784,6 +962,8 @@ function CompanyCard({
 }
 
 function Companies({ state }: { state: DemoState }) {
+  // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
+  const companies = pickCompanies(state);
   const [query, setQuery] = useState("");
   const [industry, setIndustry] = useState("전체");
   useEffect(() => {
@@ -859,6 +1039,8 @@ function Companies({ state }: { state: DemoState }) {
 }
 
 function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
+  // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
+  const companies = pickCompanies(state);
   const company = companies.find((item) => item.slug === slug) ?? companies[0];
   const reviews = state.reviews.filter(
     (review) =>
@@ -1067,6 +1249,8 @@ function ReviewForm({
   notify: (m: string) => void;
   onRoleChange: (role: Role) => void;
 }) {
+  // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
+  const companies = pickCompanies(state);
   const router = useRouter();
   const [companySlug, setCompanySlug] = useState(companies[0].slug);
   const [score, setScore] = useState(4.2);
@@ -1870,6 +2054,8 @@ function Account({
 }
 
 function Compare({ state }: { state: DemoState }) {
+  // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
+  const companies = pickCompanies(state);
   const [a, setA] = useState(companies[0].slug);
   const [b, setB] = useState(companies[1].slug);
   const selected = [
@@ -1965,6 +2151,8 @@ function Admin({
   notify: (m: string) => void;
   onRoleChange: (role: Role) => void;
 }) {
+  // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
+  const companies = pickCompanies(state);
   const [reviewFilter, setReviewFilter] = useState<
     "all" | "privacy" | "report"
   >("all");
