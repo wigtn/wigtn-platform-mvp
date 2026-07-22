@@ -29,7 +29,12 @@
   --radius: 3px;
   --radius-lg: 5px;
   --shell: min(1180px, calc(100% - 40px));
-  --sans: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", Arial, sans-serif;
+  /* 첫 후보가 웹에서 받아 오는 쪽(layout.tsx 참고). 그 뒤는 받기 전이나
+     못 받았을 때를 위한 순서다 - 로컬에 Pretendard 가 있으면 그걸,
+     맥이면 Apple SD Gothic Neo 로 간다. */
+  --sans:
+    "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR",
+    Arial, sans-serif;
 
   /* 헤더 높이. 붙박이(sticky) 헤더라 아래 것들이 전부 이 값을 기준으로 한다.
    *
