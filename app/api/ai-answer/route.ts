@@ -20,7 +20,8 @@ import { createClient } from "@supabase/supabase-js";
  * 데모 세션은 1시간이면 만료된다. 그 안에 이 횟수만큼 쓸 수 있다.
  */
 
-const MAX_PER_SESSION = 5;
+// stg_fieldnote의 DB quota(세션당 3회)와 반드시 같은 값이어야 합니다.
+const MAX_PER_SESSION = 3;
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
 const SYSTEM = `당신은 한국 B2B 영업 실무자를 돕는 조력자입니다.
@@ -78,6 +79,23 @@ export async function POST(request: Request) {
     return bad(
       429,
       `이 데모 세션에서는 AI 답변을 ${MAX_PER_SESSION}번까지 받을 수 있습니다.`,
+    );
+  }
+
+  // 비용이 발생하기 전에 서버가 사용량을 원장에 예약합니다. 클라이언트에서
+  // 나중에 기록하면 요청을 직접 반복 호출해 제한을 우회할 수 있습니다.
+  const { error: reserveError } = await supabase.rpc("execute_demo_action", {
+    p_action: "ai.answer.request",
+    p_payload: { title, body },
+    p_idempotency_key: `ai-answer-${crypto.randomUUID()}`,
+  });
+  if (reserveError) {
+    const quotaExceeded = /quota|rate limit/i.test(reserveError.message);
+    return bad(
+      quotaExceeded ? 429 : 503,
+      quotaExceeded
+        ? `이 데모 세션에서는 AI 답변을 ${MAX_PER_SESSION}번까지 받을 수 있습니다.`
+        : "AI 사용량을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
     );
   }
 

@@ -4161,6 +4161,25 @@ select:focus {
   border-color: #d8d8d2;
   background: #f5f5f1;
 }
+.ai-result {
+  color: var(--text);
+}
+.ai-result > span {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.ai-result h2,
+.ai-result p {
+  color: var(--text);
+}
+.ai-result p {
+  max-width: 72ch;
+  font-size: 16px;
+  line-height: 1.8;
+  white-space: pre-line;
+}
 
 .compare-grid article,
 .compare-grid article.comparison-leader {

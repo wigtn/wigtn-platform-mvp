@@ -1925,6 +1925,7 @@ function QuestionForm({
     "idle" | "queued" | "thinking" | "posted"
   >("idle");
   const [title, setTitle] = useState("");
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [context, setContext] = useState(
     "고객이 제품 필요성은 인정하지만 예산 이야기는 계속 미룹니다. 첫 미팅에서 어떤 순서로 물어봐야 할까요?",
   );
@@ -1958,9 +1959,7 @@ function QuestionForm({
     try {
       const result = await requestAiAnswer({ title, body: context });
       answer = result.answer;
-      // 답변까지 원장에 넣는다. 새로고침해도 그대로 보이게 하려면 서버에
-      // 남아 있어야 한다(replayActions 가 여기서 읽는다).
-      persist("ai.answer.request", { title, question: context, answer });
+      setAiAnswer(result.answer);
     } catch (error) {
       notify(
         error instanceof Error ? error.message : "AI 답변을 받지 못했습니다.",
@@ -2042,10 +2041,14 @@ function QuestionForm({
           {status === "posted" ? (
             <div className="ai-result">
               <span>AI 초안</span>
-              <h2>예산 승인 절차와 결정 기준을 먼저 확인하세요.</h2>
+              <h2>
+                {aiAnswer
+                  ? "검토할 순서부터 정리했습니다."
+                  : "질문이 등록되었습니다."}
+              </h2>
               <p>
-                먼저 예산을 승인하는 사람과 검토 순서를 물어보세요. 이어서 도입
-                여부를 결정할 지표와 내부 일정을 확인하면 됩니다.
+                {aiAnswer ??
+                  "AI 초안은 받지 못했지만 질문은 정상 등록되었습니다."}
               </p>
               <Link className="button primary" href="/community">
                 커뮤니티에서 보기
