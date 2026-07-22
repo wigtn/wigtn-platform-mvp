@@ -30,6 +30,11 @@ pnpm dev
 비공개 큐에 들어가고, 맥미니의 `worker:watch`가 입력·출력 가드레일과 구조화 출력 검증을 거쳐
 처리합니다. OpenAI 키는 맥미니 워커에만 두며 브라우저·Vercel 환경변수에는 넣지 않습니다.
 
+공유 Supabase 프로젝트처럼 제품별 스키마를 사용하는 배포에서는 워커의
+`OUTBOX_PRIVATE_SCHEMA`를 해당 비공개 스키마(예: `stg_fieldnote_private`)로 지정합니다. 로컬 환경은
+기존 `app_private`를 기본값으로 사용합니다. 풀러 연결은 대시보드가 제공한 호스트와 공식 CA를
+지정한 `sslmode=verify-full` 연결 문자열을 사용합니다.
+
 ## 체험 흐름
 
 1. 홈에서 회사 탐색 → 회사 상세 → 익명 리뷰 작성 → 통계 갱신

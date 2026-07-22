@@ -13,11 +13,11 @@ const COMPANY = "c0000000-0000-0000-0000-000000000001";
 const ADMIN_SESSION = "75900000-0000-0000-0000-000000000001";
 const dimensions = {
   quota_realism: 4,
-  incentive_transparency: 5,
-  lead_quality: 3,
-  account_allocation: 4,
+  incentive_transparency: 4,
+  lead_quality: 5,
+  account_allocation: 3,
   sales_tooling: 4,
-  manager_coaching: 5,
+  manager_coaching: 4,
 };
 const adminClaims = () => ({
   aal: "aal2",
