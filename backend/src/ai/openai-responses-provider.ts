@@ -13,6 +13,14 @@ type OpenAiOptions = {
   maxRetries?: number;
 };
 
+function retryDelayMs(response: Response, attempt: number): number {
+  const retryAfter = response.headers.get("retry-after");
+  const seconds = retryAfter ? Number(retryAfter) : Number.NaN;
+  if (Number.isFinite(seconds) && seconds >= 0)
+    return Math.min(10_000, seconds * 1000);
+  return Math.min(4_000, 300 * 2 ** attempt) + Math.floor(Math.random() * 150);
+}
+
 function responseText(json: Record<string, unknown>): string {
   if (typeof json.output_text === "string") return json.output_text;
   const output = Array.isArray(json.output) ? json.output : [];
@@ -71,9 +79,10 @@ export class OpenAiResponsesProvider implements ChatProvider {
             "provider",
             `openai ${response.status}`,
           );
-          await new Promise((resolve) =>
-            setTimeout(resolve, 250 * 2 ** attempt),
-          );
+          if (attempt < this.maxRetries)
+            await new Promise((resolve) =>
+              setTimeout(resolve, retryDelayMs(response, attempt)),
+            );
           continue;
         }
         if (!response.ok)
@@ -137,15 +146,36 @@ export class OpenAiResponsesProvider implements ChatProvider {
         model: process.env.OPENAI_MODEL ?? request.model,
         instructions,
         input,
-        max_output_tokens: 1200,
+        reasoning: { effort: "low" },
+        text: {
+          verbosity: "low",
+          ...(request.responseFormat
+            ? {
+                format: {
+                  type: "json_schema",
+                  name: request.responseFormat.name,
+                  description: request.responseFormat.description,
+                  strict: true,
+                  schema: request.responseFormat.schema,
+                },
+              }
+            : {}),
+        },
+        max_output_tokens: 650,
+        ...(request.safetyIdentifier
+          ? { safety_identifier: `fieldnote_${request.safetyIdentifier}` }
+          : {}),
       },
       request.timeoutMs,
     );
     const usage = (json.usage as Record<string, number> | undefined) ?? {};
     const prompt = usage.input_tokens ?? 0;
     const completion = usage.output_tokens ?? 0;
+    const text = responseText(json).trim();
+    if (!text)
+      throw new ProviderError("provider", "openai returned an empty response");
     return {
-      text: responseText(json),
+      text,
       model: String(json.model ?? process.env.OPENAI_MODEL ?? request.model),
       tokens: {
         prompt,
@@ -156,4 +186,4 @@ export class OpenAiResponsesProvider implements ChatProvider {
   }
 }
 
-export const __test = { responseText };
+export const __test = { responseText, retryDelayMs };

@@ -74,7 +74,8 @@ export function createWorker(connectionString: string) {
         maxExecutionMs: 45_000,
       });
       const due = await ai.processDue();
-      return { outbox, due };
+      const demo = await ai.processDemoRequests();
+      return { outbox, due, demo };
     },
     close: () => pool.end(),
   };

@@ -6,6 +6,7 @@ import {
   onCommentCreated,
   onPostCreated,
   processDueAnswers,
+  runAnswerPipeline,
   type ActorType,
   type CommentApiClient,
   type PendingAnswerStore,
@@ -21,6 +22,41 @@ import type { Pool } from "pg";
 import { OpenAiResponsesProvider } from "./openai-responses-provider.js";
 
 type ClaimRow = { post_id: string; event: PostCreatedEvent; enqueued_at: Date };
+type DemoAiClaimRow = {
+  request_id: string;
+  user_id: string;
+  title: string;
+  body: string;
+  attempt_count: number;
+  enqueued_at: Date;
+};
+
+const DEMO_ANSWER_FORMAT = {
+  name: "fieldnote_sales_answer",
+  description: "영업 질문에 대한 간결하고 실행 가능한 한국어 답변",
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      summary: {
+        type: "string",
+        description: "질문의 핵심을 짚는 두세 문장의 판단",
+      },
+      actions: {
+        type: "array",
+        description: "질문자가 바로 실행할 수 있는 구체적인 행동 두세 가지",
+        minItems: 2,
+        maxItems: 3,
+        items: { type: "string" },
+      },
+      caution: {
+        type: "string",
+        description: "실행할 때 놓치기 쉬운 주의점 한두 문장",
+      },
+    },
+    required: ["summary", "actions", "caution"],
+  },
+} as const;
 type WorkerPendingStore = PendingAnswerStore & {
   commitProcessed(): Promise<number>;
   resetClaim(): void;
@@ -188,7 +224,7 @@ export function createAiRuntime(pool: Pool) {
     ...SALES_COMMUNITY_RULE,
     provider: {
       ...SALES_COMMUNITY_RULE.provider,
-      model: process.env.OPENAI_MODEL ?? "gpt-5.6-sol",
+      model: process.env.OPENAI_MODEL ?? "gpt-5.6-terra",
     },
   };
   const fetchPost: SubscriptionDeps["pipeline"]["fetchPost"] = async (
@@ -240,6 +276,93 @@ export function createAiRuntime(pool: Pool) {
   };
   return {
     handlers,
+    async processDemoRequests() {
+      const batchSize = Number(process.env.WORKER_BATCH_SIZE ?? 25);
+      const claimed = await pool.query<DemoAiClaimRow>(
+        "select * from app_private.claim_demo_ai_requests($1, $2)",
+        [batchSize, 45],
+      );
+      let ready = 0;
+      let blocked = 0;
+      let failed = 0;
+      for (const row of claimed.rows) {
+        const event: PostCreatedEvent = {
+          specVersion: "1",
+          id: `demo-ai:${row.request_id}:${row.attempt_count}`,
+          type: "community.post.created.v1",
+          occurredAt: row.enqueued_at.toISOString(),
+          traceId: row.request_id,
+          actor: { type: "user", id: row.user_id },
+          subject: { type: "post", id: row.request_id },
+          data: {
+            postId: row.request_id,
+            boardType: "qna",
+            authorId: row.user_id,
+            createdAt: row.enqueued_at.toISOString(),
+          },
+        };
+        try {
+          const result = await runAnswerPipeline(event, rule, {
+            ...deps.pipeline,
+            promptPack: {
+              ...deps.pipeline.promptPack,
+              guardText: [
+                deps.pipeline.promptPack.guardText,
+                "답변은 핵심 판단, 바로 실행할 행동, 주의점으로 나눕니다.",
+                "행동은 모호한 조언 대신 질문자가 다음 미팅에서 실제로 말하거나 확인할 수 있는 내용으로 씁니다.",
+                "Markdown 기호나 제목 표시는 쓰지 않고 각 필드 안에는 자연스러운 문장만 작성합니다.",
+              ].join("\n"),
+            },
+            responseFormat: DEMO_ANSWER_FORMAT,
+            fetchPost: async () => ({
+              postId: row.request_id,
+              boardType: "qna",
+              title: row.title,
+              body: row.body,
+              available: true,
+            }),
+          });
+          const reasons = result.log?.guardrail.reasons ?? [];
+          if (result.action === "post" && result.comment) {
+            await pool.query(
+              "select app_private.complete_demo_ai_request($1, 'ready', $2, $3::jsonb, $4, $5::jsonb)",
+              [
+                row.request_id,
+                result.comment.content,
+                JSON.stringify(reasons),
+                result.log?.model ?? rule.provider.model,
+                JSON.stringify(result.log?.tokens ?? {}),
+              ],
+            );
+            ready += 1;
+          } else if (result.status.startsWith("skipped_")) {
+            await pool.query(
+              "select app_private.complete_demo_ai_request($1, 'blocked', null, $2::jsonb, $3, $4::jsonb)",
+              [
+                row.request_id,
+                JSON.stringify(reasons),
+                result.log?.model ?? rule.provider.model,
+                JSON.stringify(result.log?.tokens ?? {}),
+              ],
+            );
+            blocked += 1;
+          } else {
+            await pool.query(
+              "select app_private.fail_demo_ai_request($1, $2)",
+              [row.request_id, String(result.status)],
+            );
+            failed += 1;
+          }
+        } catch (error) {
+          await pool.query("select app_private.fail_demo_ai_request($1, $2)", [
+            row.request_id,
+            error instanceof Error ? error.name : "worker_error",
+          ]);
+          failed += 1;
+        }
+      }
+      return { claimed: claimed.rowCount ?? 0, ready, blocked, failed };
+    },
     async processDue() {
       try {
         const results = await processDueAnswers(

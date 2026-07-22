@@ -23,8 +23,37 @@ create table app_private.demo_experience_actions (
 create index demo_experience_actions_user_created_idx
   on app_private.demo_experience_actions(user_id, created_at desc);
 
+create table app_private.demo_ai_requests (
+  id uuid primary key,
+  action_id uuid not null unique
+    references app_private.demo_experience_actions(id) on delete cascade,
+  user_id uuid not null
+    references app_private.demo_experience_sessions(user_id) on delete cascade,
+  title text not null check (char_length(trim(title)) between 8 and 160),
+  body text not null check (char_length(trim(body)) between 20 and 5000),
+  status text not null default 'pending'
+    check (status in ('pending', 'processing', 'ready', 'blocked', 'failed')),
+  available_at timestamptz not null default now(),
+  lease_until timestamptz,
+  attempt_count integer not null default 0 check (attempt_count between 0 and 3),
+  answer text,
+  guardrail_reasons jsonb not null default '[]'::jsonb,
+  model text,
+  token_usage jsonb not null default '{}'::jsonb,
+  error_code text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+create index demo_ai_requests_claim_idx
+  on app_private.demo_ai_requests(status, available_at, created_at)
+  where status in ('pending', 'processing');
+create index demo_ai_requests_user_idx
+  on app_private.demo_ai_requests(user_id, created_at desc);
+
 revoke all on table app_private.demo_experience_sessions,
-  app_private.demo_experience_actions from public, anon, authenticated, app_authenticator;
+  app_private.demo_experience_actions,
+  app_private.demo_ai_requests from public, anon, authenticated, app_authenticator;
 
 create or replace function app_private.assert_anonymous_demo_actor()
 returns uuid
@@ -100,9 +129,11 @@ declare
   v_existing jsonb;
   v_response jsonb;
   v_entity_id uuid := gen_random_uuid();
-  v_request app_private.demo_experience_actions;
-  v_available_at timestamptz;
+  v_action_id uuid := gen_random_uuid();
+  v_ai_request app_private.demo_ai_requests;
   v_recent_count integer;
+  v_ai_user_count integer;
+  v_ai_global_count integer;
 begin
   if p_action not in (
     'community.post.create', 'community.comment.create',
@@ -160,24 +191,50 @@ begin
     when 'membership.badge.submit' then
       v_response := jsonb_build_object('applicationId', v_entity_id, 'status', 'submitted');
     when 'ai.answer.request' then
-      v_available_at := now() + interval '3 seconds';
-      v_response := jsonb_build_object('requestId', v_entity_id, 'status', 'pending',
-        'availableAt', v_available_at);
+      if char_length(trim(coalesce(p_payload->>'title', ''))) not between 8 and 160
+         or char_length(trim(coalesce(p_payload->>'body', ''))) not between 20 and 5000 then
+        raise exception using errcode = '22023', message = 'invalid AI question';
+      end if;
+      select count(*) into v_ai_user_count
+      from app_private.demo_ai_requests
+      where user_id = v_user_id and created_at >= now() - interval '1 hour';
+      select count(*) into v_ai_global_count
+      from app_private.demo_ai_requests
+      where created_at >= now() - interval '1 hour';
+      if v_ai_user_count >= 3 or v_ai_global_count >= 30 then
+        raise exception using errcode = 'P0001', message = 'demo AI request quota exceeded';
+      end if;
+      v_response := jsonb_build_object('requestId', v_entity_id, 'status', 'pending');
     when 'ai.answer.poll' then
-      select * into v_request
-      from app_private.demo_experience_actions a
-      where a.user_id = v_user_id
-        and a.action_key = 'ai.answer.request'
-        and a.response_payload->>'requestId' = p_payload->>'requestId';
+      select * into v_ai_request
+      from app_private.demo_ai_requests r
+      where r.user_id = v_user_id
+        and r.id::text = p_payload->>'requestId';
       if not found then
         raise exception using errcode = 'P0002', message = 'demo AI request not found';
       end if;
-      v_available_at := (v_request.response_payload->>'availableAt')::timestamptz;
-      v_response := case when now() >= v_available_at then
-        jsonb_build_object('requestId', p_payload->>'requestId', 'status', 'ready',
-          'answer', '목표 고객을 업종·규모·의사결정 역할로 좁히고, 최근 수주 사례를 근거로 첫 접점 메시지를 짧게 검증해 보세요.')
-      else jsonb_build_object('requestId', p_payload->>'requestId', 'status', 'pending',
-        'availableAt', v_available_at) end;
+      v_response := case v_ai_request.status
+        when 'ready' then jsonb_build_object(
+          'requestId', v_ai_request.id,
+          'status', 'ready',
+          'answer', v_ai_request.answer,
+          'model', v_ai_request.model
+        )
+        when 'blocked' then jsonb_build_object(
+          'requestId', v_ai_request.id,
+          'status', 'blocked',
+          'reasons', v_ai_request.guardrail_reasons
+        )
+        when 'failed' then jsonb_build_object(
+          'requestId', v_ai_request.id,
+          'status', 'failed',
+          'retryable', true
+        )
+        else jsonb_build_object(
+          'requestId', v_ai_request.id,
+          'status', 'pending'
+        )
+      end;
     when 'admin.member.review' then
       v_response := jsonb_build_object('applicationId', p_payload->>'applicationId',
         'status', coalesce(nullif(p_payload->>'decision', ''), 'approved'), 'simulated', true);
@@ -197,8 +254,19 @@ begin
 
   v_response := v_response || jsonb_build_object('action', p_action, 'executedAt', now());
   insert into app_private.demo_experience_actions
-    (user_id, action_key, request_payload, response_payload, idempotency_key)
-  values (v_user_id, p_action, coalesce(p_payload, '{}'::jsonb), v_response, p_idempotency_key);
+    (id, user_id, action_key, request_payload, response_payload, idempotency_key)
+  values (v_action_id, v_user_id, p_action, coalesce(p_payload, '{}'::jsonb), v_response, p_idempotency_key);
+  if p_action = 'ai.answer.request' then
+    insert into app_private.demo_ai_requests
+      (id, action_id, user_id, title, body)
+    values (
+      v_entity_id,
+      v_action_id,
+      v_user_id,
+      trim(p_payload->>'title'),
+      trim(p_payload->>'body')
+    );
+  end if;
   return v_response;
 end;
 $$;
@@ -225,9 +293,112 @@ begin
     'response', response_payload, 'createdAt', created_at
   ) order by created_at desc), '[]'::jsonb) into v_actions
   from (select * from app_private.demo_experience_actions
-        where user_id = v_user_id order by created_at desc limit 100) recent;
+        where user_id = v_user_id and action_key <> 'ai.answer.poll'
+        order by created_at desc limit 100) recent;
   return jsonb_build_object('mode', 'isolated-demo', 'expiresAt', v_session.expires_at,
     'actions', v_actions);
+end;
+$$;
+
+create or replace function app_private.claim_demo_ai_requests(
+  p_limit integer default 25,
+  p_lease_seconds integer default 45
+)
+returns table (
+  request_id uuid,
+  user_id uuid,
+  title text,
+  body text,
+  attempt_count integer,
+  enqueued_at timestamptz
+)
+language sql
+security definer
+set search_path = ''
+as $$
+  with candidates as (
+    select r.id
+    from app_private.demo_ai_requests r
+    where r.attempt_count < 3
+      and r.available_at <= now()
+      and (
+        r.status = 'pending'
+        or (r.status = 'processing' and r.lease_until < now())
+      )
+    order by r.created_at
+    for update skip locked
+    limit greatest(1, least(coalesce(p_limit, 25), 100))
+  ), claimed as (
+    update app_private.demo_ai_requests r
+    set status = 'processing',
+        lease_until = now() + make_interval(secs => greatest(5, least(coalesce(p_lease_seconds, 45), 300))),
+        attempt_count = r.attempt_count + 1,
+        updated_at = now()
+    from candidates c
+    where r.id = c.id
+    returning r.*
+  )
+  select c.id, c.user_id, c.title, c.body, c.attempt_count, c.created_at
+  from claimed c;
+$$;
+
+create or replace function app_private.complete_demo_ai_request(
+  p_request_id uuid,
+  p_status text,
+  p_answer text,
+  p_guardrail_reasons jsonb,
+  p_model text,
+  p_token_usage jsonb
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if p_status not in ('ready', 'blocked') then
+    raise exception using errcode = '22023', message = 'invalid demo AI completion status';
+  end if;
+  update app_private.demo_ai_requests
+  set status = p_status,
+      answer = case when p_status = 'ready' then nullif(trim(p_answer), '') else null end,
+      guardrail_reasons = coalesce(p_guardrail_reasons, '[]'::jsonb),
+      model = nullif(trim(p_model), ''),
+      token_usage = coalesce(p_token_usage, '{}'::jsonb),
+      lease_until = null,
+      error_code = null,
+      updated_at = now(),
+      completed_at = now()
+  where id = p_request_id and status = 'processing';
+  return found;
+end;
+$$;
+
+create or replace function app_private.fail_demo_ai_request(
+  p_request_id uuid,
+  p_error_code text
+)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_status text;
+begin
+  update app_private.demo_ai_requests
+  set status = case when attempt_count >= 3 then 'failed' else 'pending' end,
+      available_at = case
+        when attempt_count >= 3 then available_at
+        else now() + make_interval(secs => least(30, power(2, attempt_count))::integer)
+      end,
+      lease_until = null,
+      error_code = left(coalesce(nullif(trim(p_error_code), ''), 'provider_error'), 80),
+      updated_at = now(),
+      completed_at = case when attempt_count >= 3 then now() else null end
+  where id = p_request_id and status = 'processing'
+  returning status into v_status;
+  return v_status;
 end;
 $$;
 
@@ -270,7 +441,10 @@ $$;
 revoke all on function app_private.assert_anonymous_demo_actor(),
   app_private.bootstrap_demo_experience(),
   app_private.execute_demo_action(text,jsonb,text),
-  app_private.get_demo_experience(), app_private.reset_demo_experience() from public;
+  app_private.get_demo_experience(), app_private.reset_demo_experience(),
+  app_private.claim_demo_ai_requests(integer,integer),
+  app_private.complete_demo_ai_request(uuid,text,text,jsonb,text,jsonb),
+  app_private.fail_demo_ai_request(uuid,text) from public;
 revoke all on function public.bootstrap_demo_experience(),
   public.execute_demo_action(text,jsonb,text),
   public.get_demo_experience(), public.reset_demo_experience() from public;
@@ -282,3 +456,6 @@ grant execute on function app_private.bootstrap_demo_experience(),
 grant execute on function public.bootstrap_demo_experience(),
   public.execute_demo_action(text,jsonb,text),
   public.get_demo_experience(), public.reset_demo_experience() to authenticated;
+grant execute on function app_private.claim_demo_ai_requests(integer,integer),
+  app_private.complete_demo_ai_request(uuid,text,text,jsonb,text,jsonb),
+  app_private.fail_demo_ai_request(uuid,text) to outbox_worker;

@@ -541,6 +541,9 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
 
   const switchRole = (role: Role, destination?: string) => {
     const roleMessage = `${roleNames[role]} 역할로 전환했습니다. 새로 볼 수 있는 것: ${roleExperience[role].unlocks}`;
+    // 경로 이동으로 컴포넌트가 바로 언마운트되어도 선택한 역할이 유실되지
+    // 않도록 React 상태 갱신보다 먼저 저장한다.
+    window.localStorage.setItem("fieldnote-role", role);
     setState((current) => ({ ...current, role }));
     setMobileRoleSheetOpen(false);
     const nextPath =

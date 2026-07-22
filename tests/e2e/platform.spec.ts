@@ -20,7 +20,7 @@ async function switchRole(page: Page, roleName: string) {
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() =>
-    window.localStorage.removeItem("fieldnote-demo-v1"),
+    window.localStorage.removeItem("fieldnote-visited-v2"),
   );
   await page.reload();
   await page.getByRole("button", { name: "그냥 둘러보기 (비회원)" }).click();
@@ -28,7 +28,7 @@ test.beforeEach(async ({ page }) => {
 
 test("첫 방문 역할 선택과 포커스 순환이 동작한다", async ({ page }) => {
   await page.evaluate(() =>
-    window.localStorage.removeItem("fieldnote-demo-v1"),
+    window.localStorage.removeItem("fieldnote-visited-v2"),
   );
   await page.reload();
   const dialog = page.getByRole("dialog", {
@@ -142,9 +142,14 @@ test("질문 등록 후 AI 첫 답변 상태 전이가 완료된다", async ({ p
   await page.getByLabel("상황 설명").fill(context);
   await page.getByRole("button", { name: "질문 등록" }).click();
   await expect(page.getByText("질문 내용 검사")).toBeVisible();
-  await expect(
-    page.getByText("예산 승인 절차와 결정 기준을 먼저 확인하세요."),
-  ).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByTestId("ai-answer-text")).not.toHaveText("", {
+    timeout: 50_000,
+  });
+  await expect(page.getByText("다음 미팅에서 해볼 일")).toBeVisible();
+  await expect(page.getByText("놓치기 쉬운 점")).toBeVisible();
+  expect(
+    await page.getByTestId("ai-answer-action").count(),
+  ).toBeGreaterThanOrEqual(2);
   await page.getByRole("link", { name: "커뮤니티에서 보기" }).click();
   await expect(page.getByText(context)).toBeVisible();
 });
