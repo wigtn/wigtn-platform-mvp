@@ -6,6 +6,17 @@ const baseURL = `http://127.0.0.1:${port}`;
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
+  /*
+    한 번에 하나씩 돌린다.
+
+    desktop 과 mobile 이 같은 개발 서버·같은 Supabase·같은 AI 워커를 쓴다.
+    병렬로 돌리면 서로의 데모 세션과 큐를 밟는다 - 관리자 블라인드가 다른
+    실행의 상태를 보고, AI 답변은 워커가 순서대로 처리하느라 제한 시간을
+    넘긴다. 개별 실행은 전부 통과하는데 전체 실행만 빨간불이었다.
+
+    느려지지만, 믿을 수 없는 초록불보다 낫다.
+  */
+  workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL,

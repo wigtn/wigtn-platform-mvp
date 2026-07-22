@@ -558,6 +558,41 @@ function replayActions(
         };
         break;
       }
+      case "admin.content.moderate": {
+        /*
+          관리자가 숨긴 것이 새로고침하면 되살아났다.
+
+          화면은 바로 반영하는데 원장에서 다시 읽을 때 이 액션을 안 봤다.
+          블라인드는 운영 판단이라, 다시 들어왔을 때 풀려 있으면 처리한
+          사람이 두 번 누르게 된다.
+        */
+        const targetId = String(req.targetId ?? "");
+        if (!targetId) break;
+        if (req.targetType === "company_review") {
+          next = {
+            ...next,
+            reviews: next.reviews.map((review) =>
+              review.id === targetId
+                ? {
+                    ...review,
+                    status: req.action === "restore" ? "published" : "hidden",
+                  }
+                : review,
+            ),
+          };
+        } else {
+          const hidden = new Set(next.hiddenPostIds);
+          if (req.action === "restore") hidden.delete(targetId);
+          else hidden.add(targetId);
+          next = { ...next, hiddenPostIds: [...hidden] };
+        }
+        break;
+      }
+      case "member.profile.update": {
+        const name = String(req.displayName ?? "").trim();
+        if (name) next = { ...next, profile: { ...next.profile, name } };
+        break;
+      }
       case "membership.badge.submit":
         next = { ...next, badgeStatus: "검토중" };
         break;
