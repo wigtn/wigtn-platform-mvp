@@ -42,9 +42,20 @@ export type LoadedDemo = {
   companies: Company[];
   reviews: Review[];
   posts: Post[];
-  /** 원장 재생에 쓰는 게시판 이름→id. 글을 쓸 때 필요하다. */
+  /** 원장 재생에 쓰는 게시판 slug→id. 글을 쓸 때 필요하다. */
   boardIds: Record<string, string>;
+  /** 회사 slug→id. 리뷰를 쓸 때 필요하다(화면은 slug 로만 다룬다). */
+  companyIds: Record<string, string>;
 };
+
+/**
+ * 화면 라벨(한글) → 저장 키(영어). 읽을 때 쓰는 AXIS_LABEL 의 반대다.
+ * 리뷰를 쓸 때 6축을 이 키로 바꿔 보낸다 - DB 의 check 제약이 이 이름을
+ * 요구한다.
+ */
+export const AXIS_KEY: Record<string, string> = Object.fromEntries(
+  Object.entries(AXIS_LABEL).map(([key, label]) => [label, key]),
+);
 
 function labelDimensions(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {};
@@ -160,6 +171,14 @@ export async function loadPublicData(): Promise<LoadedDemo | null> {
     };
   });
 
+  const companyIds: Record<string, string> = {};
+  for (const row of (companiesRes.data ?? []) as unknown as Array<{
+    id: string;
+    slug: string;
+  }>) {
+    companyIds[row.slug] = row.id;
+  }
+
   const boardIds: Record<string, string> = {};
   for (const row of boardsRes.data ?? []) {
     boardIds[row.slug as string] = row.id as string;
@@ -202,7 +221,7 @@ export async function loadPublicData(): Promise<LoadedDemo | null> {
     },
   );
 
-  return { companies, reviews, posts, boardIds };
+  return { companies, reviews, posts, boardIds, companyIds };
 }
 
 /** 브라우저마다 익명 계정을 만들고 격리된 데모 세션을 연다. */
@@ -218,6 +237,29 @@ export async function ensureDemoSession(): Promise<{ userId: string } | null> {
   const { data, error } = await supabase.rpc("bootstrap_demo_experience");
   if (error) throw error;
   return { userId: (data as { userId: string }).userId };
+}
+
+/**
+ * 멱등키에 쓸 임의 문자열.
+ *
+ * `crypto.randomUUID()` 를 쓰다가 깨졌다. 그건 **보안 컨텍스트(HTTPS 나
+ * localhost)에서만** 존재한다. LAN 주소로 열어 보면 http 라 없어서 쓰기가
+ * 통째로 실패했다.
+ *
+ *     TypeError: crypto.randomUUID is not a function
+ *
+ * 배포는 HTTPS 라 안 드러나지만, 내부망에서 확인하거나 다른 기기로 열어
+ * 보는 순간 조용히 막힌다. 서버가 요구하는 건 8자 이상인 고유 문자열이라
+ * UUID 일 필요가 없다.
+ */
+function randomKey(): string {
+  const bytes = globalThis.crypto?.getRandomValues?.(new Uint8Array(9));
+  if (bytes) {
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  // getRandomValues 도 없는 환경. 데모의 멱등키라 추측 불가능성이 필요하진
+  // 않고, 겹치지만 않으면 된다.
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export type LedgerEntry = {
@@ -253,7 +295,7 @@ export async function recordAction(
 ): Promise<Record<string, unknown> | null> {
   const supabase = getSupabase();
   if (!supabase) return null;
-  const key = `${action}-${crypto.randomUUID()}`;
+  const key = `${action}-${randomKey()}`;
   const { data, error } = await supabase.rpc("execute_demo_action", {
     p_action: action,
     p_payload: payload,

@@ -15,6 +15,7 @@ import {
   type Role,
 } from "@/lib/domain";
 import {
+  AXIS_KEY,
   ensureDemoSession,
   loadMyActions,
   loadPublicData,
@@ -42,6 +43,15 @@ type DemoState = {
   role: Role;
   /** DB 에서 받은 회사 목록. 못 받았으면 비어 있고 시드로 되돌아간다. */
   companies?: Company[];
+  /**
+   * 게시판 이름(화면) → id(DB).
+   *
+   * 화면은 게시판을 "노하우" 처럼 한글 이름으로 고른다. 서버 액션은 id 를
+   * 받는다. 글을 쓸 때마다 조회하면 느리므로 처음 읽을 때 같이 받아 둔다.
+   */
+  boardIds?: Record<string, string>;
+  /** 회사 이름표(slug) → id(DB). 리뷰를 쓸 때 필요하다. */
+  companyIds?: Record<string, string>;
   reviews: Review[];
   posts: Post[];
   placementsPublished: boolean;
@@ -212,6 +222,8 @@ function useDemoState() {
             ...current,
             role: savedRole ?? current.role,
             companies: data.companies,
+            boardIds: LABEL_TO_BOARD_ID(data.boardIds),
+            companyIds: data.companyIds,
             reviews: data.reviews,
             posts: data.posts,
           };
@@ -244,6 +256,47 @@ function useDemoState() {
   };
 
   return [state, updateState, { ready, isFirstVisit, live }] as const;
+}
+
+/**
+ * 화면에서 일어난 일을 서버에 남긴다.
+ *
+ * ## 왜 기다리지 않나
+ *
+ * 화면은 이미 `setState` 로 즉시 바뀐다. 여기서 응답을 기다리면 버튼을 누른
+ * 뒤 멈칫한다. 서버 기록은 뒤따라가면 되고, 새로고침하면 원장에서 다시
+ * 재생된다(replayActions).
+ *
+ * ## 실패하면
+ *
+ * 조용히 넘긴다. DB 가 안 붙은 상태(설정 없음)에서도 데모는 끝까지 돌아야
+ * 한다 - 포트폴리오 링크를 타고 온 사람에게 오류 창을 띄우는 것이 제일
+ * 나쁘다. 대신 콘솔에는 남겨서 개발 중에는 보이게 한다.
+ *
+ * 실패해도 화면은 이미 바뀐 상태다. 새로고침하면 사라진다 - 데모에서는
+ * 그게 맞다. 서버에 없는 것을 있는 척 유지하면 더 헷갈린다.
+ */
+/** slug 로 받은 게시판 id 를 화면이 쓰는 한글 이름으로 다시 묶는다. */
+function LABEL_TO_BOARD_ID(bySlug: Record<string, string>) {
+  const label: Record<string, Post["board"]> = {
+    qna: "Q&A",
+    howto: "노하우",
+    deals: "실적",
+    free: "자유",
+  };
+  const out: Record<string, string> = {};
+  for (const [slug, id] of Object.entries(bySlug)) {
+    const name = label[slug];
+    if (name) out[name] = id;
+  }
+  return out;
+}
+
+function persist(action: string, payload: Record<string, unknown>) {
+  if (!supabaseConfigured) return;
+  void recordAction(action, payload).catch((error) => {
+    console.warn(`[fieldnote] ${action} 기록 실패`, error);
+  });
 }
 
 /**
@@ -286,7 +339,9 @@ function replayActions(
           ...next,
           posts: [
             {
-              id: String(res.id ?? crypto.randomUUID()),
+              // 서버가 준 id 를 쓴다. 없을 때만 임시 id 를 만든다 -
+              // crypto.randomUUID 는 HTTPS 에서만 있어서 못 쓴다.
+              id: String(res.id ?? `local-${Date.now()}`),
               board: boardLabel[slug] ?? "자유",
               title: String(req.title ?? ""),
               body: String(req.body ?? ""),
@@ -446,10 +501,18 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
     };
   }, []);
   const reset = () => {
-    window.localStorage.removeItem("fieldnote-demo-v1");
-    setState(() => baseline);
+    // 서버의 내 액션 원장을 지운다. 공용 시드는 안 건드린다.
+    //
+    // 끝나면 새로고침한다. 원장을 지운 뒤 화면만 baseline 으로 돌리면
+    // 시드 데이터가 아니라 정적 배열이 뜬다 - 초기화했더니 다른 데이터가
+    // 나오는 셈이라 더 헷갈린다.
+    void resetMyDemo()
+      .catch((error) => console.warn("[fieldnote] 초기화 실패", error))
+      .finally(() => {
+        window.localStorage.removeItem("fieldnote-role");
+        window.location.href = "/";
+      });
     notify("데모 데이터가 초기화됐습니다.");
-    router.push("/");
   };
 
   useEffect(() => {
@@ -1275,6 +1338,22 @@ function ReviewForm({
       ...current,
       reviews: [review, ...current.reviews],
     }));
+    const companyId = state.companyIds?.[companySlug];
+    if (companyId) {
+      persist("company.review.create", {
+        companyId,
+        title: review.title,
+        body: review.body,
+        employmentStatus: review.employment === "재직" ? "current" : "former",
+        // 6축을 DB 가 쓰는 영어 키로 바꾼다. check 제약이 이 이름을 요구한다.
+        scoreDimensions: Object.fromEntries(
+          Object.entries(dimensions).map(([label, value]) => [
+            AXIS_KEY[label] ?? label,
+            value,
+          ]),
+        ),
+      });
+    }
     notify("익명 리뷰가 반영되고 회사 통계가 갱신됐습니다.");
     router.push(`/companies/${companySlug}`);
   };
@@ -1421,6 +1500,7 @@ function Community({
         post.id === id ? { ...post, saved: !post.saved } : post,
       ),
     }));
+    persist("community.bookmark.toggle", { postId: id });
     notify("스크랩 상태가 변경됐습니다.");
   };
   return (
@@ -1608,6 +1688,14 @@ function PostForm({
       ...current,
       posts: [post, ...current.posts],
     }));
+    const boardId = state.boardIds?.[post.board];
+    if (boardId) {
+      persist("community.post.create", {
+        boardId,
+        title: post.title,
+        body: post.body,
+      });
+    }
     notify("게시글과 이미지 메타데이터가 등록됐습니다.");
     router.push(`/posts/${id}`);
   };
@@ -1692,6 +1780,7 @@ function PostDetail({
           : item,
       ),
     }));
+    persist("community.comment.create", { postId: post.id, body });
     form.reset();
     setReplyingTo(null);
     notify(
@@ -1737,12 +1826,20 @@ function PostDetail({
                     : item,
                 ),
               }));
+              persist("community.reaction.toggle", { postId: post.id });
               notify("도움됐어요를 남겼습니다.");
             }}
           >
             도움됐어요 {post.likes}
           </button>
-          <button onClick={() => notify("신고가 운영 큐에 접수됐습니다.")}>
+          <button
+            onClick={() => {
+              // 신고는 화면 상태를 안 바꾼다(운영 큐로만 간다). 그래도
+              // 서버에는 남아야 관리자 화면의 신고 건수가 진짜가 된다.
+              persist("community.report.create", { postId: post.id });
+              notify("신고가 운영 큐에 접수됐습니다.");
+            }}
+          >
             신고
           </button>
         </div>
@@ -1831,6 +1928,15 @@ function QuestionForm({
         ai: "posted",
       };
       setState((current) => ({ ...current, posts: [post, ...current.posts] }));
+      const boardId = state.boardIds?.["Q&A"];
+      if (boardId) {
+        persist("community.post.create", {
+          boardId,
+          title,
+          body: context,
+          askAi: true,
+        });
+      }
     }, 4200);
   };
   return (
@@ -1969,6 +2075,8 @@ function Account({
                     headline: String(data.get("profileHeadline")),
                   },
                 }));
+                // 프로필 저장은 서버 액션 목록에 아직 없다. 화면에만 반영된다.
+                // (execute_demo_action 의 features 에 member.profile.update 추가 필요)
                 notify("프로필이 저장됐습니다.");
               }}
             >
@@ -2022,6 +2130,9 @@ function Account({
                       ...current,
                       badgeStatus: "검토중",
                     }));
+                    persist("membership.badge.submit", {
+                      evidence: "demo-sample",
+                    });
                     notify("샘플 확인 자료를 제출했습니다.");
                   }}
                 >
@@ -2305,6 +2416,11 @@ function Admin({
                       : item,
                   ),
                 }));
+                persist("admin.content.moderate", {
+                  targetType: "company_review",
+                  targetId: review.id,
+                  action: review.status === "hidden" ? "restore" : "hide",
+                });
                 notify("리뷰 공개 상태를 변경했습니다.");
               }}
             >
@@ -2335,6 +2451,7 @@ function Admin({
               manualCompanies: [name, ...current.manualCompanies],
             }));
             form.reset();
+            persist("admin.company.import", { mode: "manual", name });
             notify("회사를 등록했습니다.");
           }}
         >
@@ -2375,6 +2492,10 @@ function Admin({
             className="button primary"
             onClick={() => {
               setState((current) => ({ ...current, imported: true }));
+              persist("admin.company.import", {
+                mode: "xlsx-dry-run",
+                rows: 1240,
+              });
               notify("파일 검사를 마쳤습니다. 아직 저장하지 않았습니다.");
             }}
           >
@@ -2402,6 +2523,10 @@ function Admin({
                 ...current,
                 crawlPreviewed: true,
               }));
+              // 크롤러 후보 미리보기도 회사 반입의 한 갈래라 같은 액션으로
+              // 남긴다. 실제 크롤링은 데모 범위 밖이고, 여기서는 후보를
+              // 확인했다는 사실만 기록한다.
+              persist("admin.company.import", { mode: "crawler-dry-run" });
               notify("새 회사 후보를 불러왔습니다.");
             }}
           >
@@ -2425,6 +2550,9 @@ function Admin({
                 ...current,
                 placementsPublished: !current.placementsPublished,
               }));
+              persist("admin.placement.publish", {
+                published: !state.placementsPublished,
+              });
               notify(
                 state.placementsPublished
                   ? "추천 영역을 미리보기 상태로 변경했습니다."
@@ -2454,6 +2582,7 @@ function Admin({
                     ...current,
                     badgeStatus: "승인",
                   }));
+                  persist("admin.member.review", { decision: "approve" });
                   notify("확인 배지 신청을 승인했습니다.");
                 }}
               >
@@ -2465,6 +2594,7 @@ function Admin({
                     ...current,
                     badgeStatus: "반려",
                   }));
+                  persist("admin.member.review", { decision: "reject" });
                   notify("확인 배지 신청을 반려했습니다.");
                 }}
               >
@@ -2496,6 +2626,13 @@ function Admin({
                     ? current.hiddenPostIds.filter((id) => id !== post.id)
                     : [...current.hiddenPostIds, post.id],
                 }));
+                persist("admin.content.moderate", {
+                  targetType: "post",
+                  targetId: post.id,
+                  action: state.hiddenPostIds.includes(post.id)
+                    ? "restore"
+                    : "hide",
+                });
                 notify("게시글 공개 상태를 변경했습니다.");
               }}
             >
