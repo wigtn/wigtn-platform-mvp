@@ -20,7 +20,7 @@ async function switchRole(page: Page, roleName: string) {
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() =>
-    window.localStorage.removeItem("fieldnote-demo-v1"),
+    window.localStorage.removeItem("fieldnote-visited-v2"),
   );
   await page.reload();
   await page.getByRole("button", { name: "그냥 둘러보기 (비회원)" }).click();
@@ -28,7 +28,7 @@ test.beforeEach(async ({ page }) => {
 
 test("첫 방문 역할 선택과 포커스 순환이 동작한다", async ({ page }) => {
   await page.evaluate(() =>
-    window.localStorage.removeItem("fieldnote-demo-v1"),
+    window.localStorage.removeItem("fieldnote-visited-v2"),
   );
   await page.reload();
   const dialog = page.getByRole("dialog", {
@@ -217,6 +217,41 @@ test("모바일 핵심 화면에 수평 오버플로가 없다", async ({ page }
   );
   expect(overflow).toBe(false);
   await expect(page.getByTestId("role-switch")).toBeVisible();
+});
+
+/**
+ * 헤더 메뉴로 주요 화면 사이를 옮길 수 있는가.
+ *
+ * 모바일에서 헤더 메뉴가 `display: none` 인데 대체 수단이 없던 적이 있다.
+ * 폰으로 들어오면 로고와 계정 버튼만 보이고, 회사 리뷰·영업 Q&A·회사
+ * 비교·검증 정책 사이를 옮길 방법이 화면에 없었다.
+ *
+ * **e2e 는 그때도 전부 초록이었다.** 다른 테스트가 전부 `page.goto()` 로
+ * 주소를 직접 찍고 들어가서, 헤더를 한 번도 안 눌러 봤기 때문이다.
+ * mobile 프로젝트가 있는데도 못 잡았다.
+ *
+ * 그래서 여기서는 **클릭으로만** 이동한다. goto 를 쓰면 이 테스트도 같은
+ * 이유로 아무것도 안 지키게 된다.
+ */
+test("헤더 메뉴만으로 주요 화면을 오갈 수 있다", async ({ page }) => {
+  const nav = page.getByRole("navigation", { name: "주요 메뉴" });
+
+  for (const [label, heading] of [
+    ["회사 리뷰", "회사 리뷰 찾기"],
+    ["영업 Q&A", "먼저 검색하고,"],
+    ["회사 비교", "회사 두 곳 비교"],
+    ["검증 정책", "리뷰 작성자 보호 및 검증 정책"],
+  ] as const) {
+    await nav.getByRole("link", { name: label, exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: new RegExp(heading) }),
+    ).toBeVisible();
+  }
+
+  // 현재 위치 표시. 메뉴가 보여도 어디 있는지 모르면 반쪽이다.
+  await expect(
+    nav.getByRole("link", { name: "검증 정책", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
 });
 
 test("잠긴 답변 기능에서 역할을 바로 전환할 수 있다", async ({ page }) => {

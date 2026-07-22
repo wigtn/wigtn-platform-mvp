@@ -8,4 +8,7 @@ backend/supabase/.temp/
 *.tsbuildinfo
 .env*
 !.env.example
+
+# 렌더 결과물. backend/scripts/render-migrations.mjs 가 만든다.
+backend/supabase/migrations.rendered/
 .vercel

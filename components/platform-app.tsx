@@ -5,22 +5,54 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 import {
-  companies,
+  companies as seedCompanies,
   companyScore,
   initialPosts,
   initialReviews,
+  type Company,
   type Post,
   type Review,
   type Role,
 } from "@/lib/domain";
 import {
-  FALLBACK_AI_ANSWER,
-  parseDemoAiAnswer,
-  requestDemoAiAnswer,
-} from "@/lib/demo-ai";
+  AXIS_KEY,
+  ensureDemoSession,
+  requestAiAnswer,
+  loadMyActions,
+  loadPublicData,
+  recordAction,
+  resetMyDemo,
+} from "@/lib/demo-store";
+import { supabaseConfigured } from "@/lib/supabase";
+
+/*
+  회사 목록은 이 파일 39곳에서 `companies` 라는 이름으로 쓰인다. DB 에서
+  받아오도록 바꾸면서 그 39곳을 전부 고치면 실수가 난다.
+
+  그래서 import 이름만 `seedCompanies` 로 바꾸고, 쓰는 컴포넌트마다
+  `const companies = useCompanies(state)` 한 줄로 가린다. 나머지 줄은
+  그대로다.
+
+  DB 가 아직 안 붙었거나(설정 없음) 조회가 실패하면 시드 배열로 돌아간다 -
+  화면이 통째로 비는 것보다 낫다.
+*/
+function pickCompanies(state: { companies?: Company[] }): Company[] {
+  return state.companies?.length ? state.companies : seedCompanies;
+}
 
 type DemoState = {
   role: Role;
+  /** DB 에서 받은 회사 목록. 못 받았으면 비어 있고 시드로 되돌아간다. */
+  companies?: Company[];
+  /**
+   * 게시판 이름(화면) → id(DB).
+   *
+   * 화면은 게시판을 "노하우" 처럼 한글 이름으로 고른다. 서버 액션은 id 를
+   * 받는다. 글을 쓸 때마다 조회하면 느리므로 처음 읽을 때 같이 받아 둔다.
+   */
+  boardIds?: Record<string, string>;
+  /** 회사 이름표(slug) → id(DB). 리뷰를 쓸 때 필요하다. */
+  companyIds?: Record<string, string>;
   reviews: Review[];
   posts: Post[];
   placementsPublished: boolean;
@@ -144,45 +176,256 @@ const demoAccounts: Record<
 };
 
 const accountRoles = Object.keys(demoAccounts) as Array<Exclude<Role, "guest">>;
-const fallbackAiAnswerRaw = JSON.stringify(FALLBACK_AI_ANSWER);
 
+const VISIT_KEY = "fieldnote-visited-v2";
+
+/**
+ * 화면 상태의 출처.
+ *
+ * 전에는 전부 localStorage 였다. 이제 공개 데이터는 Supabase 에서 읽고,
+ * 방문자가 한 일은 서버의 **방문자별 액션 원장**에 쌓인다(RLS 로 격리).
+ * 화면이 보는 모양(`DemoState`)은 그대로라 렌더 코드는 안 바뀐다.
+ *
+ * 역할 전환·"처음 방문인가" 같은 **화면 설정**만 localStorage 에 남는다.
+ * 이건 데이터가 아니라 이 브라우저의 보기 상태다.
+ *
+ * DB 가 안 붙거나 조회가 실패하면 시드 데이터로 돌아간다. 포트폴리오 링크를
+ * 타고 온 사람에게 빈 화면을 보이는 것이 제일 나쁘다.
+ */
 function useDemoState() {
   const [state, setState] = useState<DemoState>(baseline);
   const [ready, setReady] = useState(false);
   const [isFirstVisit, setIsFirstVisit] = useState(false);
+  const [live, setLive] = useState(false);
+
   useEffect(() => {
-    const saved = window.localStorage.getItem("fieldnote-demo-v1");
-    setIsFirstVisit(!saved);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as Partial<DemoState>;
-        setState({
-          ...baseline,
-          ...parsed,
-          reviews: parsed.reviews ?? baseline.reviews,
-          posts: parsed.posts ?? baseline.posts,
-          manualCompanies: parsed.manualCompanies ?? [],
-          hiddenPostIds: parsed.hiddenPostIds ?? [],
-          profile: { ...baseline.profile, ...parsed.profile },
-        });
-      } catch {
-        window.localStorage.removeItem("fieldnote-demo-v1");
+    let cancelled = false;
+    setIsFirstVisit(!window.localStorage.getItem(VISIT_KEY));
+    window.localStorage.setItem(VISIT_KEY, "1");
+
+    const savedRole = window.localStorage.getItem(
+      "fieldnote-role",
+    ) as Role | null;
+
+    (async () => {
+      if (!supabaseConfigured) {
+        if (!cancelled) setReady(true);
+        return;
       }
-    }
-    setReady(true);
+      try {
+        // profiles 는 authenticated 에만 열려 있다. 세션을 먼저 연다.
+        await ensureDemoSession();
+        const data = await loadPublicData();
+        const actions = await loadMyActions();
+        if (cancelled || !data) return;
+        setState((current) => {
+          const base: DemoState = {
+            ...current,
+            role: savedRole ?? current.role,
+            companies: data.companies,
+            boardIds: LABEL_TO_BOARD_ID(data.boardIds),
+            companyIds: data.companyIds,
+            reviews: data.reviews,
+            posts: data.posts,
+          };
+          return replayActions(base, actions, data.boardIds);
+        });
+        setLive(true);
+      } catch (error) {
+        // 여기서 던지면 화면이 통째로 안 뜬다. 시드로 계속 간다.
+        console.warn(
+          "[fieldnote] DB 연결 실패, 시드 데이터로 표시합니다",
+          error,
+        );
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
-  useEffect(() => {
-    if (ready)
-      window.localStorage.setItem("fieldnote-demo-v1", JSON.stringify(state));
-  }, [ready, state]);
+
   const updateState = (update: (current: DemoState) => DemoState) => {
     setState((current) => {
       const next = update(current);
-      window.localStorage.setItem("fieldnote-demo-v1", JSON.stringify(next));
+      // 역할은 화면 설정이라 브라우저에 남긴다. 새로고침해도 유지된다.
+      window.localStorage.setItem("fieldnote-role", next.role);
       return next;
     });
   };
-  return [state, updateState, { ready, isFirstVisit }] as const;
+
+  return [state, updateState, { ready, isFirstVisit, live }] as const;
+}
+
+/**
+ * 화면에서 일어난 일을 서버에 남긴다.
+ *
+ * ## 왜 기다리지 않나
+ *
+ * 화면은 이미 `setState` 로 즉시 바뀐다. 여기서 응답을 기다리면 버튼을 누른
+ * 뒤 멈칫한다. 서버 기록은 뒤따라가면 되고, 새로고침하면 원장에서 다시
+ * 재생된다(replayActions).
+ *
+ * ## 실패하면
+ *
+ * 조용히 넘긴다. DB 가 안 붙은 상태(설정 없음)에서도 데모는 끝까지 돌아야
+ * 한다 - 포트폴리오 링크를 타고 온 사람에게 오류 창을 띄우는 것이 제일
+ * 나쁘다. 대신 콘솔에는 남겨서 개발 중에는 보이게 한다.
+ *
+ * 실패해도 화면은 이미 바뀐 상태다. 새로고침하면 사라진다 - 데모에서는
+ * 그게 맞다. 서버에 없는 것을 있는 척 유지하면 더 헷갈린다.
+ */
+/** slug 로 받은 게시판 id 를 화면이 쓰는 한글 이름으로 다시 묶는다. */
+function LABEL_TO_BOARD_ID(bySlug: Record<string, string>) {
+  const label: Record<string, Post["board"]> = {
+    qna: "Q&A",
+    howto: "노하우",
+    deals: "실적",
+    free: "자유",
+  };
+  const out: Record<string, string> = {};
+  for (const [slug, id] of Object.entries(bySlug)) {
+    const name = label[slug];
+    if (name) out[name] = id;
+  }
+  return out;
+}
+
+function persist(action: string, payload: Record<string, unknown>) {
+  if (!supabaseConfigured) return;
+  void recordAction(action, payload).catch((error) => {
+    console.warn(`[fieldnote] ${action} 기록 실패`, error);
+  });
+}
+
+/**
+ * 내가 한 일을 공개 데이터 위에 겹친다.
+ *
+ * 서버는 방문자의 쓰기를 공용 테이블이 아니라 원장에 적는다. 그래서 화면을
+ * 그리려면 [공용 시드] + [내 원장] 을 합쳐야 한다. 전에 localStorage 에
+ * 통째로 저장하던 것을 대신한다.
+ *
+ * 오래된 것부터 순서대로 적용한다 - 좋아요를 눌렀다 취소한 기록이 있으면
+ * 순서가 곧 결과다.
+ */
+function replayActions(
+  base: DemoState,
+  actions: Array<{
+    action: string;
+    request: Record<string, unknown>;
+    response: Record<string, unknown>;
+  }>,
+  boardIds: Record<string, string>,
+): DemoState {
+  const slugOf = Object.fromEntries(
+    Object.entries(boardIds).map(([slug, id]) => [id, slug]),
+  );
+  const boardLabel: Record<string, Post["board"]> = {
+    qna: "Q&A",
+    howto: "노하우",
+    deals: "실적",
+    free: "자유",
+  };
+
+  let next = base;
+  for (const entry of actions) {
+    const req = entry.request ?? {};
+    const res = entry.response ?? {};
+    switch (entry.action) {
+      case "community.post.create": {
+        const slug = slugOf[String(req.boardId)] ?? "free";
+        next = {
+          ...next,
+          posts: [
+            {
+              // 서버가 준 id 를 쓴다. 없을 때만 임시 id 를 만든다 -
+              // crypto.randomUUID 는 HTTPS 에서만 있어서 못 쓴다.
+              id: String(res.id ?? `local-${Date.now()}`),
+              board: boardLabel[slug] ?? "자유",
+              title: String(req.title ?? ""),
+              body: String(req.body ?? ""),
+              author: next.profile.name,
+              likes: 0,
+              saved: false,
+              comments: [],
+              ai: req.askAi ? "queued" : undefined,
+            },
+            ...next.posts,
+          ],
+        };
+        break;
+      }
+      case "community.comment.create": {
+        const postId = String(req.postId);
+        next = {
+          ...next,
+          posts: next.posts.map((post) =>
+            post.id === postId
+              ? {
+                  ...post,
+                  comments: [...post.comments, String(req.body ?? "")],
+                }
+              : post,
+          ),
+        };
+        break;
+      }
+      case "community.reaction.toggle": {
+        const postId = String(req.postId);
+        next = {
+          ...next,
+          posts: next.posts.map((post) =>
+            post.id === postId ? { ...post, likes: post.likes + 1 } : post,
+          ),
+        };
+        break;
+      }
+      case "community.bookmark.toggle": {
+        const postId = String(req.postId);
+        next = {
+          ...next,
+          posts: next.posts.map((post) =>
+            post.id === postId ? { ...post, saved: !post.saved } : post,
+          ),
+        };
+        break;
+      }
+      case "ai.answer.request": {
+        // 답변은 요청 페이로드에 같이 넣어 뒀다. 방금 만든 질문 글(맨 앞)에
+        // 붙인다 - 원장은 시간순이라 바로 앞이 그 글이다.
+        const answer = String(req.answer ?? "");
+        if (!answer || next.posts.length === 0) break;
+        const [first, ...rest] = next.posts;
+        next = {
+          ...next,
+          posts: [
+            {
+              ...first,
+              ai: "posted",
+              comments: [`AI 초안 · ${answer}`, ...first.comments],
+            },
+            ...rest,
+          ],
+        };
+        break;
+      }
+      case "membership.badge.submit":
+        next = { ...next, badgeStatus: "검토중" };
+        break;
+      case "admin.placement.publish":
+        next = { ...next, placementsPublished: true };
+        break;
+      case "admin.company.import":
+        next = { ...next, imported: true };
+        break;
+      default:
+        // 모르는 액션은 건너뛴다. 서버가 기능을 늘려도 화면이 안 죽는다.
+        break;
+    }
+  }
+  return next;
 }
 
 function useDialogFocus(open: boolean, onClose: () => void) {
@@ -278,10 +521,18 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
     };
   }, []);
   const reset = () => {
-    window.localStorage.removeItem("fieldnote-demo-v1");
-    setState(() => baseline);
+    // 서버의 내 액션 원장을 지운다. 공용 시드는 안 건드린다.
+    //
+    // 끝나면 새로고침한다. 원장을 지운 뒤 화면만 baseline 으로 돌리면
+    // 시드 데이터가 아니라 정적 배열이 뜬다 - 초기화했더니 다른 데이터가
+    // 나오는 셈이라 더 헷갈린다.
+    void resetMyDemo()
+      .catch((error) => console.warn("[fieldnote] 초기화 실패", error))
+      .finally(() => {
+        window.localStorage.removeItem("fieldnote-role");
+        window.location.href = "/";
+      });
     notify("데모 데이터가 초기화됐습니다.");
-    router.push("/");
   };
 
   useEffect(() => {
@@ -290,6 +541,9 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
 
   const switchRole = (role: Role, destination?: string) => {
     const roleMessage = `${roleNames[role]} 역할로 전환했습니다. 새로 볼 수 있는 것: ${roleExperience[role].unlocks}`;
+    // 경로 이동으로 컴포넌트가 바로 언마운트되어도 선택한 역할이 유실되지
+    // 않도록 React 상태 갱신보다 먼저 저장한다.
+    window.localStorage.setItem("fieldnote-role", role);
     setState((current) => ({ ...current, role }));
     setMobileRoleSheetOpen(false);
     const nextPath =
@@ -477,6 +731,8 @@ function Header({
 }
 
 function Home({ state }: { state: DemoState }) {
+  // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
+  const companies = pickCompanies(state);
   const top = companies.slice(0, 4);
   const [query, setQuery] = useState("");
   const router = useRouter();
@@ -757,7 +1013,9 @@ function CompanyCard({
   score,
   index,
 }: {
-  company: (typeof companies)[number];
+  // 전에는 `(typeof companies)[number]` 였다. 회사 목록이 모듈 상수가
+  // 아니라 DB 에서 오므로 타입을 직접 가리킨다.
+  company: Company;
   score: number;
   index: number;
 }) {
@@ -790,6 +1048,8 @@ function CompanyCard({
 }
 
 function Companies({ state }: { state: DemoState }) {
+  // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
+  const companies = pickCompanies(state);
   const [query, setQuery] = useState("");
   const [industry, setIndustry] = useState("전체");
   useEffect(() => {
@@ -865,6 +1125,8 @@ function Companies({ state }: { state: DemoState }) {
 }
 
 function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
+  // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
+  const companies = pickCompanies(state);
   const company = companies.find((item) => item.slug === slug) ?? companies[0];
   const reviews = state.reviews.filter(
     (review) =>
@@ -1073,6 +1335,8 @@ function ReviewForm({
   notify: (m: string) => void;
   onRoleChange: (role: Role) => void;
 }) {
+  // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
+  const companies = pickCompanies(state);
   const router = useRouter();
   const [companySlug, setCompanySlug] = useState(companies[0].slug);
   const [score, setScore] = useState(4.2);
@@ -1097,6 +1361,22 @@ function ReviewForm({
       ...current,
       reviews: [review, ...current.reviews],
     }));
+    const companyId = state.companyIds?.[companySlug];
+    if (companyId) {
+      persist("company.review.create", {
+        companyId,
+        title: review.title,
+        body: review.body,
+        employmentStatus: review.employment === "재직" ? "current" : "former",
+        // 6축을 DB 가 쓰는 영어 키로 바꾼다. check 제약이 이 이름을 요구한다.
+        scoreDimensions: Object.fromEntries(
+          Object.entries(dimensions).map(([label, value]) => [
+            AXIS_KEY[label] ?? label,
+            value,
+          ]),
+        ),
+      });
+    }
     notify("익명 리뷰가 반영되고 회사 통계가 갱신됐습니다.");
     router.push(`/companies/${companySlug}`);
   };
@@ -1243,6 +1523,7 @@ function Community({
         post.id === id ? { ...post, saved: !post.saved } : post,
       ),
     }));
+    persist("community.bookmark.toggle", { postId: id });
     notify("스크랩 상태가 변경됐습니다.");
   };
   return (
@@ -1430,6 +1711,14 @@ function PostForm({
       ...current,
       posts: [post, ...current.posts],
     }));
+    const boardId = state.boardIds?.[post.board];
+    if (boardId) {
+      persist("community.post.create", {
+        boardId,
+        title: post.title,
+        body: post.body,
+      });
+    }
     notify("게시글과 이미지 메타데이터가 등록됐습니다.");
     router.push(`/posts/${id}`);
   };
@@ -1485,76 +1774,6 @@ function PostForm({
   );
 }
 
-function AiAnswerCard({
-  rawAnswer,
-  model,
-  destination,
-}: {
-  rawAnswer: string;
-  model?: string;
-  destination?: string;
-}) {
-  const answer = parseDemoAiAnswer(rawAnswer);
-  const isLive = Boolean(model && model !== "demo-fallback");
-  return (
-    <aside
-      className="fieldnote-answer"
-      aria-label="FIELDNOTE AI 첫 답변"
-      data-testid="ai-answer-card"
-    >
-      <header className="fieldnote-answer-header">
-        <div>
-          <span className="fieldnote-answer-mark" aria-hidden="true">
-            F
-          </span>
-          <div>
-            <b>FIELDNOTE 첫 답변</b>
-            <small>현직자 답변이 달리기 전 참고할 수 있는 초안입니다.</small>
-          </div>
-        </div>
-        <span className="fieldnote-answer-status">
-          <i aria-hidden="true" />
-          {isLive ? "실시간 생성 · 검사 완료" : "데모 응답"}
-        </span>
-      </header>
-
-      <section className="fieldnote-answer-summary">
-        <span>핵심 판단</span>
-        <p data-testid="ai-answer-text">{answer.summary}</p>
-      </section>
-
-      <section className="fieldnote-answer-actions">
-        <h3>다음 미팅에서 해볼 일</h3>
-        <ol>
-          {answer.actions.map((action, index) => (
-            <li key={`${index}-${action}`} data-testid="ai-answer-action">
-              <b>{String(index + 1).padStart(2, "0")}</b>
-              <span>{action}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section className="fieldnote-answer-caution">
-        <span aria-hidden="true">!</span>
-        <div>
-          <b>놓치기 쉬운 점</b>
-          <p>{answer.caution}</p>
-        </div>
-      </section>
-
-      <footer className="fieldnote-answer-footer">
-        <p>AI 초안은 참고용입니다. 회사와 고객 상황에 맞게 판단하세요.</p>
-        {destination ? (
-          <Link className="button primary" href={destination}>
-            커뮤니티에서 보기
-          </Link>
-        ) : null}
-      </footer>
-    </aside>
-  );
-}
-
 function PostDetail({
   id,
   state,
@@ -1584,6 +1803,7 @@ function PostDetail({
           : item,
       ),
     }));
+    persist("community.comment.create", { postId: post.id, body });
     form.reset();
     setReplyingTo(null);
     notify(
@@ -1608,10 +1828,15 @@ function PostDetail({
           </div>
         ) : null}
         {post.ai === "posted" ? (
-          <AiAnswerCard
-            rawAnswer={post.aiAnswer ?? fallbackAiAnswerRaw}
-            model={post.aiModel}
-          />
+          <aside className="ai-answer">
+            <span>AI 초안 · 개인정보 검사 완료</span>
+            <h3>첫 미팅에서 승인자와 다음 일정을 확인하세요.</h3>
+            <p>
+              예산 승인자, 현재 문제로 발생하는 비용, 구매 일정을 확인하세요.
+              미팅이 끝나기 전에 다음 회의 참석자와 준비 자료도 정해두는 것이
+              좋습니다.
+            </p>
+          </aside>
         ) : null}
         <div className="post-actions">
           <button
@@ -1624,12 +1849,20 @@ function PostDetail({
                     : item,
                 ),
               }));
+              persist("community.reaction.toggle", { postId: post.id });
               notify("도움됐어요를 남겼습니다.");
             }}
           >
             도움됐어요 {post.likes}
           </button>
-          <button onClick={() => notify("신고가 운영 큐에 접수됐습니다.")}>
+          <button
+            onClick={() => {
+              // 신고는 화면 상태를 안 바꾼다(운영 큐로만 간다). 그래도
+              // 서버에는 남아야 관리자 화면의 신고 건수가 진짜가 된다.
+              persist("community.report.create", { postId: post.id });
+              notify("신고가 운영 큐에 접수됐습니다.");
+            }}
+          >
             신고
           </button>
         </div>
@@ -1692,65 +1925,64 @@ function QuestionForm({
   notify: (m: string) => void;
 }) {
   const [status, setStatus] = useState<
-    "idle" | "queued" | "thinking" | "posted" | "error"
+    "idle" | "queued" | "thinking" | "posted"
   >("idle");
-  const [answer, setAnswer] = useState("");
-  const [model, setModel] = useState("");
-  const [error, setError] = useState("");
-  const abortRef = useRef<AbortController | null>(null);
   const [title, setTitle] = useState("");
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [context, setContext] = useState(
     "고객이 제품 필요성은 인정하지만 예산 이야기는 계속 미룹니다. 첫 미팅에서 어떤 순서로 물어봐야 할까요?",
   );
-  useEffect(() => () => abortRef.current?.abort(), []);
+  /**
+   * 질문을 올리고 AI 초안을 받는다.
+   *
+   * 전에는 setTimeout 세 개로 queued→thinking→posted 를 흉내 냈다. 이제는
+   * 진짜로 부른다 - queued 는 요청을 보낸 순간, thinking 은 응답을 기다리는
+   * 동안, posted 는 답이 온 뒤다. 상태 이름이 실제 단계와 맞는다.
+   *
+   * 답을 못 받아도 질문은 남긴다. 사람 답변을 기다리면 되는 흐름이고,
+   * 여기서 되돌리면 방금 쓴 글이 사라져 더 나쁘다.
+   */
   const ask = async (event: FormEvent) => {
     event.preventDefault();
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setError("");
     setStatus("queued");
     notify("질문을 등록했습니다. AI 초안을 작성 중입니다.");
-    try {
-      const result = await requestDemoAiAnswer({
+
+    const boardId = state.boardIds?.["Q&A"];
+    if (boardId) {
+      persist("community.post.create", {
+        boardId,
         title,
         body: context,
-        signal: controller.signal,
-        onProgress: setStatus,
+        askAi: true,
       });
-      setAnswer(result.answer);
-      setModel(result.model);
-      setStatus("posted");
-      const post: Post = {
-        id: `p-${Date.now()}`,
-        board: "Q&A",
-        title,
-        body: context,
-        author: roleNames[state.role],
-        badge: state.role === "verified" ? "검증 영업인 L2" : undefined,
-        likes: 0,
-        saved: false,
-        comments: [],
-        ai: "posted",
-        aiAnswer: result.answer,
-        aiModel: result.model,
-      };
-      setState((current) => ({ ...current, posts: [post, ...current.posts] }));
-      notify(
-        result.live
-          ? "실제 AI 답변이 도착했습니다."
-          : "AI 데모 답변이 준비됐습니다.",
-      );
-    } catch (caught) {
-      if (caught instanceof DOMException && caught.name === "AbortError")
-        return;
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "AI 답변을 불러오지 못했습니다.",
-      );
-      setStatus("error");
     }
+
+    setStatus("thinking");
+    let answer: string | null = null;
+    try {
+      const result = await requestAiAnswer({ title, body: context });
+      answer = result.answer;
+      setAiAnswer(result.answer);
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "AI 답변을 받지 못했습니다.",
+      );
+    }
+
+    setStatus("posted");
+    const post: Post = {
+      id: `p-${Date.now()}`,
+      board: "Q&A",
+      title,
+      body: context,
+      author: roleNames[state.role],
+      badge: state.role === "verified" ? "검증 영업인 L2" : undefined,
+      likes: 0,
+      saved: false,
+      comments: answer ? [`AI 초안 · ${answer}`] : [],
+      ai: answer ? "posted" : "queued",
+    };
+    setState((current) => ({ ...current, posts: [post, ...current.posts] }));
   };
   return (
     <main className="page-shell page narrow">
@@ -1790,11 +2022,7 @@ function QuestionForm({
           <button className="button primary">질문 등록</button>
         </form>
       ) : (
-        <div
-          className="ai-progress"
-          aria-live="polite"
-          aria-busy={status === "queued" || status === "thinking"}
-        >
+        <div className="ai-progress">
           <div
             className={`progress-step ${status !== "queued" ? "done" : "active"}`}
           >
@@ -1814,36 +2042,25 @@ function QuestionForm({
             <span>커뮤니티 답변 대기</span>
           </div>
           {status === "posted" ? (
-            <AiAnswerCard
-              rawAnswer={answer}
-              model={model}
-              destination="/community"
-            />
-          ) : status === "error" ? (
-            <div className="ai-result ai-result-error" role="alert">
-              <span>답변을 준비하지 못했습니다</span>
-              <h2>다시 시도해 주세요.</h2>
-              <p>{error}</p>
-              <button
-                type="button"
-                className="button primary"
-                onClick={() => setStatus("idle")}
-              >
-                질문 수정하기
-              </button>
+            <div className="ai-result">
+              <span>AI 초안</span>
+              <h2>
+                {aiAnswer
+                  ? "검토할 순서부터 정리했습니다."
+                  : "질문이 등록되었습니다."}
+              </h2>
+              <p>
+                {aiAnswer ??
+                  "AI 초안은 받지 못했지만 질문은 정상 등록되었습니다."}
+              </p>
+              <Link className="button primary" href="/community">
+                커뮤니티에서 보기
+              </Link>
             </div>
           ) : (
-            <div className="thinking" role="status">
-              <span aria-hidden="true" />
-              <div>
-                <b>
-                  {status === "queued"
-                    ? "질문에 민감한 정보가 없는지 확인하고 있습니다."
-                    : "상황을 정리해 바로 실행할 답변을 만들고 있습니다."}
-                </b>
-                <p>대개 10초 안팎이 걸립니다. 이 화면을 그대로 두어 주세요.</p>
-              </div>
-            </div>
+            <p className="thinking">
+              질문 내용을 확인하고 AI 초안을 작성하고 있습니다.
+            </p>
           )}
         </div>
       )}
@@ -1907,6 +2124,8 @@ function Account({
                     headline: String(data.get("profileHeadline")),
                   },
                 }));
+                // 프로필 저장은 서버 액션 목록에 아직 없다. 화면에만 반영된다.
+                // (execute_demo_action 의 features 에 member.profile.update 추가 필요)
                 notify("프로필이 저장됐습니다.");
               }}
             >
@@ -1960,6 +2179,9 @@ function Account({
                       ...current,
                       badgeStatus: "검토중",
                     }));
+                    persist("membership.badge.submit", {
+                      evidence: "demo-sample",
+                    });
                     notify("샘플 확인 자료를 제출했습니다.");
                   }}
                 >
@@ -1992,6 +2214,8 @@ function Account({
 }
 
 function Compare({ state }: { state: DemoState }) {
+  // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
+  const companies = pickCompanies(state);
   const [a, setA] = useState(companies[0].slug);
   const [b, setB] = useState(companies[1].slug);
   const selected = [
@@ -2087,6 +2311,8 @@ function Admin({
   notify: (m: string) => void;
   onRoleChange: (role: Role) => void;
 }) {
+  // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
+  const companies = pickCompanies(state);
   const [reviewFilter, setReviewFilter] = useState<
     "all" | "privacy" | "report"
   >("all");
@@ -2239,6 +2465,11 @@ function Admin({
                       : item,
                   ),
                 }));
+                persist("admin.content.moderate", {
+                  targetType: "company_review",
+                  targetId: review.id,
+                  action: review.status === "hidden" ? "restore" : "hide",
+                });
                 notify("리뷰 공개 상태를 변경했습니다.");
               }}
             >
@@ -2269,6 +2500,7 @@ function Admin({
               manualCompanies: [name, ...current.manualCompanies],
             }));
             form.reset();
+            persist("admin.company.import", { mode: "manual", name });
             notify("회사를 등록했습니다.");
           }}
         >
@@ -2309,6 +2541,10 @@ function Admin({
             className="button primary"
             onClick={() => {
               setState((current) => ({ ...current, imported: true }));
+              persist("admin.company.import", {
+                mode: "xlsx-dry-run",
+                rows: 1240,
+              });
               notify("파일 검사를 마쳤습니다. 아직 저장하지 않았습니다.");
             }}
           >
@@ -2336,6 +2572,10 @@ function Admin({
                 ...current,
                 crawlPreviewed: true,
               }));
+              // 크롤러 후보 미리보기도 회사 반입의 한 갈래라 같은 액션으로
+              // 남긴다. 실제 크롤링은 데모 범위 밖이고, 여기서는 후보를
+              // 확인했다는 사실만 기록한다.
+              persist("admin.company.import", { mode: "crawler-dry-run" });
               notify("새 회사 후보를 불러왔습니다.");
             }}
           >
@@ -2359,6 +2599,9 @@ function Admin({
                 ...current,
                 placementsPublished: !current.placementsPublished,
               }));
+              persist("admin.placement.publish", {
+                published: !state.placementsPublished,
+              });
               notify(
                 state.placementsPublished
                   ? "추천 영역을 미리보기 상태로 변경했습니다."
@@ -2388,6 +2631,7 @@ function Admin({
                     ...current,
                     badgeStatus: "승인",
                   }));
+                  persist("admin.member.review", { decision: "approve" });
                   notify("확인 배지 신청을 승인했습니다.");
                 }}
               >
@@ -2399,6 +2643,7 @@ function Admin({
                     ...current,
                     badgeStatus: "반려",
                   }));
+                  persist("admin.member.review", { decision: "reject" });
                   notify("확인 배지 신청을 반려했습니다.");
                 }}
               >
@@ -2430,6 +2675,13 @@ function Admin({
                     ? current.hiddenPostIds.filter((id) => id !== post.id)
                     : [...current.hiddenPostIds, post.id],
                 }));
+                persist("admin.content.moderate", {
+                  targetType: "post",
+                  targetId: post.id,
+                  action: state.hiddenPostIds.includes(post.id)
+                    ? "restore"
+                    : "hide",
+                });
                 notify("게시글 공개 상태를 변경했습니다.");
               }}
             >
