@@ -11,7 +11,14 @@ import {
 
 const COMPANY = "c0000000-0000-0000-0000-000000000001";
 const ADMIN_SESSION = "75900000-0000-0000-0000-000000000001";
-const dimensions = { compensation: 4, growth: 5, culture: 3, leadership: 4 };
+const dimensions = {
+  quota_realism: 4,
+  incentive_transparency: 4,
+  lead_quality: 5,
+  account_allocation: 3,
+  sales_tooling: 4,
+  manager_coaching: 4,
+};
 const adminClaims = () => ({
   aal: "aal2",
   session_id: ADMIN_SESSION,

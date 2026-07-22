@@ -19,6 +19,7 @@ import type {
   OutboxHandler,
 } from "@wigtn/backoffice-frame";
 import type { Pool } from "pg";
+import { privateFunction } from "../database-schema.js";
 import { OpenAiResponsesProvider } from "./openai-responses-provider.js";
 
 type ClaimRow = { post_id: string; event: PostCreatedEvent; enqueued_at: Date };
@@ -91,20 +92,20 @@ function pendingStore(pool: Pool): WorkerPendingStore {
   return {
     async schedule({ postId, event, dueAt }) {
       await pool.query(
-        "select app_private.schedule_ai_answer($1, $2::jsonb, to_timestamp($3 / 1000.0))",
+        `select ${privateFunction("schedule_ai_answer")}($1, $2::jsonb, to_timestamp($3 / 1000.0))`,
         [postId, JSON.stringify(event), dueAt],
       );
     },
     async cancel(postId) {
       const result = await pool.query<{ cancelled: boolean }>(
-        "select app_private.cancel_ai_answer($1) as cancelled",
+        `select ${privateFunction("cancel_ai_answer")}($1) as cancelled`,
         [postId],
       );
       return result.rows[0]?.cancelled ?? false;
     },
     async claimDue(_nowMs, max) {
       const result = await pool.query<ClaimRow>(
-        "select post_id, event, enqueued_at from app_private.claim_due_ai_answers($1)",
+        `select post_id, event, enqueued_at from ${privateFunction("claim_due_ai_answers")}($1)`,
         [max],
       );
       claimed = result.rows.map((row) => row.post_id);
@@ -118,7 +119,7 @@ function pendingStore(pool: Pool): WorkerPendingStore {
       const ids = claimed;
       claimed = [];
       const result = await pool.query<{ deleted: number }>(
-        "select app_private.delete_ai_answers($1::uuid[]) as deleted",
+        `select ${privateFunction("delete_ai_answers")}($1::uuid[]) as deleted`,
         [ids],
       );
       return result.rows[0]?.deleted ?? 0;
@@ -261,7 +262,7 @@ export function createAiRuntime(pool: Pool) {
       body: string;
       available: boolean;
     }>(
-      "select post_id, board_type, title, body, available from app_private.fetch_post_snapshot($1)",
+      `select post_id, board_type, title, body, available from ${privateFunction("fetch_post_snapshot")}($1)`,
       [postId],
     );
     const row = result.rows[0];
@@ -303,7 +304,7 @@ export function createAiRuntime(pool: Pool) {
     async processDemoRequests() {
       const batchSize = Number(process.env.WORKER_BATCH_SIZE ?? 25);
       const claimed = await pool.query<DemoAiClaimRow>(
-        "select * from app_private.claim_demo_ai_requests($1, $2)",
+        `select * from ${privateFunction("claim_demo_ai_requests")}($1, $2)`,
         [batchSize, 45],
       );
       let ready = 0;
@@ -351,7 +352,7 @@ export function createAiRuntime(pool: Pool) {
           const reasons = result.log?.guardrail.reasons ?? [];
           if (result.action === "post" && result.comment) {
             await pool.query(
-              "select app_private.complete_demo_ai_request($1, 'ready', $2, $3::jsonb, $4, $5::jsonb)",
+              `select ${privateFunction("complete_demo_ai_request")}($1, 'ready', $2, $3::jsonb, $4, $5::jsonb)`,
               [
                 row.request_id,
                 result.comment.content,
@@ -363,7 +364,7 @@ export function createAiRuntime(pool: Pool) {
             ready += 1;
           } else if (result.status.startsWith("skipped_")) {
             await pool.query(
-              "select app_private.complete_demo_ai_request($1, 'blocked', null, $2::jsonb, $3, $4::jsonb)",
+              `select ${privateFunction("complete_demo_ai_request")}($1, 'blocked', null, $2::jsonb, $3, $4::jsonb)`,
               [
                 row.request_id,
                 JSON.stringify(reasons),
@@ -374,16 +375,19 @@ export function createAiRuntime(pool: Pool) {
             blocked += 1;
           } else {
             await pool.query(
-              "select app_private.fail_demo_ai_request($1, $2)",
+              `select ${privateFunction("fail_demo_ai_request")}($1, $2)`,
               [row.request_id, String(result.status)],
             );
             failed += 1;
           }
         } catch (error) {
-          await pool.query("select app_private.fail_demo_ai_request($1, $2)", [
-            row.request_id,
-            error instanceof Error ? error.name : "worker_error",
-          ]);
+          await pool.query(
+            `select ${privateFunction("fail_demo_ai_request")}($1, $2)`,
+            [
+              row.request_id,
+              error instanceof Error ? error.name : "worker_error",
+            ],
+          );
           failed += 1;
         }
       }

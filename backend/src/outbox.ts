@@ -6,6 +6,7 @@ import {
 } from "@wigtn/backoffice-frame";
 import pg from "pg";
 import { createAiRuntime } from "./ai/runtime.js";
+import { privateFunction } from "./database-schema.js";
 
 type Row = {
   id: string;
@@ -31,7 +32,7 @@ export function createWorker(connectionString: string) {
   const store: OutboxStore = {
     async claim({ workerId, batchSize, leaseSeconds, eventTypes }) {
       const result = await pool.query<Row>(
-        "select * from app_private.claim_outbox_batch($1, $2, make_interval(secs => $3), $4::text[])",
+        `select * from ${privateFunction("claim_outbox_batch")}($1, $2, make_interval(secs => $3), $4::text[])`,
         [workerId, batchSize, leaseSeconds, eventTypes],
       );
       return result.rows.map((row): OutboxEvent => ({
@@ -49,14 +50,14 @@ export function createWorker(connectionString: string) {
     },
     async ack(eventId, workerId) {
       const result = await pool.query<{ acknowledged: boolean }>(
-        "select app_private.ack_outbox($1, $2) as acknowledged",
+        `select ${privateFunction("ack_outbox")}($1, $2) as acknowledged`,
         [eventId, workerId],
       );
       return result.rows[0]?.acknowledged ?? false;
     },
     async fail(eventId, workerId, error) {
       const result = await pool.query<{ status: "pending" | "dead" }>(
-        "select app_private.fail_outbox($1, $2, $3) as status",
+        `select ${privateFunction("fail_outbox")}($1, $2, $3) as status`,
         [eventId, workerId, error],
       );
       if (!result.rows[0]) throw new Error(`outbox lease lost: ${eventId}`);
