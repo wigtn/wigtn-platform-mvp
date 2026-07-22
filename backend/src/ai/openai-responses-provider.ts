@@ -161,7 +161,18 @@ export class OpenAiResponsesProvider implements ChatProvider {
               }
             : {}),
         },
-        max_output_tokens: 1_100,
+        /*
+          답변이 잘려서 실패하던 상한을 올린다.
+
+          구조화 답변(summary·확인질문 3개·행동 3개·주의·빠진맥락)이라 출력이
+          길다. 실제로 성공한 답변의 출력 토큰이 평균 522, 최대 584 였다 -
+          1,100 은 여유가 거의 없다.
+
+          조금만 길어지면 응답이 중간에 끊기고, JSON 이 완성되지 않아
+          failed_provider 로 떨어진다. 오류 메시지가 "모델이 실패했다"로
+          보여서 원인이 안 드러난다. 실제로 21건 중 4건(19%)이 이렇게 죽었다.
+        */
+        max_output_tokens: 2_400,
         ...(request.safetyIdentifier
           ? { safety_identifier: `fieldnote_${request.safetyIdentifier}` }
           : {}),
