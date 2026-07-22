@@ -224,11 +224,16 @@ textarea::placeholder {
   font-size: 14px;
   font-weight: 700;
 }
-.text-link::after {
-  content: "  →";
+/* 화살표를 붙이지 않는다. 링크마다 → 가 달리면 화면이 산만하고,
+   요즘 자동 생성된 화면에서 흔히 보이는 인상이 된다. 밑줄과 색으로 충분하다. */
+.text-link {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-strong);
 }
 .text-link:hover {
   color: var(--primary);
+  text-decoration-color: currentColor;
 }
 .hero-actions {
   display: flex;
@@ -346,10 +351,6 @@ textarea::placeholder {
   color: var(--primary);
   font-size: 13px;
   font-weight: 750;
-}
-.hero-explore-link::after {
-  content: " →";
-  margin-left: 4px;
 }
 .career-preview {
   padding: 24px;
@@ -5330,4 +5331,132 @@ select:focus {
 .ai-result-error button {
   justify-self: start;
   margin-top: 4px;
+}
+
+/* 카드 전체를 누를 수 있게. 링크를 카드 위에 깔되 글자는 그대로 읽힌다. */
+.company-card.is-clickable {
+  position: relative;
+}
+.company-card .card-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.company-card.is-clickable:hover {
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+/* 카드 안의 다른 링크·버튼은 덮개 위로 올려 계속 눌리게 한다. */
+.company-card a:not(.card-link),
+.company-card button {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── 글 상세 동작 버튼 ─────────────────────────────────────────── */
+.post-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.post-action-like.is-active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.post-action-report:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ── 답글 ─────────────────────────────────────────────────────── */
+.comments article.is-reply {
+  margin-left: 26px;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+}
+.comment-reply-toggle {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font-size: 12px;
+}
+.comment-form.is-inline {
+  margin-top: 12px;
+  padding: 14px;
+  background: var(--surface);
+}
+
+/* ── 신고 창 ───────────────────────────────────────────────────── */
+.report-dialog {
+  display: grid;
+  gap: 14px;
+  width: min(440px, calc(100% - 32px));
+  padding: 26px;
+  border-radius: var(--radius);
+  background: var(--white);
+}
+.report-dialog h2 {
+  margin: 0;
+  font-size: 21px;
+}
+.report-dialog > p {
+  margin: -6px 0 0;
+  font-size: 13px;
+}
+.report-reasons {
+  display: grid;
+  gap: 6px;
+}
+.report-reasons label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.report-reasons label.is-selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.report-reasons input {
+  width: auto;
+  min-height: 0;
+  accent-color: var(--primary);
+}
+.report-details {
+  display: grid;
+  gap: 7px;
+}
+.report-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.report-actions button[type="button"]:first-child {
+  padding: 9px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
+/* ── 회사 비교 ─────────────────────────────────────────────────── */
+.compare-select {
+  align-items: end;
+}
+/* 두 선택 사이를 잇는 선. 전에는 "VS" 글자가 들어가 있었다. */
+.compare-divider {
+  align-self: center;
+  width: 26px;
+  height: 1px;
+  margin-bottom: 14px;
+  background: var(--border-strong);
 }

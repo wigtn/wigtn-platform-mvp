@@ -13,10 +13,12 @@ import {
   BadgeCheck,
   Circle,
   Eye,
+  Flag,
   Search,
   SlidersHorizontal,
   SquarePen,
   Star,
+  ThumbsUp,
 } from "lucide-react";
 
 /** 크기는 부모 글자 크기를 따르고 색은 currentColor 를 따른다. */
@@ -41,3 +43,9 @@ export const IconStar = () => <Star {...base} fill="currentColor" />;
 
 /** 데모 체험 중 표시. 켜져 있다는 뜻이라 채운 점이다. */
 export const IconLive = () => <Circle {...base} fill="currentColor" />;
+
+/** 도움됐어요. 누른 상태는 색으로 구분한다. */
+export const IconThumbsUp = () => <ThumbsUp {...base} />;
+
+/** 신고. */
+export const IconFlag = () => <Flag {...base} />;

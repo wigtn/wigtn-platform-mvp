@@ -31,6 +31,8 @@ import { supabaseConfigured } from "@/lib/supabase";
 import { useDemoStateContext } from "./demo-state-provider";
 import {
   IconEye,
+  IconFlag,
+  IconThumbsUp,
   IconLive,
   IconPen,
   IconSearch,
@@ -523,12 +525,21 @@ function replayActions(
         break;
       }
       case "community.reaction.toggle": {
+        // 누를 때마다 더하지 않는다. 원장에는 켜고 끈 기록이 순서대로
+        // 남으므로, 마지막 상태만 반영해야 새로고침 뒤 숫자가 맞는다.
         const postId = String(req.postId);
+        const active = req.active !== false;
         next = {
           ...next,
-          posts: next.posts.map((post) =>
-            post.id === postId ? { ...post, likes: post.likes + 1 } : post,
-          ),
+          posts: next.posts.map((post) => {
+            if (post.id !== postId) return post;
+            if (Boolean(post.liked) === active) return post;
+            return {
+              ...post,
+              liked: active,
+              likes: Math.max(0, post.likes + (active ? 1 : -1)),
+            };
+          }),
         };
         break;
       }
@@ -1013,7 +1024,7 @@ function Home({ state }: { state: DemoState }) {
             <strong>리뷰 작성자는 공개되지 않습니다.</strong> 재직·실적 확인
             여부만 리뷰에 표시합니다.
           </p>
-          <Link href="/trust">검증 정책 보기 →</Link>
+          <Link href="/trust">검증 정책 보기</Link>
         </div>
       </section>
 
@@ -1123,7 +1134,7 @@ function Home({ state }: { state: DemoState }) {
             <div className="ranked-note">
               <span>평가 기준</span>
               <p>최근 12개월 리뷰와 재직 확인 여부를 반영합니다.</p>
-              <Link href="/trust">산정 방식 확인 →</Link>
+              <Link href="/trust">산정 방식 확인</Link>
             </div>
           </div>
         </div>
@@ -1205,7 +1216,14 @@ function CompanyCard({
   index: number;
 }) {
   return (
-    <article className="company-card">
+    /*
+      카드 전체가 눌린다.
+
+      전에는 회사 이름 글자에만 링크가 걸려 있어서, 목록에서 카드를 눌러도
+      아무 일이 없었다. 링크 자체는 그대로 두고(스크린리더·새 탭 열기가
+      유지된다) 그 링크를 카드 전면에 깔아 어디를 눌러도 넘어가게 한다.
+    */
+    <article className="company-card is-clickable">
       <div className="company-card-head">
         <span className={`company-logo logo-${company.slug}`}>
           {company.name.slice(0, 1)}
@@ -1216,7 +1234,9 @@ function CompanyCard({
         {company.industry} · {company.type}
       </p>
       <h3>
-        <Link href={`/companies/${company.slug}`}>{company.name}</Link>
+        <Link className="card-link" href={`/companies/${company.slug}`}>
+          {company.name}
+        </Link>
       </h3>
       <p>{company.summary}</p>
       <div className="score-line">
@@ -1429,7 +1449,7 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
               <li key={signal}>{signal}</li>
             ))}
           </ul>
-          <Link href="/questions/new">현직자에게 확인 질문하기 →</Link>
+          <Link href="/questions/new">현직자에게 확인 질문하기</Link>
         </aside>
       </section>
       <section className="section-tight" id="environment">
@@ -1777,7 +1797,7 @@ function Community({
               상황, 시도한 방법, 원하는 결과를 함께 적으면 더 구체적인 답을 받을
               수 있습니다.
             </p>
-            <Link href="/questions/new">질문 가이드 보기 →</Link>
+            <Link href="/questions/new">질문 가이드 보기</Link>
           </div>
         </aside>
         <section className="community-main">
@@ -1858,7 +1878,7 @@ function Community({
             <span>답변자 확인 정보</span>
             <strong>경력·재직·실적 확인 여부를 표시합니다.</strong>
             <p>답변자 이름 옆의 확인 배지를 참고하세요.</p>
-            <Link href="/trust">검증 정책 →</Link>
+            <Link href="/trust">검증 정책</Link>
           </section>
         </aside>
       </div>
@@ -1963,6 +1983,33 @@ function PostForm({
   );
 }
 
+/** 답글 표시. 이 글자로 시작하면 화면에서 한 단계 들여쓴다. */
+const REPLY_MARK = "↳ ";
+
+/**
+ * 답글을 부모 바로 뒤에 넣는다. 그 부모에게 이미 달린 답글들 다음 자리다 -
+ * 안 그러면 먼저 단 답글이 뒤로 밀린다.
+ */
+function insertComment(
+  comments: string[],
+  body: string,
+  parentIndex: number | null,
+): string[] {
+  if (parentIndex === null) return [...comments, body];
+  let at = parentIndex + 1;
+  while (at < comments.length && comments[at].startsWith(REPLY_MARK)) at += 1;
+  return [...comments.slice(0, at), body, ...comments.slice(at)];
+}
+
+/** 신고 사유. 값은 서버의 reason_code 로 그대로 나간다. */
+const REPORT_REASONS = [
+  { code: "spam_promotion", label: "광고·홍보" },
+  { code: "abusive_language", label: "욕설·비방" },
+  { code: "copyright", label: "저작권 침해" },
+  { code: "privacy", label: "개인정보 노출" },
+  { code: "other", label: "기타" },
+] as const;
+
 function PostDetail({
   id,
   state,
@@ -1978,17 +2025,29 @@ function PostDetail({
 }) {
   const post = state.posts.find((item) => item.id === id) ?? state.posts[0];
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [reporting, setReporting] = useState(false);
+
+  /**
+   * 답변과 답글을 함께 처리한다.
+   *
+   * 답글은 **그 답변 바로 뒤에** 꽂는다. 전에는 아래쪽 공용 입력창의 상태만
+   * 바꾸고 목록 맨 끝에 붙였다. 화면에서는 "어느 답변에 단 답글인지"가
+   * 사라져서, 대화가 이어지는 것처럼 안 보였다.
+   */
   const addComment = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
     const rawBody = String(new FormData(form).get("comment"));
-    const body = replyingTo === null ? rawBody : `↳ 답글 · ${rawBody}`;
+    const body = replyingTo === null ? rawBody : `${REPLY_MARK}${rawBody}`;
     if (!body.trim()) return;
     setState((current) => ({
       ...current,
       posts: current.posts.map((item) =>
         item.id === post.id
-          ? { ...item, comments: [...item.comments, body] }
+          ? {
+              ...item,
+              comments: insertComment(item.comments, body, replyingTo),
+            }
           : item,
       ),
     }));
@@ -2035,30 +2094,47 @@ function PostDetail({
           </aside>
         ) : null}
         <div className="post-actions">
+          {/*
+            같은 사람이 여러 번 누르면 계속 올라가던 것을 토글로 바꿨다.
+            서버 액션 이름도 원래 toggle 이다 - 화면만 한 방향으로 세고
+            있었다.
+          */}
           <button
+            className={`post-action-like${post.liked ? " is-active" : ""}`}
+            aria-pressed={Boolean(post.liked)}
             onClick={() => {
+              const next = !post.liked;
               setState((current) => ({
                 ...current,
                 posts: current.posts.map((item) =>
                   item.id === post.id
-                    ? { ...item, likes: item.likes + 1 }
+                    ? {
+                        ...item,
+                        liked: next,
+                        likes: Math.max(0, item.likes + (next ? 1 : -1)),
+                      }
                     : item,
                 ),
               }));
-              persist("community.reaction.toggle", { postId: post.id });
-              notify("도움됐어요를 남겼습니다.");
+              persist("community.reaction.toggle", {
+                postId: post.id,
+                active: next,
+              });
+              notify(
+                next
+                  ? "도움됐어요를 남겼습니다."
+                  : "도움됐어요를 취소했습니다.",
+              );
             }}
           >
+            <IconThumbsUp />
             도움됐어요 {post.likes}
           </button>
           <button
-            onClick={() => {
-              // 신고는 화면 상태를 안 바꾼다(운영 큐로만 간다). 그래도
-              // 서버에는 남아야 관리자 화면의 신고 건수가 진짜가 된다.
-              persist("community.report.create", { postId: post.id });
-              notify("신고가 운영 큐에 접수됐습니다.");
-            }}
+            className="post-action-report"
+            onClick={() => setReporting(true)}
           >
+            <IconFlag />
             신고
           </button>
         </div>
@@ -2067,20 +2143,52 @@ function PostDetail({
         <h2>
           회원 답변 <span>{post.comments.length}</span>
         </h2>
-        {post.comments.map((comment, index) => (
-          <article key={`${comment}-${index}`}>
-            <strong>{index === 0 ? "검증 영업인" : "커뮤니티 멤버"}</strong>
-            <p>{comment}</p>
-            <button
-              onClick={() => {
-                setReplyingTo(index);
-                notify("답글 입력창이 열렸습니다.");
-              }}
+        {post.comments.map((comment, index) => {
+          const isReply = comment.startsWith(REPLY_MARK);
+          return (
+            <article
+              key={`${comment}-${index}`}
+              className={isReply ? "is-reply" : undefined}
             >
-              답글
-            </button>
-          </article>
-        ))}
+              <strong>
+                {isReply
+                  ? "답글"
+                  : index === 0
+                    ? "검증 영업인"
+                    : "커뮤니티 멤버"}
+              </strong>
+              <p>{isReply ? comment.slice(REPLY_MARK.length) : comment}</p>
+              {/* 답글에는 다시 답글을 달지 않는다. 한 단계까지만 둔다. */}
+              {!isReply && state.role !== "guest" ? (
+                <button
+                  className="comment-reply-toggle"
+                  onClick={() =>
+                    setReplyingTo(replyingTo === index ? null : index)
+                  }
+                >
+                  {replyingTo === index ? "답글 취소" : "답글"}
+                </button>
+              ) : null}
+              {/*
+                답글 입력창은 그 답변 바로 아래에 연다. 전에는 화면 맨 아래
+                공용 입력창의 상태만 바뀌어서, 어디에 답글을 다는 중인지
+                보이지 않았다.
+              */}
+              {replyingTo === index ? (
+                <form className="comment-form is-inline" onSubmit={addComment}>
+                  <label>
+                    답글 쓰기
+                    <textarea name="comment" rows={3} required />
+                  </label>
+                  <button type="button" onClick={() => setReplyingTo(null)}>
+                    취소
+                  </button>
+                  <button className="button primary">답글 등록</button>
+                </form>
+              ) : null}
+            </article>
+          );
+        })}
         {state.role === "guest" ? (
           <LockedRoleFeature
             badge="회원 전용"
@@ -2093,16 +2201,9 @@ function PostDetail({
           <form className="comment-form" onSubmit={addComment}>
             <span className="role-access-badge">회원 전용</span>
             <label>
-              {replyingTo === null
-                ? "답변 작성"
-                : `${replyingTo + 1}번 답변에 답글 쓰기`}
+              답변 작성
               <textarea name="comment" rows={4} required />
             </label>
-            {replyingTo !== null ? (
-              <button type="button" onClick={() => setReplyingTo(null)}>
-                답글 취소
-              </button>
-            ) : null}
             <button className="button primary">답변 등록</button>
           </form>
         )}
@@ -2307,7 +2408,7 @@ function QuestionForm({
           <div className="similar-box">
             <span>작성 전 유사 질문</span>
             <Link href="/posts/p1">
-              엔터프라이즈 첫 미팅에서 꼭 확인하는 세 가지는? →
+              엔터프라이즈 첫 미팅에서 꼭 확인하는 세 가지는?
             </Link>
           </div>
           <button className="button primary">질문 등록</button>
@@ -2528,8 +2629,8 @@ function Compare({ state }: { state: DemoState }) {
     <main className="page-shell page">
       <PageTitle
         eyebrow="회사 비교"
-        title="회사 두 곳 비교"
-        description="영업환경 6개 항목의 점수와 리뷰를 나란히 확인합니다."
+        title="회사 비교"
+        description="영업환경 6개 항목의 점수와 리뷰를 나란히 놓고 봅니다."
       />
       <div className="compare-select">
         <label>
@@ -2542,7 +2643,9 @@ function Compare({ state }: { state: DemoState }) {
             ))}
           </select>
         </label>
-        <span>VS</span>
+        {/* "VS" 는 스포츠 중계 같은 인상이라 뺐다. 두 선택 사이를 잇는
+            표시로만 둔다. */}
+        <span className="compare-divider" aria-hidden="true" />
         <label>
           두 번째 회사
           <select value={b} onChange={(e) => setB(e.target.value)}>
@@ -2590,7 +2693,7 @@ function Compare({ state }: { state: DemoState }) {
                 </div>
               ))}
               <Link className="text-link" href={`/companies/${company.slug}`}>
-                리뷰 자세히 보기 →
+                리뷰 자세히 보기
               </Link>
             </article>
           );
@@ -3017,7 +3120,7 @@ function Admin({
             </div>
             <strong>8</strong>
             <small>24시간 내 처리율 92% · 가장 오래된 건 3시간</small>
-            <Link href="/admin/members">대기열 열기 →</Link>
+            <Link href="/admin/members">대기열 열기</Link>
           </article>
           <article>
             <div>
@@ -3026,7 +3129,7 @@ function Admin({
             </div>
             <strong>3</strong>
             <small>고위험 1건 · 오늘 신규 2건</small>
-            <Link href="/admin/reviews">분쟁 큐 열기 →</Link>
+            <Link href="/admin/reviews">분쟁 큐 열기</Link>
           </article>
           <article>
             <div>
@@ -3035,7 +3138,7 @@ function Admin({
             </div>
             <strong>0</strong>
             <small>재시도 대기 없음 · 마지막 점검 2분 전</small>
-            <Link href="/admin/content">상태 확인 →</Link>
+            <Link href="/admin/content">상태 확인</Link>
           </article>
         </div>
         <div className="admin-dashboard-lower">
@@ -3087,7 +3190,7 @@ function Admin({
               <p key={item}>
                 <span>{index === 0 ? "방금 전" : `${index * 7}분 전`}</span>
                 {item}
-                <b>기록 보기 →</b>
+                <b>기록 보기</b>
               </p>
             ))}
           </section>
@@ -3342,7 +3445,7 @@ function RolePickerModal({
               </span>
               <strong>{roleNames[key]}</strong>
               <small>{roleExperience[key].description}</small>
-              <b>이 역할로 시작 →</b>
+              <b>이 역할로 시작</b>
             </button>
           ))}
         </div>
@@ -3415,7 +3518,7 @@ function AccountLoginModal({
                   <strong>{account.name}</strong>
                   <span>{account.title}</span>
                 </span>
-                <b>{isCurrent ? "현재 계정 열기" : "이 계정으로 로그인"} →</b>
+                <b>{isCurrent ? "현재 계정 열기" : "이 계정으로 로그인"}</b>
               </button>
             );
           })}
