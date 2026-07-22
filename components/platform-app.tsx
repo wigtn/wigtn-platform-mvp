@@ -1008,7 +1008,11 @@ function Home({ state }: { state: DemoState }) {
                     {company.industry} · {company.type}
                   </small>
                 </span>
-                <b>{company.score.toFixed(1)}</b>
+                {/* 점수만 크게 두면 근거가 안 보인다. 표본 수를 붙인다. */}
+                <b>
+                  {company.score.toFixed(1)}
+                  <small>리뷰 {company.reviewCount}</small>
+                </b>
               </Link>
             ))}
             <div className="preview-proof">
@@ -1307,7 +1311,7 @@ function Companies({ state }: { state: DemoState }) {
             )}
           </select>
         </label>
-        <span>{filtered.length}개 조직</span>
+        <span>회사 {filtered.length}곳</span>
       </div>
       {filtered.length ? (
         <div className="company-list">
@@ -1822,6 +1826,12 @@ function Community({
             <span>{posts.length}개 결과 · 최신순</span>
           </div>
           <div className="feed">
+            {posts.length === 0 ? (
+              <p className="list-empty">
+                조건에 맞는 글이 없습니다. 검색어를 줄이거나 다른 게시판을 눌러
+                보세요.
+              </p>
+            ) : null}
             {posts.map((post) => (
               <article
                 key={post.id}
@@ -2165,6 +2175,11 @@ function PostDetail({
         <h2>
           회원 답변 <span>{post.comments.length}</span>
         </h2>
+        {post.comments.length === 0 ? (
+          <p className="list-empty">
+            아직 답변이 없습니다. 먼저 경험을 남겨 주세요.
+          </p>
+        ) : null}
         {post.comments.map((comment, index) => {
           const isReply = comment.startsWith(REPLY_MARK);
           return (
@@ -2234,7 +2249,7 @@ function PostDetail({
         <ReportDialog
           onClose={() => setReporting(false)}
           onSubmit={(reasonCode, details) => {
-            // 신고는 화면 상태를 안 바꾼다(운영 큐로만 간다). 그래도 서버에는
+            // 신고는 화면 상태를 안 바꾼다(운영 대기열로만 간다). 그래도 서버에는
             // 남아야 관리자 화면의 신고 건수가 진짜가 된다.
             persist("community.report.create", {
               targetType: "post",
@@ -2243,7 +2258,7 @@ function PostDetail({
               details,
             });
             setReporting(false);
-            notify("신고가 운영 큐에 접수됐습니다.");
+            notify("신고를 접수했습니다. 운영자가 확인합니다.");
           }}
         />
       ) : null}
@@ -2611,7 +2626,7 @@ function Account({
           <span className="trust-chip">현재 역할 {roleNames[state.role]}</span>
           <dl>
             <div>
-              <dt>도움 받은 수</dt>
+              <dt>내 글이 받은 도움</dt>
               <dd>428</dd>
             </div>
             <div>
@@ -2957,6 +2972,11 @@ function Admin({
           <span>상태</span>
           <span>처리</span>
         </div>
+        {reviewQueue.length === 0 ? (
+          <p className="list-empty">
+            검토할 리뷰가 없습니다. 새 신고나 탐지가 들어오면 여기에 쌓입니다.
+          </p>
+        ) : null}
         {reviewQueue.map((review) => (
           <div className="admin-row admin-review-row" key={review.id}>
             <div>
@@ -3222,7 +3242,7 @@ function Admin({
           <div>
             <span>가장 먼저 처리할 작업</span>
             <h2>개인정보 탐지로 보류된 리뷰 1건</h2>
-            <p>게시 기한까지 38분 남았습니다. 원문과 탐지 구간을 확인하세요.</p>
+            <p>검토 기한까지 38분 남았습니다. 원문과 탐지 구간을 확인하세요.</p>
           </div>
           <Link className="button primary" href="/admin/reviews">
             검토 시작
@@ -3245,7 +3265,7 @@ function Admin({
             </div>
             <strong>3</strong>
             <small>고위험 1건 · 오늘 신규 2건</small>
-            <Link href="/admin/reviews">분쟁 큐 열기</Link>
+            <Link href="/admin/reviews">신고 대기열 열기</Link>
           </article>
           <article>
             <div>

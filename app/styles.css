@@ -5771,3 +5771,32 @@ textarea:focus-visible,
     padding: 12px 10px;
   }
 }
+
+/*
+ * 목록이 비었을 때.
+ *
+ * 전에는 아무것도 안 그려서 화면이 잘린 것처럼 보였다. 왜 비었는지와
+ * 다음에 뭘 하면 되는지를 짧게 적는다.
+ */
+.list-empty {
+  margin: 0;
+  padding: 28px 18px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* 홈 추천 회사의 점수 아래 표본 수. 점수만 크면 근거 없이 읽힌다. */
+.preview-company b {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+  line-height: 1.1;
+}
+.preview-company b small {
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 500;
+}
