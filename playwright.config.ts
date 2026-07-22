@@ -11,6 +11,7 @@ export default defineConfig({
     baseURL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    ignoreHTTPSErrors: true,
   },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },

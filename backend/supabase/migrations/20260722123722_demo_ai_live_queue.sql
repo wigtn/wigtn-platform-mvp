@@ -1,25 +1,146 @@
--- 데모 액션 두 개를 더한다: 프로필 저장 · 신고
---
--- ## 왜 함수를 통째로 다시 쓰나
---
--- execute_demo_action 은 20260722123722(AI 실시간 큐)에서 이미 갈렸다.
--- 그 위에 얹어야 한다.
---
--- 처음에는 그 이전 버전을 바탕으로 썼다. 파일 이름 순서상 이 파일이 뒤라,
--- 적용하면 **AI 큐 처리 분기를 조용히 지운다.** 오류가 안 난다 - 질문은
--- 접수되는데 답이 영영 안 온다.
---
--- 그래서 20260722123722 의 본문을 그대로 가져와 두 분기만 더했다.
---
--- ## 화면에는 있는데 서버에 없던 둘
---
---   마이페이지 "프로필 저장"   화면에만 반영되고 새로고침하면 사라졌다
---   글 상세 "신고"             UI 가 부르는데 허용 목록에 없어 거부됐다
---
--- 신고 쪽은 화면부터 붙이고 서버를 안 고쳐서 난 구멍이다. 실패해도 조용히
--- 넘어가게 만들어 둔 탓에 화면에서는 멀쩡해 보였다.
+  create table "app_private"."demo_ai_requests" (
+    "id" uuid not null,
+    "action_id" uuid not null,
+    "user_id" uuid not null,
+    "title" text not null,
+    "body" text not null,
+    "status" text not null default 'pending'::text,
+    "available_at" timestamp with time zone not null default now(),
+    "lease_until" timestamp with time zone,
+    "attempt_count" integer not null default 0,
+    "answer" text,
+    "guardrail_reasons" jsonb not null default '[]'::jsonb,
+    "model" text,
+    "token_usage" jsonb not null default '{}'::jsonb,
+    "error_code" text,
+    "created_at" timestamp with time zone not null default now(),
+    "updated_at" timestamp with time zone not null default now(),
+    "completed_at" timestamp with time zone
+      );
 
-set search_path = public, extensions;
+
+CREATE UNIQUE INDEX demo_ai_requests_action_id_key ON app_private.demo_ai_requests USING btree (action_id);
+
+CREATE INDEX demo_ai_requests_claim_idx ON app_private.demo_ai_requests USING btree (status, available_at, created_at) WHERE (status = ANY (ARRAY['pending'::text, 'processing'::text]));
+
+CREATE UNIQUE INDEX demo_ai_requests_pkey ON app_private.demo_ai_requests USING btree (id);
+
+CREATE INDEX demo_ai_requests_user_idx ON app_private.demo_ai_requests USING btree (user_id, created_at DESC);
+
+alter table "app_private"."demo_ai_requests" add constraint "demo_ai_requests_pkey" PRIMARY KEY using index "demo_ai_requests_pkey";
+
+alter table "app_private"."demo_ai_requests" add constraint "demo_ai_requests_action_id_fkey" FOREIGN KEY (action_id) REFERENCES app_private.demo_experience_actions(id) ON DELETE CASCADE not valid;
+
+alter table "app_private"."demo_ai_requests" validate constraint "demo_ai_requests_action_id_fkey";
+
+alter table "app_private"."demo_ai_requests" add constraint "demo_ai_requests_action_id_key" UNIQUE using index "demo_ai_requests_action_id_key";
+
+alter table "app_private"."demo_ai_requests" add constraint "demo_ai_requests_attempt_count_check" CHECK (((attempt_count >= 0) AND (attempt_count <= 3))) not valid;
+
+alter table "app_private"."demo_ai_requests" validate constraint "demo_ai_requests_attempt_count_check";
+
+alter table "app_private"."demo_ai_requests" add constraint "demo_ai_requests_body_check" CHECK (((char_length(TRIM(BOTH FROM body)) >= 20) AND (char_length(TRIM(BOTH FROM body)) <= 5000))) not valid;
+
+alter table "app_private"."demo_ai_requests" validate constraint "demo_ai_requests_body_check";
+
+alter table "app_private"."demo_ai_requests" add constraint "demo_ai_requests_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'ready'::text, 'blocked'::text, 'failed'::text]))) not valid;
+
+alter table "app_private"."demo_ai_requests" validate constraint "demo_ai_requests_status_check";
+
+alter table "app_private"."demo_ai_requests" add constraint "demo_ai_requests_title_check" CHECK (((char_length(TRIM(BOTH FROM title)) >= 8) AND (char_length(TRIM(BOTH FROM title)) <= 160))) not valid;
+
+alter table "app_private"."demo_ai_requests" validate constraint "demo_ai_requests_title_check";
+
+alter table "app_private"."demo_ai_requests" add constraint "demo_ai_requests_user_id_fkey" FOREIGN KEY (user_id) REFERENCES app_private.demo_experience_sessions(user_id) ON DELETE CASCADE not valid;
+
+alter table "app_private"."demo_ai_requests" validate constraint "demo_ai_requests_user_id_fkey";
+
+set check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION app_private.claim_demo_ai_requests(p_limit integer DEFAULT 25, p_lease_seconds integer DEFAULT 45)
+ RETURNS TABLE(request_id uuid, user_id uuid, title text, body text, attempt_count integer, enqueued_at timestamp with time zone)
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  with candidates as (
+    select r.id
+    from app_private.demo_ai_requests r
+    where r.attempt_count < 3
+      and r.available_at <= now()
+      and (
+        r.status = 'pending'
+        or (r.status = 'processing' and r.lease_until < now())
+      )
+    order by r.created_at
+    for update skip locked
+    limit greatest(1, least(coalesce(p_limit, 25), 100))
+  ), claimed as (
+    update app_private.demo_ai_requests r
+    set status = 'processing',
+        lease_until = now() + make_interval(secs => greatest(5, least(coalesce(p_lease_seconds, 45), 300))),
+        attempt_count = r.attempt_count + 1,
+        updated_at = now()
+    from candidates c
+    where r.id = c.id
+    returning r.*
+  )
+  select c.id, c.user_id, c.title, c.body, c.attempt_count, c.created_at
+  from claimed c;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION app_private.complete_demo_ai_request(p_request_id uuid, p_status text, p_answer text, p_guardrail_reasons jsonb, p_model text, p_token_usage jsonb)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  if p_status not in ('ready', 'blocked') then
+    raise exception using errcode = '22023', message = 'invalid demo AI completion status';
+  end if;
+  update app_private.demo_ai_requests
+  set status = p_status,
+      answer = case when p_status = 'ready' then nullif(trim(p_answer), '') else null end,
+      guardrail_reasons = coalesce(p_guardrail_reasons, '[]'::jsonb),
+      model = nullif(trim(p_model), ''),
+      token_usage = coalesce(p_token_usage, '{}'::jsonb),
+      lease_until = null,
+      error_code = null,
+      updated_at = now(),
+      completed_at = now()
+  where id = p_request_id and status = 'processing';
+  return found;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION app_private.fail_demo_ai_request(p_request_id uuid, p_error_code text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_status text;
+begin
+  update app_private.demo_ai_requests
+  set status = case when attempt_count >= 3 then 'failed' else 'pending' end,
+      available_at = case
+        when attempt_count >= 3 then available_at
+        else now() + make_interval(secs => least(30, power(2, attempt_count))::integer)
+      end,
+      lease_until = null,
+      error_code = left(coalesce(nullif(trim(p_error_code), ''), 'provider_error'), 80),
+      updated_at = now(),
+      completed_at = case when attempt_count >= 3 then now() else null end
+  where id = p_request_id and status = 'processing'
+  returning status into v_status;
+  return v_status;
+end;
+$function$
+;
 
 CREATE OR REPLACE FUNCTION app_private.execute_demo_action(p_action text, p_payload jsonb, p_idempotency_key text)
  RETURNS jsonb
@@ -35,17 +156,14 @@ declare
   v_action_id uuid := gen_random_uuid();
   v_ai_request app_private.demo_ai_requests;
   v_recent_count integer;
-  v_display_name text;
   v_ai_user_count integer;
   v_ai_global_count integer;
 begin
   if p_action not in (
     'community.post.create', 'community.comment.create',
     'community.reaction.toggle', 'community.bookmark.toggle',
-    'community.report.create',
     'company.review.create', 'membership.grade.submit',
-    'membership.badge.submit', 'member.profile.update',
-    'ai.answer.request', 'ai.answer.poll',
+    'membership.badge.submit', 'ai.answer.request', 'ai.answer.poll',
     'admin.member.review', 'admin.company.import',
     'admin.content.moderate', 'admin.placement.publish'
   ) then
@@ -89,24 +207,6 @@ begin
     when 'community.bookmark.toggle' then
       v_response := jsonb_build_object('targetId', p_payload->>'targetId',
         'active', coalesce((p_payload->>'active')::boolean, true));
-    when 'community.report.create' then
-      -- 신고는 운영 큐로 가는 일이라 방문자 화면을 바꾸지 않는다.
-      v_response := jsonb_build_object('reportId', v_entity_id, 'status', 'open',
-        'targetId', p_payload->>'targetId', 'scope', 'visitor-only');
-    when 'member.profile.update' then
-      -- 다른 액션과 달리 여기만 실제 테이블을 바꾼다. 방문자 본인의 행이고
-      -- RLS 의 profiles_update_self 가 이미 본인만 허용한다.
-      -- 바꿀 수 있는 칼럼을 display_name 하나로 못 박는다 - handle 이나
-      -- account_status 까지 열면 데모에서 계정 상태를 바꿔 버릴 수 있다.
-      v_display_name := nullif(btrim(coalesce(p_payload->>'displayName', '')), '');
-      if v_display_name is null or length(v_display_name) > 40 then
-        raise exception using errcode = '22023', message = 'display name required (1-40)';
-      end if;
-      update public.profiles
-      set display_name = v_display_name, updated_at = now()
-      where user_id = v_user_id;
-      v_response := jsonb_build_object('displayName', v_display_name,
-        'status', 'saved', 'scope', 'visitor-only');
     when 'company.review.create' then
       v_response := jsonb_build_object('reviewId', v_entity_id, 'status', 'published',
         'anonymous', true, 'scope', 'visitor-only');
@@ -222,4 +322,16 @@ begin
   return jsonb_build_object('mode', 'isolated-demo', 'expiresAt', v_session.expires_at,
     'actions', v_actions);
 end;
-$function$;
+$function$
+;
+
+revoke all on table app_private.demo_ai_requests
+  from public, anon, authenticated, app_authenticator;
+
+revoke all on function app_private.claim_demo_ai_requests(integer,integer),
+  app_private.complete_demo_ai_request(uuid,text,text,jsonb,text,jsonb),
+  app_private.fail_demo_ai_request(uuid,text) from public;
+
+grant execute on function app_private.claim_demo_ai_requests(integer,integer),
+  app_private.complete_demo_ai_request(uuid,text,text,jsonb,text,jsonb),
+  app_private.fail_demo_ai_request(uuid,text) to outbox_worker;

@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts",
     "test:db": "vitest run --config vitest.db.config.ts",
-    "worker": "tsx src/worker.ts",
+    "worker": "node --env-file-if-exists=.env --import tsx src/worker.ts",
+    "worker:watch": "node --env-file-if-exists=.env --import tsx src/worker-watch.ts",
     "verify": "npm run typecheck && npm run test && npm run test:db"
   },
   "dependencies": {

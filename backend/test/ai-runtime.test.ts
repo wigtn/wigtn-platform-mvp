@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OutboxEvent } from "@wigtn/backoffice-frame";
-import { __test } from "../src/ai/openai-responses-provider.js";
+import {
+  __test,
+  OpenAiResponsesProvider,
+} from "../src/ai/openai-responses-provider.js";
 import { toCommentCreated, toPostCreated } from "../src/ai/runtime.js";
 
 const event = (overrides: Partial<OutboxEvent> = {}): OutboxEvent => ({
@@ -16,6 +19,8 @@ const event = (overrides: Partial<OutboxEvent> = {}): OutboxEvent => ({
   maxAttempts: 8,
   ...overrides,
 });
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("AI runtime mapping", () => {
   it("uses the board slug and subject id for post events", () => {
@@ -41,5 +46,71 @@ describe("AI runtime mapping", () => {
         output: [{ content: [{ type: "output_text", text: "답변입니다." }] }],
       }),
     ).toBe("답변입니다.");
+  });
+
+  it("caps output cost and sends a pseudonymous safety identifier", async () => {
+    let requestBody: Record<string, unknown> = {};
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          output_text: "승인자와 검토 순서를 먼저 확인해 보세요.",
+          model: "gpt-5.6-terra",
+          usage: { input_tokens: 20, output_tokens: 10, total_tokens: 30 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    const provider = new OpenAiResponsesProvider({ apiKey: "test-key" });
+    const result = await provider.complete({
+      messages: [
+        { role: "system", content: "안전하게 답하세요." },
+        { role: "user", content: "첫 미팅 질문" },
+      ],
+      model: "gpt-5.6-terra",
+      timeoutMs: 1_000,
+      safetyIdentifier: "anonymous-user-id",
+      responseFormat: {
+        name: "sales_answer",
+        schema: {
+          type: "object",
+          properties: { summary: { type: "string" } },
+          required: ["summary"],
+          additionalProperties: false,
+        },
+      },
+    });
+    expect(requestBody).toMatchObject({
+      model: "gpt-5.6-terra",
+      reasoning: { effort: "low" },
+      text: {
+        verbosity: "low",
+        format: {
+          type: "json_schema",
+          name: "sales_answer",
+          strict: true,
+        },
+      },
+      max_output_tokens: 650,
+      safety_identifier: "fieldnote_anonymous-user-id",
+    });
+    expect(result.tokens.total).toBe(30);
+  });
+
+  it("fails closed when the provider returns no answer text", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ output: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const provider = new OpenAiResponsesProvider({ apiKey: "test-key" });
+    await expect(
+      provider.complete({
+        messages: [{ role: "user", content: "질문" }],
+        model: "gpt-5.6-terra",
+        timeoutMs: 1_000,
+      }),
+    ).rejects.toThrow("empty response");
   });
 });
