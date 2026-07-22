@@ -33,19 +33,29 @@ type DemoAiClaimRow = {
 
 const DEMO_ANSWER_FORMAT = {
   name: "fieldnote_sales_answer",
-  description: "영업 질문에 대한 간결하고 실행 가능한 한국어 답변",
+  description: "영업 질문에 대한 근거 있는 판단과 다음 미팅 실행안",
   schema: {
     type: "object",
     additionalProperties: false,
     properties: {
       summary: {
         type: "string",
-        description: "질문의 핵심을 짚는 두세 문장의 판단",
+        description:
+          "질문 속 의사결정 구조와 막힌 지점을 짚는 두세 문장의 핵심 판단",
+      },
+      clarifyingQuestions: {
+        type: "array",
+        description:
+          "다음 미팅에서 상대에게 그대로 물어볼 수 있는 구체적인 확인 질문 세 가지",
+        minItems: 3,
+        maxItems: 3,
+        items: { type: "string" },
       },
       actions: {
         type: "array",
-        description: "질문자가 바로 실행할 수 있는 구체적인 행동 두세 가지",
-        minItems: 2,
+        description:
+          "질문자가 다음 미팅 전후에 실행할 수 있는 구체적인 행동 세 가지",
+        minItems: 3,
         maxItems: 3,
         items: { type: "string" },
       },
@@ -53,8 +63,22 @@ const DEMO_ANSWER_FORMAT = {
         type: "string",
         description: "실행할 때 놓치기 쉬운 주의점 한두 문장",
       },
+      missingContext: {
+        type: "array",
+        description:
+          "정확한 판단을 위해 질문자에게 추가로 필요한 정보. 충분하면 빈 배열",
+        minItems: 0,
+        maxItems: 3,
+        items: { type: "string" },
+      },
     },
-    required: ["summary", "actions", "caution"],
+    required: [
+      "summary",
+      "clarifyingQuestions",
+      "actions",
+      "caution",
+      "missingContext",
+    ],
   },
 } as const;
 type WorkerPendingStore = PendingAnswerStore & {
@@ -308,8 +332,10 @@ export function createAiRuntime(pool: Pool) {
               ...deps.pipeline.promptPack,
               guardText: [
                 deps.pipeline.promptPack.guardText,
-                "답변은 핵심 판단, 바로 실행할 행동, 주의점으로 나눕니다.",
-                "행동은 모호한 조언 대신 질문자가 다음 미팅에서 실제로 말하거나 확인할 수 있는 내용으로 씁니다.",
+                "질문의 표면적인 표현을 반복하지 말고, 의사결정자·사용자·검토 기준·다음 합의 중 무엇이 막혔는지 판단합니다.",
+                "확인 질문은 질문자가 다음 미팅에서 상대에게 그대로 말할 수 있는 문장으로 씁니다.",
+                "행동은 담당자와 완료 조건이 드러나도록 쓰고, 모호한 조언이나 일반론은 제외합니다.",
+                "질문에 없는 사실을 만들지 않습니다. 판단에 필요한 정보가 빠졌다면 missingContext에 짧게 적습니다.",
                 "Markdown 기호나 제목 표시는 쓰지 않고 각 필드 안에는 자연스러운 문장만 작성합니다.",
               ].join("\n"),
             },

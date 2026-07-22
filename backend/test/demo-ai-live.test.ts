@@ -49,12 +49,16 @@ describe.skipIf(!enabled)("실제 OpenAI 데모 경로", () => {
     expect(poll.data.model).toContain("gpt-5.6-terra");
     const answer = JSON.parse(poll.data.answer) as {
       summary: string;
+      clarifyingQuestions: string[];
       actions: string[];
       caution: string;
+      missingContext: string[];
     };
     expect(answer.summary.length).toBeGreaterThan(20);
-    expect(answer.actions.length).toBeGreaterThanOrEqual(2);
+    expect(answer.clarifyingQuestions).toHaveLength(3);
+    expect(answer.actions).toHaveLength(3);
     expect(answer.caution.length).toBeGreaterThan(10);
+    expect(Array.isArray(answer.missingContext)).toBe(true);
     expect(poll.data.answer).not.toMatch(/\*\*|^#|^>/m);
     await client.rpc("reset_demo_experience");
   }, 60_000);

@@ -82,16 +82,16 @@ describe("AI runtime mapping", () => {
     });
     expect(requestBody).toMatchObject({
       model: "gpt-5.6-terra",
-      reasoning: { effort: "low" },
+      reasoning: { effort: "medium" },
       text: {
-        verbosity: "low",
+        verbosity: "medium",
         format: {
           type: "json_schema",
           name: "sales_answer",
           strict: true,
         },
       },
-      max_output_tokens: 650,
+      max_output_tokens: 1_100,
       safety_identifier: "fieldnote_anonymous-user-id",
     });
     expect(result.tokens.total).toBe(30);
