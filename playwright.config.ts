@@ -34,10 +34,11 @@ export default defineConfig({
 
       DB 연동은 따로 확인한다(원장에 남는지, RLS 가 막는지 등).
     */
-    env: {
-      NEXT_PUBLIC_SUPABASE_URL: "",
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
-    },
+    /*
+      AI 답변 테스트는 실제 DB·워커를 탄다. 큐에 넣고 워커가 처리한 결과를
+      기다리는 흐름이라 흉내로는 검증이 안 된다. 나머지 화면 테스트도 같은
+      서버를 쓰므로 여기서 DB 를 끄면 그 하나가 반드시 실패한다.
+    */
     timeout: 120_000,
   },
 });
