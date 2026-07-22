@@ -997,8 +997,10 @@ input[type="range"]:active::-webkit-slider-thumb {
   color: #256d5b;
 }
 .privacy-note p {
-  margin: 4px 0 0;
-  color: #477c70;
+  margin: 5px 0 0;
+  /* 민트 배경 위에서 #477c70 은 대비가 모자라 작은 글씨가 흐려 보였다. */
+  color: #1f5a4c;
+  line-height: 1.65;
   font-size: 12px;
 }
 .editor-field {
@@ -5817,4 +5819,26 @@ textarea:focus-visible,
   white-space: nowrap;
   color: var(--text-faint);
   font-size: 11px;
+}
+
+/*
+ * 역할 안내 박스.
+ *
+ * 설명과 버튼이 양 끝으로 벌어져, 어떤 안내에 대한 행동인지 눈으로 잇기가
+ * 어려웠다. 폭을 좁혀 붙인다.
+ */
+.role-feature-note {
+  max-width: 720px;
+}
+@media (max-width: 760px) {
+  /* 좁은 화면에서는 세 칸이 눌린다. 아이콘·설명·버튼을 세로로 편다. */
+  .role-feature-note {
+    grid-template-columns: auto 1fr;
+    row-gap: 12px;
+  }
+  .role-feature-note > .button,
+  .role-feature-note > button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
 }
