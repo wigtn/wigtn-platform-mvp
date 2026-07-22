@@ -107,6 +107,25 @@ textarea::placeholder {
   margin-inline: auto;
 }
 
+/* 아이콘
+ *
+ * 전부 1em 짜리 인라인 SVG 다(components/icons.tsx). 크기는 부모의
+ * font-size 를 따르고 색은 currentColor 를 따른다.
+ *
+ * 기본 정렬이 baseline 이라 글자와 나란히 두면 살짝 내려앉는다. 별점처럼
+ * 숫자 옆에 붙는 자리가 특히 티가 난다. */
+svg {
+  vertical-align: -0.125em;
+  flex-shrink: 0;
+}
+/* 원형 배지 안에서는 가운데 정렬이라 보정이 필요 없다. */
+.role-picker-icon svg,
+.account-avatar svg,
+.locked-role-icon svg,
+.demo-bar svg {
+  vertical-align: 0;
+}
+
 /* Header */
 .site-header {
   position: sticky;
@@ -1998,12 +2017,20 @@ input[type="range"] {
   color: var(--navy);
   font-size: 68px;
 }
+/* 별 모양을 아이콘 세트와 맞춘다.
+ *
+ * 전에는 글자 ★ 였다. components/icons.tsx 의 IconStar 와 모양이 달라서,
+ * 같은 화면에 별이 두 종류로 보였다(회사 목록은 SVG, 상세 점수는 글자).
+ * 같은 path 를 배경으로 쓴다. */
 .company-detail-page .score-monument strong::before {
-  content: "★";
+  content: "";
+  display: inline-block;
+  width: 20px;
+  height: 20px;
   margin-right: 8px;
-  color: var(--primary);
-  font-size: 20px;
   vertical-align: 20px;
+  background: url("data:image/svg+xml,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'><path%20fill='%23e34b32'%20d='M12%203.6l2.6%205.3%205.9.9-4.3%204.1%201%205.8-5.2-2.7-5.2%202.7%201-5.8L3.5%209.8l5.9-.9L12%203.6Z'/></svg>")
+    center / contain no-repeat;
 }
 .company-decision-actions {
   display: grid;

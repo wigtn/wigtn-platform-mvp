@@ -19,17 +19,19 @@ async function switchRole(page: Page, roleName: string) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await page.evaluate(() =>
-    window.localStorage.removeItem("fieldnote-demo-v1"),
-  );
+  // 첫 방문 여부를 기록하는 키. 데이터가 localStorage 에서 서버로 옮겨가면서
+  // 이름이 fieldnote-demo-v1 에서 바뀌었다. 옛 키를 지우면 모달이 안 떠서
+  // 아래 클릭이 통째로 멈춘다.
+  await page.evaluate(() => window.localStorage.clear());
   await page.reload();
   await page.getByRole("button", { name: "그냥 둘러보기 (비회원)" }).click();
 });
 
 test("첫 방문 역할 선택과 포커스 순환이 동작한다", async ({ page }) => {
-  await page.evaluate(() =>
-    window.localStorage.removeItem("fieldnote-demo-v1"),
-  );
+  // 첫 방문 여부를 기록하는 키. 데이터가 localStorage 에서 서버로 옮겨가면서
+  // 이름이 fieldnote-demo-v1 에서 바뀌었다. 옛 키를 지우면 모달이 안 떠서
+  // 아래 클릭이 통째로 멈춘다.
+  await page.evaluate(() => window.localStorage.clear());
   await page.reload();
   const dialog = page.getByRole("dialog", {
     name: "어떤 역할로 둘러보시겠어요?",

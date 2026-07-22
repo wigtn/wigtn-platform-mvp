@@ -224,8 +224,16 @@ export async function loadPublicData(): Promise<LoadedDemo | null> {
   return { companies, reviews, posts, boardIds, companyIds };
 }
 
-/** 브라우저마다 익명 계정을 만들고 격리된 데모 세션을 연다. */
-export async function ensureDemoSession(): Promise<{ userId: string } | null> {
+/**
+ * 브라우저마다 익명 계정을 만들고 격리된 데모 세션을 연다.
+ *
+ * 내 표시 이름도 같이 읽는다. 프로필 저장은 다른 액션과 달리 profiles
+ * 테이블을 실제로 바꾸므로, 다시 들어왔을 때 그 값이 보여야 한다.
+ */
+export async function ensureDemoSession(): Promise<{
+  userId: string;
+  displayName: string | null;
+} | null> {
   const supabase = getSupabase();
   if (!supabase) return null;
 
@@ -236,7 +244,17 @@ export async function ensureDemoSession(): Promise<{ userId: string } | null> {
   }
   const { data, error } = await supabase.rpc("bootstrap_demo_experience");
   if (error) throw error;
-  return { userId: (data as { userId: string }).userId };
+  const userId = (data as { userId: string }).userId;
+
+  const profile = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return {
+    userId,
+    displayName: (profile.data?.display_name as string | undefined) ?? null,
+  };
 }
 
 /**

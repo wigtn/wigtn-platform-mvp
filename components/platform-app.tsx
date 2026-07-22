@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
 import {
   companies as seedCompanies,
@@ -24,6 +24,15 @@ import {
   resetMyDemo,
 } from "@/lib/demo-store";
 import { supabaseConfigured } from "@/lib/supabase";
+import {
+  IconEye,
+  IconLive,
+  IconPen,
+  IconSearch,
+  IconSliders,
+  IconStar,
+  IconVerified,
+} from "./icons";
 
 /*
   회사 목록은 이 파일 39곳에서 `companies` 라는 이름으로 쓰인다. DB 에서
@@ -128,25 +137,25 @@ const roleNames: Record<Role, string> = {
 
 const roleExperience: Record<
   Role,
-  { icon: string; description: string; unlocks: string }
+  { icon: ReactNode; description: string; unlocks: string }
 > = {
   guest: {
-    icon: "○",
+    icon: <IconEye />,
     description: "회사 리뷰와 공개 커뮤니티를 읽습니다.",
     unlocks: "공개 회사 리뷰와 커뮤니티 열람",
   },
   sales: {
-    icon: "↗",
+    icon: <IconPen />,
     description: "프로필·게시글·답변 작성 흐름을 체험합니다.",
     unlocks: "프로필 관리, 게시글·답변 작성",
   },
   verified: {
-    icon: "✓",
+    icon: <IconVerified />,
     description: "재직 확인 배지가 붙는 리뷰와 답변을 작성합니다.",
     unlocks: "재직 확인 리뷰와 인증 배지 작성",
   },
   admin: {
-    icon: "⌘",
+    icon: <IconSliders />,
     description: "리뷰 검수·회원 인증·콘텐츠 운영 화면을 엽니다.",
     unlocks: "리뷰 검수, 회원 인증, 콘텐츠 운영",
   },
@@ -206,6 +215,15 @@ function useDemoState() {
     const savedRole = window.localStorage.getItem(
       "fieldnote-role",
     ) as Role | null;
+    // 역할은 화면 설정이라 DB 와 무관하게 먼저 되살린다.
+    //
+    // 라우트를 옮기면 이 컴포넌트가 다시 마운트된다(catch-all 라우트 하나라
+    // 화면 전체가 갈린다). 그때 역할을 안 되살리면 방금 고른 관점이 사라진다 -
+    // "운영 관리자로 전환"을 눌러 /admin 에 갔는데 "역할이 필요합니다"가 뜬다.
+    //
+    // 처음엔 DB 를 읽는 쪽 안에만 넣어 뒀다. 그래서 연결이 안 되는 환경에서는
+    // 역할 전환이 통째로 안 먹었다.
+    if (savedRole) setState((current) => ({ ...current, role: savedRole }));
 
     (async () => {
       if (!supabaseConfigured) {
@@ -214,7 +232,7 @@ function useDemoState() {
       }
       try {
         // profiles 는 authenticated 에만 열려 있다. 세션을 먼저 연다.
-        await ensureDemoSession();
+        const session = await ensureDemoSession();
         const data = await loadPublicData();
         const actions = await loadMyActions();
         if (cancelled || !data) return;
@@ -222,6 +240,12 @@ function useDemoState() {
           const base: DemoState = {
             ...current,
             role: savedRole ?? current.role,
+            // 저장해 둔 표시 이름이 있으면 그걸 쓴다. 기본값('체험 영업인')은
+            // 아직 안 바꾼 상태라 화면의 기본 프로필을 그대로 둔다.
+            profile:
+              session?.displayName && session.displayName !== "체험 영업인"
+                ? { ...current.profile, name: session.displayName }
+                : current.profile,
             companies: data.companies,
             boardIds: LABEL_TO_BOARD_ID(data.boardIds),
             companyIds: data.companyIds,
@@ -755,7 +779,7 @@ function Home({ state }: { state: DemoState }) {
                 router.push(`/companies?q=${encodeURIComponent(query)}`);
               }}
             >
-              <span aria-hidden="true">⌕</span>
+              <IconSearch />
               <input
                 aria-label="회사 검색"
                 value={query}
@@ -1032,7 +1056,9 @@ function CompanyCard({
       </h3>
       <p>{company.summary}</p>
       <div className="score-line">
-        <span className="star">★</span>
+        <span className="star">
+          <IconStar />
+        </span>
         <strong>{score.toFixed(1)}</strong>
         <span>리뷰 {company.reviewCount}</span>
         <b className={company.trend >= 0 ? "up" : "down"}>
@@ -1286,7 +1312,9 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
                     {review.verified ? "재직 검증" : "일반"}
                   </span>
                   <span>{review.employment}</span>
-                  <strong>★ {review.score.toFixed(1)}</strong>
+                  <strong>
+                    <IconStar /> {review.score.toFixed(1)}
+                  </strong>
                 </div>
                 <h3>{review.title}</h3>
                 <p>{review.body}</p>
@@ -2118,8 +2146,13 @@ function Account({
                     headline: String(data.get("profileHeadline")),
                   },
                 }));
-                // 프로필 저장은 서버 액션 목록에 아직 없다. 화면에만 반영된다.
-                // (execute_demo_action 의 features 에 member.profile.update 추가 필요)
+                // 다른 액션과 달리 이건 원장에만 적는 게 아니라 profiles
+                // 테이블을 실제로 바꾼다. 방문자 본인의 행이라 RLS 가
+                // 허용한다. 한 줄 소개는 아직 저장할 칼럼이 없어 화면에만
+                // 남는다.
+                persist("member.profile.update", {
+                  displayName: String(data.get("profileName")),
+                });
                 notify("프로필이 저장됐습니다.");
               }}
             >
@@ -2959,7 +2992,7 @@ function DemoRoleBar({
     >
       <div className="page-shell demo-role-bar-inner">
         <div className="demo-status-copy">
-          <span aria-hidden="true">◇</span>
+          <IconLive />
           <p>
             <strong>데모 체험 중</strong>
             <span>
