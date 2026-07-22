@@ -17,6 +17,7 @@ import {
 import {
   AXIS_KEY,
   ensureDemoSession,
+  requestAiAnswer,
   loadMyActions,
   loadPublicData,
   recordAction,
@@ -388,6 +389,25 @@ function replayActions(
           posts: next.posts.map((post) =>
             post.id === postId ? { ...post, saved: !post.saved } : post,
           ),
+        };
+        break;
+      }
+      case "ai.answer.request": {
+        // 답변은 요청 페이로드에 같이 넣어 뒀다. 방금 만든 질문 글(맨 앞)에
+        // 붙인다 - 원장은 시간순이라 바로 앞이 그 글이다.
+        const answer = String(req.answer ?? "");
+        if (!answer || next.posts.length === 0) break;
+        const [first, ...rest] = next.posts;
+        next = {
+          ...next,
+          posts: [
+            {
+              ...first,
+              ai: "posted",
+              comments: [`AI 초안 · ${answer}`, ...first.comments],
+            },
+            ...rest,
+          ],
         };
         break;
       }
@@ -1908,36 +1928,59 @@ function QuestionForm({
   const [context, setContext] = useState(
     "고객이 제품 필요성은 인정하지만 예산 이야기는 계속 미룹니다. 첫 미팅에서 어떤 순서로 물어봐야 할까요?",
   );
-  const ask = (event: FormEvent) => {
+  /**
+   * 질문을 올리고 AI 초안을 받는다.
+   *
+   * 전에는 setTimeout 세 개로 queued→thinking→posted 를 흉내 냈다. 이제는
+   * 진짜로 부른다 - queued 는 요청을 보낸 순간, thinking 은 응답을 기다리는
+   * 동안, posted 는 답이 온 뒤다. 상태 이름이 실제 단계와 맞는다.
+   *
+   * 답을 못 받아도 질문은 남긴다. 사람 답변을 기다리면 되는 흐름이고,
+   * 여기서 되돌리면 방금 쓴 글이 사라져 더 나쁘다.
+   */
+  const ask = async (event: FormEvent) => {
     event.preventDefault();
     setStatus("queued");
     notify("질문을 등록했습니다. AI 초안을 작성 중입니다.");
-    window.setTimeout(() => setStatus("thinking"), 1200);
-    window.setTimeout(() => {
-      setStatus("posted");
-      const post: Post = {
-        id: `p-${Date.now()}`,
-        board: "Q&A",
+
+    const boardId = state.boardIds?.["Q&A"];
+    if (boardId) {
+      persist("community.post.create", {
+        boardId,
         title,
         body: context,
-        author: roleNames[state.role],
-        badge: state.role === "verified" ? "검증 영업인 L2" : undefined,
-        likes: 0,
-        saved: false,
-        comments: [],
-        ai: "posted",
-      };
-      setState((current) => ({ ...current, posts: [post, ...current.posts] }));
-      const boardId = state.boardIds?.["Q&A"];
-      if (boardId) {
-        persist("community.post.create", {
-          boardId,
-          title,
-          body: context,
-          askAi: true,
-        });
-      }
-    }, 4200);
+        askAi: true,
+      });
+    }
+
+    setStatus("thinking");
+    let answer: string | null = null;
+    try {
+      const result = await requestAiAnswer({ title, body: context });
+      answer = result.answer;
+      // 답변까지 원장에 넣는다. 새로고침해도 그대로 보이게 하려면 서버에
+      // 남아 있어야 한다(replayActions 가 여기서 읽는다).
+      persist("ai.answer.request", { title, question: context, answer });
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "AI 답변을 받지 못했습니다.",
+      );
+    }
+
+    setStatus("posted");
+    const post: Post = {
+      id: `p-${Date.now()}`,
+      board: "Q&A",
+      title,
+      body: context,
+      author: roleNames[state.role],
+      badge: state.role === "verified" ? "검증 영업인 L2" : undefined,
+      likes: 0,
+      saved: false,
+      comments: answer ? [`AI 초안 · ${answer}`] : [],
+      ai: answer ? "posted" : "queued",
+    };
+    setState((current) => ({ ...current, posts: [post, ...current.posts] }));
   };
   return (
     <main className="page-shell page narrow">

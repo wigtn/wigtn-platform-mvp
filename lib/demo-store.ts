@@ -305,6 +305,45 @@ export async function recordAction(
   return data as Record<string, unknown>;
 }
 
+/**
+ * 질문에 AI 초안을 받는다.
+ *
+ * 서버 라우트를 거친다. 브라우저에서 OpenAI 를 직접 부르면 키가 공개되고,
+ * 공개 데모라 소스를 보는 사람이 곧 키를 가져간다.
+ *
+ * 방문자 토큰을 같이 보낸다. 서버가 그 토큰으로 원장을 읽어 **이 방문자가
+ * 몇 번 썼는지 직접 센다** - 브라우저가 보내는 숫자를 믿으면 제한이 의미가
+ * 없다.
+ */
+export async function requestAiAnswer(question: {
+  title: string;
+  body: string;
+}): Promise<{ answer: string; remaining: number }> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("데모가 DB 에 연결되지 않았습니다.");
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("데모 세션이 없습니다.");
+
+  const response = await fetch("/api/ai-answer", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(question),
+  });
+  const json = (await response.json()) as {
+    answer?: string;
+    remaining?: number;
+    error?: string;
+  };
+  if (!response.ok || !json.answer) {
+    throw new Error(json.error ?? "AI 답변을 받지 못했습니다.");
+  }
+  return { answer: json.answer, remaining: json.remaining ?? 0 };
+}
+
 /** "초기화" 버튼. 내 원장만 지운다 - 공용 시드는 안 건드린다. */
 export async function resetMyDemo(): Promise<void> {
   const supabase = getSupabase();
