@@ -1,6 +1,11 @@
 "use client";
 
 import type { Company, Post, Review } from "./domain";
+import {
+  FIELDNOTE_AI_FALLBACK,
+  parseFieldnoteAiAnswer,
+  type FieldnoteAiAnswer,
+} from "./fieldnote-ai";
 import { getSupabase } from "./supabase";
 
 /**
@@ -308,40 +313,72 @@ export async function recordAction(
 /**
  * 질문에 AI 초안을 받는다.
  *
- * 서버 라우트를 거친다. 브라우저에서 OpenAI 를 직접 부르면 키가 공개되고,
- * 공개 데모라 소스를 보는 사람이 곧 키를 가져간다.
- *
- * 방문자 토큰을 같이 보낸다. 서버가 그 토큰으로 원장을 읽어 **이 방문자가
- * 몇 번 썼는지 직접 센다** - 브라우저가 보내는 숫자를 믿으면 제한이 의미가
- * 없다.
+ * Supabase private queue에 넣고 맥미니 워커가 처리한 결과를 polling한다.
+ * 브라우저와 Vercel에는 OpenAI 키가 없고, 방문자별·전체 사용량 제한은
+ * execute_demo_action 안에서 원자적으로 적용된다.
  */
 export async function requestAiAnswer(question: {
   title: string;
   body: string;
-}): Promise<{ answer: string; remaining: number }> {
-  const supabase = getSupabase();
-  if (!supabase) throw new Error("데모가 DB 에 연결되지 않았습니다.");
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) throw new Error("데모 세션이 없습니다.");
-
-  const response = await fetch("/api/ai-answer", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(question),
-  });
-  const json = (await response.json()) as {
-    answer?: string;
-    remaining?: number;
-    error?: string;
-  };
-  if (!response.ok || !json.answer) {
-    throw new Error(json.error ?? "AI 답변을 받지 못했습니다.");
+}): Promise<{
+  answer: FieldnoteAiAnswer;
+  rawAnswer: string;
+  model: string;
+}> {
+  if (!getSupabase()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 900));
+    return {
+      answer: FIELDNOTE_AI_FALLBACK,
+      rawAnswer: JSON.stringify(FIELDNOTE_AI_FALLBACK),
+      model: "demo-fallback",
+    };
   }
-  return { answer: json.answer, remaining: json.remaining ?? 0 };
+
+  let requested: Record<string, unknown> | null;
+  try {
+    requested = await recordAction("ai.answer.request", question);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/quota|rate limit/i.test(message))
+      throw new Error(
+        "이 데모에서는 한 시간에 AI 답변을 3번까지 받을 수 있습니다.",
+      );
+    throw new Error(
+      "AI 요청을 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    );
+  }
+
+  const requestId =
+    typeof requested?.requestId === "string" ? requested.requestId : "";
+  if (!requestId) throw new Error("AI 요청 번호를 받지 못했습니다.");
+
+  for (let attempt = 0; attempt < 45; attempt += 1) {
+    await new Promise((resolve) =>
+      window.setTimeout(resolve, attempt === 0 ? 600 : 1_000),
+    );
+    const result = await recordAction("ai.answer.poll", { requestId });
+    const status = String(result?.status ?? "pending");
+    if (status === "ready" && typeof result?.answer === "string") {
+      return {
+        answer: parseFieldnoteAiAnswer(result.answer),
+        rawAnswer: result.answer,
+        model:
+          typeof result.model === "string" ? result.model : "gpt-5.6-terra",
+      };
+    }
+    if (status === "blocked")
+      throw new Error(
+        "개인정보 또는 안전 정책에 걸릴 수 있는 내용이 있어 AI 답변을 만들지 않았습니다.",
+      );
+    if (status === "failed")
+      throw new Error(
+        "AI 답변 생성에 실패했습니다. 질문을 조금 다듬어 다시 시도해 주세요.",
+      );
+  }
+
+  throw new Error(
+    "AI 답변 준비가 지연되고 있습니다. 잠시 후 다시 시도해 주세요.",
+  );
 }
 
 /** "초기화" 버튼. 내 원장만 지운다 - 공용 시드는 안 건드린다. */

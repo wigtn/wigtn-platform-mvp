@@ -2,11 +2,13 @@
 
 ## 현재 입찰 데모
 
-- UI와 route는 실서비스용 구조다.
+- UI와 Supabase queue/poll 경로는 실서비스용 구조다.
 - `DemoState`는 공개 합성 baseline 위에 방문자별 local overlay를 만든다.
 - 역할 전환은 실제 가입 절차를 생략하기 위한 evaluator affordance이며 production 인증을 대체하지 않는다.
 - 리뷰 상태 변경과 관리자 명령은 실제 도메인 상태명을 사용한다.
-- AI 질문은 실제 Supabase 익명 세션, 방문자별 private queue, OpenAI Responses API를 사용한다.
+- AI 질문은 실제 Supabase 익명 세션, 방문자별 private queue, 맥미니 워커와 OpenAI Responses API를 사용한다.
+- 브라우저와 Vercel은 OpenAI를 직접 호출하지 않는다. 맥미니 워커만 provider key를 보유하고 입력 moderation → 구조화 생성 → 출력 moderation을 수행한다.
+- 답변 계약은 핵심 판단, 확인 질문 3개, 실행 행동 3개, 주의점, 부족한 정보 목록이며 JSON Schema와 런타임 파서에서 함께 검증한다.
 
 ## 수주 후 adapter 교체
 

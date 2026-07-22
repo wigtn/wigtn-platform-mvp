@@ -5021,6 +5021,29 @@ select:focus {
   font-size: 15px;
   line-height: 1.7;
 }
+.fieldnote-answer-questions li b {
+  color: var(--primary);
+}
+.fieldnote-answer-missing {
+  margin: 20px;
+  padding: 16px 18px;
+  border-left: 3px solid #657d70;
+  background: #eef3ef;
+}
+.fieldnote-answer-missing > b {
+  color: #34483d;
+  font-size: 12px;
+}
+.fieldnote-answer-missing ul {
+  margin: 9px 0 0;
+  padding-left: 18px;
+}
+.fieldnote-answer-missing li {
+  margin-top: 5px;
+  color: #45564c;
+  font-size: 13px;
+  line-height: 1.55;
+}
 .fieldnote-answer-caution {
   display: grid;
   grid-template-columns: 32px 1fr;
