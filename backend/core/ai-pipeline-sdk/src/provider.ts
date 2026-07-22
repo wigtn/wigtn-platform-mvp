@@ -17,6 +17,13 @@ export interface CompletionRequest {
   messages: ChatMessage[];
   model: string;
   timeoutMs: number;
+  /** Provider abuse monitoring only. Never send email, name, or other direct PII. */
+  safetyIdentifier?: string;
+  responseFormat?: {
+    name: string;
+    description?: string;
+    schema: Record<string, unknown>;
+  };
 }
 
 export interface CompletionResult {
