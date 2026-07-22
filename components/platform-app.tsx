@@ -1024,7 +1024,7 @@ function Home({ state }: { state: DemoState }) {
             <strong>리뷰 작성자는 공개되지 않습니다.</strong> 재직·실적 확인
             여부만 리뷰에 표시합니다.
           </p>
-          <Link href="/trust">검증 정책 보기 →</Link>
+          <Link href="/trust">검증 정책 보기</Link>
         </div>
       </section>
 
@@ -1134,7 +1134,7 @@ function Home({ state }: { state: DemoState }) {
             <div className="ranked-note">
               <span>평가 기준</span>
               <p>최근 12개월 리뷰와 재직 확인 여부를 반영합니다.</p>
-              <Link href="/trust">산정 방식 확인 →</Link>
+              <Link href="/trust">산정 방식 확인</Link>
             </div>
           </div>
         </div>
@@ -1449,7 +1449,7 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
               <li key={signal}>{signal}</li>
             ))}
           </ul>
-          <Link href="/questions/new">현직자에게 확인 질문하기 →</Link>
+          <Link href="/questions/new">현직자에게 확인 질문하기</Link>
         </aside>
       </section>
       <section className="section-tight" id="environment">
@@ -1797,7 +1797,7 @@ function Community({
               상황, 시도한 방법, 원하는 결과를 함께 적으면 더 구체적인 답을 받을
               수 있습니다.
             </p>
-            <Link href="/questions/new">질문 가이드 보기 →</Link>
+            <Link href="/questions/new">질문 가이드 보기</Link>
           </div>
         </aside>
         <section className="community-main">
@@ -1878,7 +1878,7 @@ function Community({
             <span>답변자 확인 정보</span>
             <strong>경력·재직·실적 확인 여부를 표시합니다.</strong>
             <p>답변자 이름 옆의 확인 배지를 참고하세요.</p>
-            <Link href="/trust">검증 정책 →</Link>
+            <Link href="/trust">검증 정책</Link>
           </section>
         </aside>
       </div>
@@ -2408,7 +2408,7 @@ function QuestionForm({
           <div className="similar-box">
             <span>작성 전 유사 질문</span>
             <Link href="/posts/p1">
-              엔터프라이즈 첫 미팅에서 꼭 확인하는 세 가지는? →
+              엔터프라이즈 첫 미팅에서 꼭 확인하는 세 가지는?
             </Link>
           </div>
           <button className="button primary">질문 등록</button>
@@ -3120,7 +3120,7 @@ function Admin({
             </div>
             <strong>8</strong>
             <small>24시간 내 처리율 92% · 가장 오래된 건 3시간</small>
-            <Link href="/admin/members">대기열 열기 →</Link>
+            <Link href="/admin/members">대기열 열기</Link>
           </article>
           <article>
             <div>
@@ -3129,7 +3129,7 @@ function Admin({
             </div>
             <strong>3</strong>
             <small>고위험 1건 · 오늘 신규 2건</small>
-            <Link href="/admin/reviews">분쟁 큐 열기 →</Link>
+            <Link href="/admin/reviews">분쟁 큐 열기</Link>
           </article>
           <article>
             <div>
@@ -3138,7 +3138,7 @@ function Admin({
             </div>
             <strong>0</strong>
             <small>재시도 대기 없음 · 마지막 점검 2분 전</small>
-            <Link href="/admin/content">상태 확인 →</Link>
+            <Link href="/admin/content">상태 확인</Link>
           </article>
         </div>
         <div className="admin-dashboard-lower">
@@ -3190,7 +3190,7 @@ function Admin({
               <p key={item}>
                 <span>{index === 0 ? "방금 전" : `${index * 7}분 전`}</span>
                 {item}
-                <b>기록 보기 →</b>
+                <b>기록 보기</b>
               </p>
             ))}
           </section>
@@ -3445,7 +3445,7 @@ function RolePickerModal({
               </span>
               <strong>{roleNames[key]}</strong>
               <small>{roleExperience[key].description}</small>
-              <b>이 역할로 시작 →</b>
+              <b>이 역할로 시작</b>
             </button>
           ))}
         </div>
@@ -3518,7 +3518,7 @@ function AccountLoginModal({
                   <strong>{account.name}</strong>
                   <span>{account.title}</span>
                 </span>
-                <b>{isCurrent ? "현재 계정 열기" : "이 계정으로 로그인"} →</b>
+                <b>{isCurrent ? "현재 계정 열기" : "이 계정으로 로그인"}</b>
               </button>
             );
           })}

@@ -224,11 +224,16 @@ textarea::placeholder {
   font-size: 14px;
   font-weight: 700;
 }
-.text-link::after {
-  content: "  →";
+/* 화살표를 붙이지 않는다. 링크마다 → 가 달리면 화면이 산만하고,
+   요즘 자동 생성된 화면에서 흔히 보이는 인상이 된다. 밑줄과 색으로 충분하다. */
+.text-link {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-strong);
 }
 .text-link:hover {
   color: var(--primary);
+  text-decoration-color: currentColor;
 }
 .hero-actions {
   display: flex;
@@ -346,10 +351,6 @@ textarea::placeholder {
   color: var(--primary);
   font-size: 13px;
   font-weight: 750;
-}
-.hero-explore-link::after {
-  content: " →";
-  margin-left: 4px;
 }
 .career-preview {
   padding: 24px;
