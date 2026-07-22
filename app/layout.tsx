@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 
 import "./styles.css";
 
+import { DemoShell } from "@/components/demo-shell";
+
 const TITLE = "FIELDNOTE | 영업직 회사 리뷰";
 const DESCRIPTION =
   "목표, 인센티브, 리드 배분 등 회사별 영업환경을 현직자 리뷰로 확인하세요.";
@@ -64,7 +66,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {/*
+          데모 상태를 레이아웃에서 만든다.
+
+          이 앱은 catch-all 라우트 하나로 모든 화면을 그려서, 주소가 바뀌면
+          페이지 컴포넌트가 통째로 다시 마운트된다. 상태를 그 안에 두면
+          화면을 옮길 때마다 초기화되면서 깜빡이고 DB 도 다시 읽는다.
+          레이아웃은 라우트가 바뀌어도 유지된다.
+        */}
+        <DemoShell>{children}</DemoShell>
+      </body>
     </html>
   );
 }
