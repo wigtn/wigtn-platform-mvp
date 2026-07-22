@@ -960,18 +960,64 @@ input[type="range"] {
   display: grid;
   gap: 7px;
 }
+/*
+  서식 도구를 입력창에 붙인다.
+
+  전에는 버튼 네 개가 입력창 위에 따로 떠 있어서, 무엇에 적용되는 도구인지
+  안 보이고 정렬도 어긋나 보였다. 테두리를 공유해 한 덩어리로 만든다.
+*/
 .editor-toolbar {
   display: flex;
-  gap: 4px;
-  margin-top: 2px;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-strong);
+  border-bottom: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--surface);
 }
 .editor-toolbar button {
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: #475467;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-subtle);
   font-size: 11px;
+  font-weight: 600;
+}
+.editor-toolbar button:hover {
+  background: var(--white);
+  color: var(--text);
+}
+/* 도구와 이어 붙는 입력창은 위쪽 모서리를 펴고 테두리를 겹치지 않게 한다. */
+.editor-field textarea {
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+/*
+  파일 선택.
+
+  브라우저 기본 위젯이 그대로 나와 혼자 다른 화면처럼 보였다. 버튼 부분만
+  다른 버튼과 같은 톤으로 맞춘다.
+*/
+input[type="file"] {
+  padding: 9px 12px;
+  color: var(--text-subtle);
+  font-size: 12px;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover {
+  background: var(--surface);
 }
 .attachment-list {
   display: flex;
@@ -1132,8 +1178,58 @@ input[type="range"] {
   color: var(--primary);
   font-size: 12px;
 }
+/*
+  답변 작성 폼.
+
+  전에는 margin-top 하나뿐이라 배지·라벨·입력창·버튼이 배치 규칙 없이
+  흘러나왔다. 버튼 둘("답글 취소", "답변 등록")이 나란히 놓일 자리도 없어
+  줄바꿈이 제멋대로였다.
+
+  세로로 쌓고, 버튼만 오른쪽에 모은다. 취소가 왼쪽·등록이 오른쪽이라
+  주된 행동이 항상 같은 자리에 온다.
+*/
 .comment-form {
+  display: grid;
+  gap: 12px;
   margin-top: 28px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+}
+.comment-form .role-access-badge {
+  justify-self: start;
+}
+.comment-form label {
+  display: grid;
+  gap: 7px;
+}
+/* 버튼 줄. 하나뿐일 때도 오른쪽에 붙는다. */
+.comment-form button {
+  justify-self: end;
+}
+.comment-form button[type="button"] {
+  /* 취소는 부차적인 행동이라 톤을 낮춘다. */
+  grid-column: 1;
+  justify-self: start;
+  padding: 9px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+.comment-form button[type="button"]:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+/* 취소가 보일 때는 두 버튼을 한 줄에 둔다. */
+.comment-form:has(button[type="button"]) {
+  grid-template-columns: auto 1fr;
+}
+.comment-form:has(button[type="button"]) .role-access-badge,
+.comment-form:has(button[type="button"]) label {
+  grid-column: 1 / -1;
 }
 .login-prompt,
 .thinking {
@@ -1645,7 +1741,6 @@ input[type="range"] {
 .hero-badge {
   background: transparent;
   padding: 0;
-  border-left: 3px solid var(--primary);
   padding-left: 9px;
 }
 .hero-search,
@@ -2409,8 +2504,17 @@ input[type="range"] {
 
 /* Admin: queues and SLA before decoration. */
 .admin-shell {
-  width: min(1440px, 100%);
+  /*
+    관리자 화면은 화면 전체를 쓴다.
+
+    기본값이 `width: min(1380px, 100% - 40px)` + `margin: auto` 라 가운데
+    정렬되면서 좌우에 여백이 생겼다. 사이드바가 화면 왼쪽 끝에 안 붙고
+    떠 보인다. 대기열을 훑는 운영 화면이라 폭을 줄일 이유가 없다.
+  */
+  width: 100%;
+  max-width: none;
   grid-template-columns: 238px 1fr;
+  margin-inline: 0;
   margin-top: 0;
   /*
     아래 여백을 없앤다.
@@ -2480,7 +2584,6 @@ input[type="range"] {
   display: flex;
   justify-content: space-between;
   border-radius: 0;
-  border-left: 2px solid transparent;
 }
 .admin-nav a b {
   min-width: 19px;
@@ -2491,7 +2594,6 @@ input[type="range"] {
   text-align: center;
 }
 .admin-nav a.active {
-  border-left-color: var(--primary);
   background: #282825;
   color: #fff;
 }
@@ -2543,7 +2645,6 @@ input[type="range"] {
   align-items: center;
   margin-bottom: 20px;
   padding: 23px 25px;
-  border-left: 4px solid var(--primary);
   background: #fff0eb;
 }
 .priority-brief span {
@@ -3164,7 +3265,6 @@ input[type="range"] {
 }
 .form-panel {
   position: relative;
-  border-top: 4px solid var(--blue);
   box-shadow: 0 18px 50px rgba(26, 34, 51, 0.06);
 }
 input,
@@ -3298,7 +3398,6 @@ select:focus {
   color: #13795e;
 }
 .trust-grid article:nth-child(1) {
-  border-top: 4px solid var(--blue);
 }
 .trust-grid article:nth-child(2) {
   border-top: 4px solid var(--mint);
@@ -3385,9 +3484,16 @@ select:focus {
   .admin-shell {
     grid-template-columns: 1fr;
   }
+  /*
+    여기서부터 사이드바가 가로 줄로 바뀐다. 넓은 화면용 붙박이 설정을
+    그대로 두면 화면 높이만큼 늘어난 검은 덩어리가 본문을 덮는다.
+  */
   .admin-nav {
+    position: static;
+    height: auto;
     flex-direction: row;
     overflow-x: auto;
+    overflow-y: visible;
   }
 }
 
@@ -4737,7 +4843,6 @@ select:focus {
   margin-bottom: 22px;
   padding: 20px;
   border: 1px solid #d8d8d2;
-  border-left: 3px solid #b38a4d;
   background: #faf9f5;
 }
 .locked-role-icon {
@@ -4771,7 +4876,6 @@ select:focus {
 }
 .role-feature-note.is-unlocked {
   grid-template-columns: 1fr;
-  border-left-color: #4b9274;
   background: #f3f8f5;
 }
 .role-feature-note.is-unlocked > .role-access-badge {
@@ -5061,7 +5165,6 @@ select:focus {
 .fieldnote-answer-missing {
   margin: 20px;
   padding: 16px 18px;
-  border-left: 3px solid #657d70;
   background: #eef3ef;
 }
 .fieldnote-answer-missing > b {
@@ -5201,4 +5304,30 @@ select:focus {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ── 규칙이 빠져 있던 것들 ─────────────────────────────────────────
+ *
+ * 클래스는 붙어 있는데 CSS 가 없어서 브라우저 기본값으로 나오던 자리들이다.
+ * 화면에서는 "여기만 정렬이 안 맞는다"로 보인다.
+ */
+
+/* 관리자 대시보드의 작업 대기열. 옆 칸(운영 로그)과 같은 카드 톤으로 맞춘다. */
+.work-queue {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+/* AI 답변 실패. 성공 카드와 같은 골격을 쓰되 색으로만 구분한다. */
+.ai-result-error {
+  border-color: #e6c9c2;
+  background: var(--primary-soft);
+}
+.ai-result-error span {
+  color: var(--danger);
+}
+.ai-result-error button {
+  justify-self: start;
+  margin-top: 4px;
 }
