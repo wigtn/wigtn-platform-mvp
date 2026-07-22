@@ -33,6 +33,8 @@ export type Post = {
   author: string;
   badge?: string;
   likes: number;
+  /** 내가 눌렀는지. 눌린 상태에서 다시 누르면 취소된다. */
+  liked?: boolean;
   saved: boolean;
   comments: string[];
   images?: string[];
