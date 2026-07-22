@@ -5842,3 +5842,44 @@ textarea:focus-visible,
     width: 100%;
   }
 }
+
+/*
+ * 히어로 검색.
+ *
+ * 폭이 화면 절반을 넘어가면 입력창과 "회사 검색" 버튼이 멀어져, 둘이 한
+ * 쌍이라는 게 안 읽힌다. 폭을 줄여 붙인다. 모서리도 다른 입력과 맞춘다.
+ */
+.hero-search {
+  max-width: 520px;
+  border-radius: var(--radius-lg);
+}
+@media (max-width: 760px) {
+  .hero-search {
+    max-width: none;
+  }
+}
+
+/* 동기화 상태. 색으로 구분한다. */
+.admin-contextbar .is-offline {
+  color: var(--warning, #ef8f21);
+}
+.admin-contextbar .is-offline i {
+  background: var(--warning, #ef8f21);
+}
+
+/*
+ * 홈의 "이번 주 많이 본 회사".
+ *
+ * 왼쪽 큰 카드가 490px 을 차지하는데 오른쪽은 순위 3줄뿐이라, 한 섹션 안에서
+ * 밀도가 크게 어긋났다. 왼쪽을 줄이고 오른쪽 줄 간격을 키워 맞춘다.
+ */
+.recommendation-layout {
+  min-height: 0;
+}
+.ranked-companies {
+  align-content: center;
+  gap: 4px;
+}
+.ranked-company {
+  padding-block: 14px;
+}

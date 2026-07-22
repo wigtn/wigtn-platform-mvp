@@ -2295,6 +2295,51 @@ function PostDetail({
 }
 
 /**
+ * 되돌리기 어려운 동작 앞에서 한 번 묻는 창.
+ *
+ * 신고 창과 같은 뼈대를 쓴다. 확인 창마다 모양이 다르면 같은 성격의 일인지
+ * 알아보기 어렵다.
+ */
+function ConfirmDialog({
+  title,
+  description,
+  confirmLabel,
+  onClose,
+  onConfirm,
+}: {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const dialogRef = useDialogFocus(true, onClose);
+  return (
+    <div className="role-dialog-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="report-dialog"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2>{title}</h2>
+        <p>{description}</p>
+        <div className="report-actions">
+          <button type="button" onClick={onClose}>
+            취소
+          </button>
+          <button type="button" className="button primary" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * 신고 사유를 받는 창.
  *
  * 전에는 버튼을 누르는 즉시 접수됐다. 잘못 눌러도 되돌릴 방법이 없고,
@@ -2889,6 +2934,8 @@ function Admin({
 }) {
   // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
   const companies = pickCompanies(state);
+  const [, , demoMeta] = useDemoStateContext();
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<
     "all" | "privacy" | "report"
   >("all");
@@ -3175,22 +3222,13 @@ function Admin({
           <span>{state.placementsPublished ? "게시 중" : "미리보기"}</span>
           <h2>이번 주 추천 회사 3곳</h2>
           <p>노스스타 클라우드 · 오빗 바이오웍스 · 모자이크 러닝</p>
+          {/*
+            홈 첫 화면에 바로 나가는 동작이라 한 번 묻는다. 전에는 누르는
+            즉시 반영돼서, 잘못 눌러도 되돌릴 틈이 없었다.
+          */}
           <button
             className="button primary"
-            onClick={() => {
-              setState((current) => ({
-                ...current,
-                placementsPublished: !current.placementsPublished,
-              }));
-              persist("admin.placement.publish", {
-                published: !state.placementsPublished,
-              });
-              notify(
-                state.placementsPublished
-                  ? "추천 영역을 미리보기 상태로 변경했습니다."
-                  : "추천 영역을 게시했습니다.",
-              );
-            }}
+            onClick={() => setConfirmPublish(true)}
           >
             {state.placementsPublished ? "게시 취소" : "지금 게시"}
           </button>
@@ -3379,13 +3417,52 @@ function Admin({
       <section className="admin-panel">
         <div className="admin-contextbar">
           <span>2026년 7월 21일 · 운영 관리자</span>
-          <div>
+          {/*
+            전에는 항상 초록 점에 "실시간 동기화"만 떴다. 연결이 끊겨도
+            정상으로 보여서, 화면의 숫자가 낡았는지 알 수 없었다.
+          */}
+          <div className={demoMeta.live ? "is-live" : "is-offline"}>
             <i />
-            실시간 동기화
+            {demoMeta.live
+              ? "실시간 동기화"
+              : demoMeta.ready
+                ? "연결 끊김 · 저장된 값 표시 중"
+                : "동기화 중"}
           </div>
         </div>
         {panel}
       </section>
+      {confirmPublish ? (
+        <ConfirmDialog
+          title={
+            state.placementsPublished
+              ? "추천 영역을 내릴까요?"
+              : "추천 영역을 홈에 올릴까요?"
+          }
+          description={
+            state.placementsPublished
+              ? "홈 첫 화면에서 추천 회사 영역이 사라집니다."
+              : "홈 첫 화면 상단에 추천 회사 3곳이 바로 노출됩니다."
+          }
+          confirmLabel={state.placementsPublished ? "내리기" : "게시하기"}
+          onClose={() => setConfirmPublish(false)}
+          onConfirm={() => {
+            setState((current) => ({
+              ...current,
+              placementsPublished: !current.placementsPublished,
+            }));
+            persist("admin.placement.publish", {
+              published: !state.placementsPublished,
+            });
+            notify(
+              state.placementsPublished
+                ? "추천 영역을 미리보기 상태로 되돌렸습니다."
+                : "추천 영역을 홈에 게시했습니다.",
+            );
+            setConfirmPublish(false);
+          }}
+        />
+      ) : null}
     </main>
   );
 }
