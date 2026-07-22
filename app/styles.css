@@ -769,12 +769,56 @@ textarea {
   resize: vertical;
   line-height: 1.65;
 }
+/*
+  6축 점수 슬라이더.
+
+  accent-color 만 주면 브라우저 기본 위젯이 그대로 보인다. 이 화면의
+  주된 입력인데 혼자 다른 제품처럼 보였다. 트랙과 손잡이를 직접 그린다.
+*/
 input[type="range"] {
   min-height: 24px;
   padding: 0;
-  accent-color: var(--primary);
   border: 0;
   box-shadow: none;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-strong, #e9e9e3);
+}
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-strong, #e9e9e3);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border: 2px solid var(--white);
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 1px 3px rgb(16 24 40 / 25%);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--white);
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 1px 3px rgb(16 24 40 / 25%);
+}
+input[type="range"]:hover::-webkit-slider-thumb {
+  background: var(--primary-hover);
+}
+input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.08);
 }
 .filter-bar > span {
   min-height: 46px;
@@ -3595,9 +3639,26 @@ select:focus {
   .score-bars,
   .field-row,
   .dimension-fields,
-  .compare-grid,
   .trust-grid {
     grid-template-columns: 1fr;
+  }
+  /*
+    비교 화면은 좁아져도 두 칸을 유지한다.
+
+    1열로 접으면 두 회사를 번갈아 스크롤하며 외워야 한다 - 비교라는 행위
+    자체가 성립하지 않는다. 대신 글자와 여백을 줄여 좁은 폭에 맞춘다.
+  */
+  .compare-grid {
+    gap: 10px;
+  }
+  .compare-grid article {
+    padding: 16px 14px;
+  }
+  .compare-grid h2 {
+    font-size: 17px;
+  }
+  .compare-row {
+    font-size: 12px;
   }
   .company-card {
     min-height: 285px;
@@ -5459,4 +5520,154 @@ select:focus {
   height: 1px;
   margin-bottom: 14px;
   background: var(--border-strong);
+}
+
+/* ── 등급 배지 ─────────────────────────────────────────────────────
+ *
+ * 작성자 옆 등급이 그냥 굵은 글씨로만 나와서, 검증된 사람이라는 표시가
+ * 이름의 일부처럼 읽혔다. 배지 모양을 준다.
+ */
+.post-meta b {
+  padding: 2px 7px;
+  border: 1px solid #cfe3d8;
+  border-radius: 999px;
+  background: var(--mint-soft, #e8f8f3);
+  color: #16724f;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+/* ── 공통 상태 ─────────────────────────────────────────────────────
+ *
+ * 눌리는 것과 안 눌리는 것, 지금 처리 중인 것이 구분되지 않았다.
+ * 컴포넌트마다 따로 두지 않고 한 곳에서 정한다.
+ */
+button:disabled,
+button[aria-disabled="true"],
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* 처리 중. 두 번 눌리는 것을 막고 진행 중임을 알린다. */
+.is-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+.is-loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  color: var(--white);
+  animation: fieldnote-spin 700ms linear infinite;
+}
+
+/* ── 게시판 필터 ───────────────────────────────────────────────────
+ *
+ * 어느 게시판을 보고 있는지 활성 표시가 약했다. 한 덩어리로 묶어
+ * 지금 자리가 드러나게 한다.
+ */
+.board-tabs {
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.board-tabs > button {
+  border-radius: calc(var(--radius-sm) - 1px);
+}
+.board-tabs > button.active {
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── 파일 첨부 ─────────────────────────────────────────────────────
+ *
+ * 기본 위젯 위에 점선 상자를 둘러, 끌어다 놓는 자리임을 먼저 알린다.
+ */
+.upload-field {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  text-align: center;
+}
+.upload-field:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.upload-field input[type="file"] {
+  border: 0;
+  background: transparent;
+  text-align: center;
+}
+
+/* 관리자 큰 숫자에 붙는 라벨. */
+.admin-title-count {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.admin-title-count span {
+  color: var(--text-faint);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+/* 비교 우위 범례. */
+.compare-legend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.compare-legend-mark {
+  width: 20px;
+  height: 10px;
+  border-radius: 3px;
+  background: #e6f4ec;
+}
+
+/* 카드가 눌린다는 표시. 평소엔 옅고 올리면 진해진다. */
+.card-go {
+  margin-left: 6px;
+  color: var(--text-faint);
+  opacity: 0.6;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+.company-card.is-clickable:hover .card-go {
+  color: var(--primary);
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+/* 서식 도구에 아이콘이 들어가면서 정렬을 맞춘다. */
+.editor-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }

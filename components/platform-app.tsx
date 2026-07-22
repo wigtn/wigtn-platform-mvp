@@ -30,7 +30,12 @@ import {
 import { supabaseConfigured } from "@/lib/supabase";
 import { useDemoStateContext } from "./demo-state-provider";
 import {
+  IconBold,
+  IconChevron,
   IconEye,
+  IconLink,
+  IconList,
+  IconQuote,
   IconFlag,
   IconThumbsUp,
   IconLive,
@@ -1237,6 +1242,10 @@ function CompanyCard({
         <Link className="card-link" href={`/companies/${company.slug}`}>
           {company.name}
         </Link>
+        {/* 눌러서 들어간다는 표시. 카드 전체가 링크라 단서가 필요하다. */}
+        <span className="card-go" aria-hidden="true">
+          <IconChevron />
+        </span>
       </h3>
       <p>{company.summary}</p>
       <div className="score-line">
@@ -1886,6 +1895,14 @@ function Community({
   );
 }
 
+/** 서식 도구. 아이콘과 이름을 같이 둔다 - 아이콘만으로는 뜻이 안 통한다. */
+const EDITOR_TOOLS = [
+  { label: "굵게", Icon: IconBold },
+  { label: "링크", Icon: IconLink },
+  { label: "목록", Icon: IconList },
+  { label: "인용", Icon: IconQuote },
+] as const;
+
 function PostForm({
   state,
   setState,
@@ -1954,13 +1971,16 @@ function PostForm({
         <div className="editor-field">
           <label htmlFor="post-body">내용</label>
           <span className="editor-toolbar" aria-label="웹 에디터 도구">
-            {["굵게", "링크", "목록", "인용"].map((tool) => (
+            {EDITOR_TOOLS.map(({ label, Icon }) => (
               <button
                 type="button"
-                key={tool}
-                onClick={() => notify(`${tool} 서식 도구를 선택했습니다.`)}
+                key={label}
+                title={label}
+                aria-label={label}
+                onClick={() => notify(`${label} 서식 도구를 선택했습니다.`)}
               >
-                {tool}
+                <Icon />
+                <span>{label}</span>
               </button>
             ))}
           </span>
@@ -1974,8 +1994,10 @@ function PostForm({
         </div>
         <label>
           이미지 첨부
-          <input name="images" type="file" accept="image/*" multiple />
-          <small>JPG·PNG·WebP · 데모에서는 파일 이름만 저장합니다.</small>
+          <div className="upload-field">
+            <input name="images" type="file" accept="image/*" multiple />
+            <small>JPG·PNG·WebP · 데모에서는 파일 이름만 저장합니다.</small>
+          </div>
         </label>
         <button className="button primary">게시글 등록</button>
       </form>
@@ -2746,6 +2768,11 @@ function Compare({ state }: { state: DemoState }) {
           </select>
         </label>
       </div>
+      {/* 초록 행이 무슨 뜻인지 알려 준다. 색만 칠하면 자동 채색으로 읽힌다. */}
+      <p className="compare-legend">
+        <span className="compare-legend-mark" aria-hidden="true" />
+        상대보다 높은 항목
+      </p>
       <div className="compare-grid">
         {selected.map((company, companyIndex) => {
           const other = selected[companyIndex === 0 ? 1 : 0];
@@ -3365,14 +3392,26 @@ function PageTitle({
     </header>
   );
 }
-function AdminTitle({ title, count }: { title: string; count: string }) {
+function AdminTitle({
+  title,
+  count,
+  countLabel = "처리 대기",
+}: {
+  title: string;
+  count: string;
+  countLabel?: string;
+}) {
   return (
     <header className="admin-title">
       <div>
         <p>관리자 도구</p>
         <h1>{title}</h1>
       </div>
-      <strong>{count}</strong>
+      {/* 숫자만 크게 떠 있으면 무슨 값인지 알 수 없다. 라벨을 붙인다. */}
+      <div className="admin-title-count">
+        <strong>{count}</strong>
+        <span>{countLabel}</span>
+      </div>
     </header>
   );
 }
