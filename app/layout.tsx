@@ -3,10 +3,37 @@ import type { ReactNode } from "react";
 
 import "./styles.css";
 
+const TITLE = "FIELDNOTE | 영업직 회사 리뷰";
+const DESCRIPTION =
+  "목표, 인센티브, 리드 배분 등 회사별 영업환경을 현직자 리뷰로 확인하세요.";
+
+/*
+  공유용 메타.
+
+  전에는 title 과 description 뿐이라, 이 주소를 카카오톡이나 슬랙에 붙이면
+  미리보기 없이 주소만 덩그러니 떴다. 포트폴리오에서 "결과물 확인하기"로
+  넘어오는 링크라 첫인상이 여기서 갈린다.
+
+  metadataBase 가 있어야 상대 경로가 절대 주소로 펴진다 - 없으면 Next 가
+  빌드 로그로 경고만 내고 og:url 이 비어 나간다.
+*/
 export const metadata: Metadata = {
-  title: "FIELDNOTE | 영업직 회사 리뷰",
-  description:
-    "목표, 인센티브, 리드 배분 등 회사별 영업환경을 현직자 리뷰로 확인하세요.",
+  metadataBase: new URL("https://wigtn-platform-mvp.vercel.app"),
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    url: "/",
+    siteName: "FIELDNOTE",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
