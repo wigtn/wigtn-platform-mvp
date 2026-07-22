@@ -37,6 +37,8 @@ export type Post = {
   comments: string[];
   images?: string[];
   ai?: "queued" | "thinking" | "posted";
+  aiAnswer?: string;
+  aiModel?: string;
 };
 
 export const companies: Company[] = [

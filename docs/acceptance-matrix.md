@@ -7,7 +7,7 @@
 | AC-01 | 가입 없이 비회원·영업인·인증 영업인·관리자 체험 | 충족      | 전역 데모 도크 역할 전환·초기화                                          | Supabase email 인증과 세션으로 교체                   |
 | AC-02 | 메인 큐레이션과 체류 동선                       | 충족      | 오늘의 pulse, 주목 회사, 현장 노트, AI 질문 CTA                          | placement command와 집계 read model 연결              |
 | AC-03 | 게시판·글·이미지·댓글·대댓글·좋아요·스크랩·신고 | 충족      | 일반 글/이미지 메타 등록, 질문, 실제 상태 변경                           | content-engine·private Storage RPC 연결               |
-| AC-04 | 질문 후 AI 첫 답변                              | 충족      | queued → thinking → posted 전이                                          | outbox worker와 OpenAI/Closed API adapter 연결        |
+| AC-04 | 질문 후 AI 첫 답변                              | 충족      | 익명 세션 → private queue → Terra → 입력·출력 guardrail → posted 전이    | 관측 대시보드·예산 알림 추가                          |
 | AC-05 | 회사 검색·6축 평가·익명 리뷰·평균 통계          | 충족      | 회사 검색, 리뷰 등록, 6축 값과 평균 즉시 재계산                          | project-local review command/RLS/aggregate 연결       |
 | AC-06 | 마이페이지 활동·프로필·검증 증빙                | 충족      | 프로필 저장, 스크랩/댓글, 합성 증빙 검토중 전이                          | auth-membership·private upload·moderator command 연결 |
 | AC-07 | 회원·배지 운영                                  | 충족      | 관리자 승인·반려 동작                                                    | permission/audit/idempotency 적용                     |
@@ -20,7 +20,6 @@
 ## 공개 데모에서 의도적으로 하지 않는 것
 
 - 실제 이메일 발송, 실제 회원가입, 고객 개인정보 수집
-- 실제 OpenAI 토큰 소비와 외부 모델 호출
 - 업로드 원본 보존과 실제 크롤링
 - 관리자처럼 보이기 위한 클라이언트 역할 전환을 production 인증으로 재사용
 

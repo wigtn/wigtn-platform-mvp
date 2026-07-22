@@ -111,6 +111,16 @@ describe("app_authenticator 연결 보안 (§3.4)", () => {
     expect(result.rows[0].allowed).toBe(false);
   });
 
+  it("앱 role은 비공개 AI 큐를 claim하거나 직접 읽지 못한다", async () => {
+    const result = await appPool.query(
+      "select has_function_privilege(current_user, 'app_private.claim_demo_ai_requests(integer,integer)', 'execute') allowed",
+    );
+    expect(result.rows[0].allowed).toBe(false);
+    await expectDeniedAfterAuthenticated(
+      "select * from app_private.demo_ai_requests limit 1",
+    );
+  });
+
   it("일반 회원 컨텍스트는 outbox 이벤트를 직접 주입하지 못한다", async () => {
     await expectDeniedAfterAuthenticated(
       `insert into public.outbox_events (type) values ('forged.event.v1')`,

@@ -6,7 +6,11 @@
 import { runPostGuard, runPreGuard, type GuardDeps } from "./guardrail";
 import { assembleMessages, type PromptPack } from "./prompt-pack";
 import { buildAiLog, ruleVersionLabel } from "./logging";
-import { ProviderError, type ChatProvider } from "./provider";
+import {
+  ProviderError,
+  type ChatProvider,
+  type CompletionRequest,
+} from "./provider";
 import type { DenylistMap } from "./rule";
 import type {
   AiLog,
@@ -26,6 +30,7 @@ export interface PipelineDeps {
   now: () => string; // ISO createdAt
   clock?: () => number; // inferenceMs 계측(옵션). 미주입 시 0
   costPerToken?: number; // costUsd = tokens.total * costPerToken
+  responseFormat?: CompletionRequest["responseFormat"];
 }
 
 export interface PipelineResult {
@@ -111,6 +116,8 @@ export async function runAnswerPipeline(
       messages,
       model: rule.provider.model,
       timeoutMs: rule.provider.timeoutSeconds * 1000,
+      safetyIdentifier: event.actor.id,
+      responseFormat: deps.responseFormat,
     });
   } catch (error) {
     const status: AiStatus =

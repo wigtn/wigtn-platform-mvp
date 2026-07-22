@@ -13,6 +13,22 @@ pnpm test:e2e
 pnpm build
 ```
 
+실제 AI 데모를 로컬에서 실행하려면 루트 `.env.local`에 공개 Supabase URL/키를,
+`backend/.env`에는 `OPENAI_API_KEY`와 워커 DB URL을 넣은 뒤 아래 프로세스를 함께 실행합니다.
+
+```bash
+cd backend
+npm run db:start
+npm run db:reset
+npm run worker:watch
+
+# 다른 터미널, 저장소 루트
+pnpm dev
+```
+
+기본 모델은 비용과 품질의 균형을 위해 `gpt-5.6-terra`를 사용합니다. OpenAI 키는 브라우저 번들이나
+`NEXT_PUBLIC_*` 환경변수에 넣지 않습니다.
+
 ## 체험 흐름
 
 1. 홈에서 회사 탐색 → 회사 상세 → 익명 리뷰 작성 → 통계 갱신
@@ -22,13 +38,16 @@ pnpm build
 5. 마이페이지 → 프로필 수정·활동/스크랩 → 합성 증빙 검증 신청
 6. 관리자 역할 → 리뷰 블라인드/복구 → 회사 수기·XLSX·크롤러 dry-run → 홈 배치 → 회원·콘텐츠 운영
 
-화면 우측 하단 데모 도크에서 역할을 바꾸거나 상태를 초기화할 수 있습니다. 브라우저 상태는 버전이 붙은 localStorage overlay에만 기록되며 서버·외부 서비스로 전송하지 않습니다.
+상단 데모 배너에서 역할을 바꾸거나 상태를 초기화할 수 있습니다. 일반 화면 상태는 버전이 붙은
+localStorage overlay에 기록됩니다. AI 질문만 Supabase 익명 세션으로 방문자별 비공개 큐에 전달되며,
+입력·출력 안전성 검사를 통과한 답변만 표시됩니다.
 
 ## 보일러플레이트 재사용
 
 - Next.js App Router와 TypeScript strict 구조
 - 코어의 auth/membership, content-engine, backoffice registry, AI pipeline, notification/file, API envelope 및 RLS 계약을 기준으로 UI 상태를 설계
-- 데모 adapter는 합성 데이터와 압축된 AI 지연만 담당하며, 수주 후 Supabase/OpenAI adapter로 교체
+- AI 질문은 Supabase 익명 세션 → 비공개 queue → `ai-pipeline-sdk` 가드레일 → OpenAI Responses API → poll 경로로 실제 동작
+- 공개 Supabase 설정이 없는 preview/CI에서는 외부 호출 없는 명시적 데모 폴백으로 동작
 - 회사·리뷰 taxonomy는 첫 프로젝트 custom으로 유지하고 두 번째 유사 프로젝트에서 반복성이 증명될 때 코어 승격
 
 상세 계약은 [아키텍처 문서](docs/architecture.md), [요구사항 충족표](docs/acceptance-matrix.md), [코어 승격 후보](docs/core-promotion-candidates.md), 실제 DB/RLS 초안은 [schema.sql](supabase/schema.sql)을 참고하세요.

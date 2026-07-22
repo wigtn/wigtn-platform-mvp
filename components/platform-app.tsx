@@ -13,6 +13,11 @@ import {
   type Review,
   type Role,
 } from "@/lib/domain";
+import {
+  FALLBACK_AI_ANSWER,
+  parseDemoAiAnswer,
+  requestDemoAiAnswer,
+} from "@/lib/demo-ai";
 
 type DemoState = {
   role: Role;
@@ -139,6 +144,7 @@ const demoAccounts: Record<
 };
 
 const accountRoles = Object.keys(demoAccounts) as Array<Exclude<Role, "guest">>;
+const fallbackAiAnswerRaw = JSON.stringify(FALLBACK_AI_ANSWER);
 
 function useDemoState() {
   const [state, setState] = useState<DemoState>(baseline);
@@ -1479,6 +1485,76 @@ function PostForm({
   );
 }
 
+function AiAnswerCard({
+  rawAnswer,
+  model,
+  destination,
+}: {
+  rawAnswer: string;
+  model?: string;
+  destination?: string;
+}) {
+  const answer = parseDemoAiAnswer(rawAnswer);
+  const isLive = Boolean(model && model !== "demo-fallback");
+  return (
+    <aside
+      className="fieldnote-answer"
+      aria-label="FIELDNOTE AI 첫 답변"
+      data-testid="ai-answer-card"
+    >
+      <header className="fieldnote-answer-header">
+        <div>
+          <span className="fieldnote-answer-mark" aria-hidden="true">
+            F
+          </span>
+          <div>
+            <b>FIELDNOTE 첫 답변</b>
+            <small>현직자 답변이 달리기 전 참고할 수 있는 초안입니다.</small>
+          </div>
+        </div>
+        <span className="fieldnote-answer-status">
+          <i aria-hidden="true" />
+          {isLive ? "실시간 생성 · 검사 완료" : "데모 응답"}
+        </span>
+      </header>
+
+      <section className="fieldnote-answer-summary">
+        <span>핵심 판단</span>
+        <p data-testid="ai-answer-text">{answer.summary}</p>
+      </section>
+
+      <section className="fieldnote-answer-actions">
+        <h3>다음 미팅에서 해볼 일</h3>
+        <ol>
+          {answer.actions.map((action, index) => (
+            <li key={`${index}-${action}`} data-testid="ai-answer-action">
+              <b>{String(index + 1).padStart(2, "0")}</b>
+              <span>{action}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="fieldnote-answer-caution">
+        <span aria-hidden="true">!</span>
+        <div>
+          <b>놓치기 쉬운 점</b>
+          <p>{answer.caution}</p>
+        </div>
+      </section>
+
+      <footer className="fieldnote-answer-footer">
+        <p>AI 초안은 참고용입니다. 회사와 고객 상황에 맞게 판단하세요.</p>
+        {destination ? (
+          <Link className="button primary" href={destination}>
+            커뮤니티에서 보기
+          </Link>
+        ) : null}
+      </footer>
+    </aside>
+  );
+}
+
 function PostDetail({
   id,
   state,
@@ -1532,15 +1608,10 @@ function PostDetail({
           </div>
         ) : null}
         {post.ai === "posted" ? (
-          <aside className="ai-answer">
-            <span>AI 초안 · 개인정보 검사 완료</span>
-            <h3>첫 미팅에서 승인자와 다음 일정을 확인하세요.</h3>
-            <p>
-              예산 승인자, 현재 문제로 발생하는 비용, 구매 일정을 확인하세요.
-              미팅이 끝나기 전에 다음 회의 참석자와 준비 자료도 정해두는 것이
-              좋습니다.
-            </p>
-          </aside>
+          <AiAnswerCard
+            rawAnswer={post.aiAnswer ?? fallbackAiAnswerRaw}
+            model={post.aiModel}
+          />
         ) : null}
         <div className="post-actions">
           <button
@@ -1621,18 +1692,34 @@ function QuestionForm({
   notify: (m: string) => void;
 }) {
   const [status, setStatus] = useState<
-    "idle" | "queued" | "thinking" | "posted"
+    "idle" | "queued" | "thinking" | "posted" | "error"
   >("idle");
+  const [answer, setAnswer] = useState("");
+  const [model, setModel] = useState("");
+  const [error, setError] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
   const [title, setTitle] = useState("");
   const [context, setContext] = useState(
     "고객이 제품 필요성은 인정하지만 예산 이야기는 계속 미룹니다. 첫 미팅에서 어떤 순서로 물어봐야 할까요?",
   );
-  const ask = (event: FormEvent) => {
+  useEffect(() => () => abortRef.current?.abort(), []);
+  const ask = async (event: FormEvent) => {
     event.preventDefault();
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setError("");
     setStatus("queued");
     notify("질문을 등록했습니다. AI 초안을 작성 중입니다.");
-    window.setTimeout(() => setStatus("thinking"), 1200);
-    window.setTimeout(() => {
+    try {
+      const result = await requestDemoAiAnswer({
+        title,
+        body: context,
+        signal: controller.signal,
+        onProgress: setStatus,
+      });
+      setAnswer(result.answer);
+      setModel(result.model);
       setStatus("posted");
       const post: Post = {
         id: `p-${Date.now()}`,
@@ -1645,9 +1732,25 @@ function QuestionForm({
         saved: false,
         comments: [],
         ai: "posted",
+        aiAnswer: result.answer,
+        aiModel: result.model,
       };
       setState((current) => ({ ...current, posts: [post, ...current.posts] }));
-    }, 4200);
+      notify(
+        result.live
+          ? "실제 AI 답변이 도착했습니다."
+          : "AI 데모 답변이 준비됐습니다.",
+      );
+    } catch (caught) {
+      if (caught instanceof DOMException && caught.name === "AbortError")
+        return;
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "AI 답변을 불러오지 못했습니다.",
+      );
+      setStatus("error");
+    }
   };
   return (
     <main className="page-shell page narrow">
@@ -1687,7 +1790,11 @@ function QuestionForm({
           <button className="button primary">질문 등록</button>
         </form>
       ) : (
-        <div className="ai-progress">
+        <div
+          className="ai-progress"
+          aria-live="polite"
+          aria-busy={status === "queued" || status === "thinking"}
+        >
           <div
             className={`progress-step ${status !== "queued" ? "done" : "active"}`}
           >
@@ -1707,21 +1814,36 @@ function QuestionForm({
             <span>커뮤니티 답변 대기</span>
           </div>
           {status === "posted" ? (
-            <div className="ai-result">
-              <span>AI 초안</span>
-              <h2>예산 승인 절차와 결정 기준을 먼저 확인하세요.</h2>
-              <p>
-                먼저 예산을 승인하는 사람과 검토 순서를 물어보세요. 이어서 도입
-                여부를 결정할 지표와 내부 일정을 확인하면 됩니다.
-              </p>
-              <Link className="button primary" href="/community">
-                커뮤니티에서 보기
-              </Link>
+            <AiAnswerCard
+              rawAnswer={answer}
+              model={model}
+              destination="/community"
+            />
+          ) : status === "error" ? (
+            <div className="ai-result ai-result-error" role="alert">
+              <span>답변을 준비하지 못했습니다</span>
+              <h2>다시 시도해 주세요.</h2>
+              <p>{error}</p>
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => setStatus("idle")}
+              >
+                질문 수정하기
+              </button>
             </div>
           ) : (
-            <p className="thinking">
-              질문 내용을 확인하고 AI 초안을 작성하고 있습니다.
-            </p>
+            <div className="thinking" role="status">
+              <span aria-hidden="true" />
+              <div>
+                <b>
+                  {status === "queued"
+                    ? "질문에 민감한 정보가 없는지 확인하고 있습니다."
+                    : "상황을 정리해 바로 실행할 답변을 만들고 있습니다."}
+                </b>
+                <p>대개 10초 안팎이 걸립니다. 이 화면을 그대로 두어 주세요.</p>
+              </div>
+            </div>
           )}
         </div>
       )}
