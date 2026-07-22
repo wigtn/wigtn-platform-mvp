@@ -146,9 +146,9 @@ export class OpenAiResponsesProvider implements ChatProvider {
         model: process.env.OPENAI_MODEL ?? request.model,
         instructions,
         input,
-        reasoning: { effort: "low" },
+        reasoning: { effort: "medium" },
         text: {
-          verbosity: "low",
+          verbosity: "medium",
           ...(request.responseFormat
             ? {
                 format: {
@@ -161,7 +161,7 @@ export class OpenAiResponsesProvider implements ChatProvider {
               }
             : {}),
         },
-        max_output_tokens: 650,
+        max_output_tokens: 1_100,
         ...(request.safetyIdentifier
           ? { safety_identifier: `fieldnote_${request.safetyIdentifier}` }
           : {}),

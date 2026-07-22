@@ -23,6 +23,7 @@ import {
   recordAction,
   resetMyDemo,
 } from "@/lib/demo-store";
+import type { FieldnoteAiAnswer } from "@/lib/fieldnote-ai";
 import { supabaseConfigured } from "@/lib/supabase";
 import { useDemoStateContext } from "./demo-state-provider";
 import {
@@ -190,6 +191,77 @@ const accountRoles = Object.keys(demoAccounts) as Array<Exclude<Role, "guest">>;
 const VISIT_KEY = "fieldnote-visited-v2";
 /** DB 없이 돌 때만 쓰는 보관함. 붙어 있으면 서버 원장이 정본이다. */
 const LOCAL_STATE_KEY = "fieldnote-demo-v1";
+const PENDING_QUESTION_KEY = "fieldnote-pending-question-v1";
+const TRANSIENT_STATE_KEY = "fieldnote-transient-state-v1";
+
+/**
+ * 서버 액션이 원장에 반영되기 전에 라우트를 이동하는 짧은 구간을 메운다.
+ * localStorage 가 아니라 현재 탭의 sessionStorage 만 써서, 새 방문까지 낡은
+ * 공개 데이터를 붙잡지 않는다.
+ */
+function overlayTransientState(state: DemoState): DemoState {
+  try {
+    const raw = window.sessionStorage.getItem(TRANSIENT_STATE_KEY);
+    if (!raw) return state;
+    const transient = JSON.parse(raw) as Partial<DemoState>;
+    if (!Array.isArray(transient.posts) || !Array.isArray(transient.reviews)) {
+      return state;
+    }
+    return {
+      ...state,
+      ...transient,
+      // 서버가 방금 읽은 조회용 id와 회사 목록은 최신 값을 우선한다.
+      companies: state.companies?.length
+        ? state.companies
+        : transient.companies,
+      boardIds: state.boardIds ?? transient.boardIds,
+      companyIds: state.companyIds ?? transient.companyIds,
+    } as DemoState;
+  } catch {
+    return state;
+  }
+}
+
+/**
+ * 질문 등록 직후 다른 화면으로 이동해도 방금 받은 AI 초안을 잃지 않는다.
+ *
+ * 서버 원장은 최종 출처지만, 라우트 이동이 서버 반영보다 먼저 일어날 수 있다.
+ * 이 짧은 틈만 sessionStorage 로 메우고, 서버에서 같은 글을 읽으면 AI 답변
+ * 필드만 합친다. 브라우저를 닫으면 사라져 공개 데이터처럼 남지도 않는다.
+ */
+function readPendingQuestion(): Post | null {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_QUESTION_KEY);
+    if (!raw) return null;
+    const post = JSON.parse(raw) as Partial<Post>;
+    if (!post.id || !post.title || !post.body || post.board !== "Q&A") {
+      return null;
+    }
+    return post as Post;
+  } catch {
+    return null;
+  }
+}
+
+function overlayPendingQuestion(state: DemoState): DemoState {
+  const pending = readPendingQuestion();
+  if (!pending) return state;
+  const matchingIndex = state.posts.findIndex(
+    (post) => post.title === pending.title && post.body === pending.body,
+  );
+  if (matchingIndex < 0) {
+    return { ...state, posts: [pending, ...state.posts] };
+  }
+  const posts = [...state.posts];
+  posts[matchingIndex] = {
+    ...posts[matchingIndex],
+    ai: pending.ai,
+    aiAnswer: pending.aiAnswer,
+    aiModel: pending.aiModel,
+    comments: pending.comments,
+  };
+  return { ...state, posts };
+}
 
 /**
  * 화면 상태의 출처.
@@ -217,6 +289,9 @@ export function useDemoState() {
     let cancelled = false;
     setIsFirstVisit(!window.localStorage.getItem(VISIT_KEY));
     window.localStorage.setItem(VISIT_KEY, "1");
+    setState((current) =>
+      overlayPendingQuestion(overlayTransientState(current)),
+    );
 
     const savedRole = window.localStorage.getItem(
       "fieldnote-role",
@@ -253,7 +328,11 @@ export function useDemoState() {
         } catch {
           window.localStorage.removeItem(LOCAL_STATE_KEY);
         }
-        if (!cancelled) setReady(true);
+        // 이동 중이던 질문도 겹친다(main 이 따로 보관한다).
+        if (!cancelled) {
+          setState((current) => overlayPendingQuestion(current));
+          setReady(true);
+        }
         return;
       }
       try {
@@ -265,14 +344,19 @@ export function useDemoState() {
         setState((current) => {
           const base: DemoState = {
             ...current,
-            role: savedRole ?? current.role,
+            role:
+              (window.localStorage.getItem("fieldnote-role") as Role | null) ??
+              savedRole ??
+              current.role,
             companies: data.companies,
             boardIds: LABEL_TO_BOARD_ID(data.boardIds),
             companyIds: data.companyIds,
             reviews: data.reviews,
             posts: data.posts,
           };
-          return replayActions(base, actions, data.boardIds);
+          return overlayPendingQuestion(
+            overlayTransientState(replayActions(base, actions, data.boardIds)),
+          );
         });
         setLive(true);
       } catch (error) {
@@ -296,7 +380,8 @@ export function useDemoState() {
       const next = update(current);
       // 역할은 화면 설정이라 브라우저에 남긴다. 새로고침해도 유지된다.
       window.localStorage.setItem("fieldnote-role", next.role);
-      // DB 가 없을 때만 상태 전체를 남긴다. 붙어 있으면 서버 원장이 정본이라
+      window.sessionStorage.setItem(TRANSIENT_STATE_KEY, JSON.stringify(next));
+      // DB 가 없을 때는 상태 전체를 남긴다. 붙어 있으면 서버 원장이 정본이라
       // 두 곳에 두면 어느 쪽이 맞는지 알 수 없게 된다.
       if (!supabaseConfigured) {
         window.localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(next));
@@ -592,6 +677,8 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
       .catch((error) => console.warn("[fieldnote] 초기화 실패", error))
       .finally(() => {
         window.localStorage.removeItem("fieldnote-role");
+        window.sessionStorage.removeItem(TRANSIENT_STATE_KEY);
+        window.sessionStorage.removeItem(PENDING_QUESTION_KEY);
         window.location.href = "/";
       });
     notify("데모 데이터가 초기화됐습니다.");
@@ -1984,6 +2071,88 @@ function PostDetail({
   );
 }
 
+function AiAnswerCard({
+  answer,
+  model,
+}: {
+  answer: FieldnoteAiAnswer;
+  model: string;
+}) {
+  return (
+    <section className="fieldnote-answer" aria-label="AI 실무 답변">
+      <header className="fieldnote-answer-header">
+        <div>
+          <span className="fieldnote-answer-mark" aria-hidden="true">
+            F
+          </span>
+          <div>
+            <b>FIELDNOTE 실무 답변</b>
+            <small>입력·출력 안전성 검사를 통과한 초안입니다.</small>
+          </div>
+        </div>
+        <span className="fieldnote-answer-status">
+          <i aria-hidden="true" /> 작성 완료
+        </span>
+      </header>
+
+      <div className="fieldnote-answer-summary">
+        <span>핵심 판단</span>
+        <p data-testid="ai-answer-text">{answer.summary}</p>
+      </div>
+
+      <div className="fieldnote-answer-actions fieldnote-answer-questions">
+        <h3>다음 미팅에서 확인할 질문</h3>
+        <ol>
+          {answer.clarifyingQuestions.map((question, index) => (
+            <li key={question}>
+              <b>Q{index + 1}</b>
+              <span>{question}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="fieldnote-answer-actions">
+        <h3>다음 미팅에서 해볼 일</h3>
+        <ol>
+          {answer.actions.map((action, index) => (
+            <li data-testid="ai-answer-action" key={action}>
+              <b>{String(index + 1).padStart(2, "0")}</b>
+              <span>{action}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      {answer.missingContext.length > 0 ? (
+        <div className="fieldnote-answer-missing">
+          <b>답변을 더 정확하게 만들 정보</b>
+          <ul>
+            {answer.missingContext.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <div className="fieldnote-answer-caution">
+        <span aria-hidden="true">!</span>
+        <div>
+          <b>놓치기 쉬운 점</b>
+          <p>{answer.caution}</p>
+        </div>
+      </div>
+
+      <footer className="fieldnote-answer-footer">
+        <p>{model} · AI 초안은 실제 고객 상황에 맞게 조정해 사용하세요.</p>
+        <Link className="button primary" href="/community">
+          커뮤니티에서 보기
+        </Link>
+      </footer>
+    </section>
+  );
+}
+
 function QuestionForm({
   state,
   setState,
@@ -1994,10 +2163,12 @@ function QuestionForm({
   notify: (m: string) => void;
 }) {
   const [status, setStatus] = useState<
-    "idle" | "queued" | "thinking" | "posted"
+    "idle" | "queued" | "thinking" | "posted" | "error"
   >("idle");
   const [title, setTitle] = useState("");
-  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+  const [aiAnswer, setAiAnswer] = useState<FieldnoteAiAnswer | null>(null);
+  const [aiModel, setAiModel] = useState("");
+  const [aiError, setAiError] = useState("");
   const [context, setContext] = useState(
     "고객이 제품 필요성은 인정하지만 예산 이야기는 계속 미룹니다. 첫 미팅에서 어떤 순서로 물어봐야 할까요?",
   );
@@ -2014,6 +2185,9 @@ function QuestionForm({
   const ask = async (event: FormEvent) => {
     event.preventDefault();
     setStatus("queued");
+    setAiAnswer(null);
+    setAiModel("");
+    setAiError("");
     notify("질문을 등록했습니다. AI 초안을 작성 중입니다.");
 
     const boardId = state.boardIds?.["Q&A"];
@@ -2027,18 +2201,23 @@ function QuestionForm({
     }
 
     setStatus("thinking");
-    let answer: string | null = null;
+    let rawAnswer: string | null = null;
+    let model = "";
     try {
       const result = await requestAiAnswer({ title, body: context });
-      answer = result.answer;
+      rawAnswer = result.rawAnswer;
+      model = result.model;
       setAiAnswer(result.answer);
+      setAiModel(model);
+      setStatus("posted");
     } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "AI 답변을 받지 못했습니다.",
-      );
+      const message =
+        error instanceof Error ? error.message : "AI 답변을 받지 못했습니다.";
+      setAiError(message);
+      setStatus("error");
+      notify(message);
     }
 
-    setStatus("posted");
     const post: Post = {
       id: `p-${Date.now()}`,
       board: "Q&A",
@@ -2048,9 +2227,12 @@ function QuestionForm({
       badge: state.role === "verified" ? "검증 영업인 L2" : undefined,
       likes: 0,
       saved: false,
-      comments: answer ? [`AI 초안 · ${answer}`] : [],
-      ai: answer ? "posted" : "queued",
+      comments: rawAnswer ? [`AI 초안 · ${rawAnswer}`] : [],
+      ai: rawAnswer ? "posted" : "queued",
+      aiAnswer: rawAnswer ?? undefined,
+      aiModel: model || undefined,
     };
+    window.sessionStorage.setItem(PENDING_QUESTION_KEY, JSON.stringify(post));
     setState((current) => ({ ...current, posts: [post, ...current.posts] }));
   };
   return (
@@ -2091,7 +2273,11 @@ function QuestionForm({
           <button className="button primary">질문 등록</button>
         </form>
       ) : (
-        <div className="ai-progress">
+        <div
+          className="ai-progress"
+          aria-live="polite"
+          aria-busy={status === "queued" || status === "thinking"}
+        >
           <div
             className={`progress-step ${status !== "queued" ? "done" : "active"}`}
           >
@@ -2110,26 +2296,33 @@ function QuestionForm({
             <b>03</b>
             <span>커뮤니티 답변 대기</span>
           </div>
-          {status === "posted" ? (
-            <div className="ai-result">
-              <span>AI 초안</span>
-              <h2>
-                {aiAnswer
-                  ? "검토할 순서부터 정리했습니다."
-                  : "질문이 등록되었습니다."}
-              </h2>
-              <p>
-                {aiAnswer ??
-                  "AI 초안은 받지 못했지만 질문은 정상 등록되었습니다."}
-              </p>
-              <Link className="button primary" href="/community">
-                커뮤니티에서 보기
-              </Link>
+          {status === "posted" && aiAnswer ? (
+            <AiAnswerCard answer={aiAnswer} model={aiModel} />
+          ) : status === "error" ? (
+            <div className="ai-result ai-result-error" role="alert">
+              <span>AI 답변을 준비하지 못했습니다</span>
+              <h2>질문은 정상적으로 등록됐습니다.</h2>
+              <p>{aiError}</p>
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => setStatus("idle")}
+              >
+                질문 다듬기
+              </button>
             </div>
           ) : (
-            <p className="thinking">
-              질문 내용을 확인하고 AI 초안을 작성하고 있습니다.
-            </p>
+            <div className="thinking" role="status">
+              <span aria-hidden="true" />
+              <div>
+                <b>
+                  {status === "queued"
+                    ? "질문에 민감한 정보가 없는지 확인하고 있습니다."
+                    : "상황을 정리해 바로 실행할 답변을 만들고 있습니다."}
+                </b>
+                <p>대개 10초 안팎이 걸립니다. 이 화면을 그대로 두어 주세요.</p>
+              </div>
+            </div>
           )}
         </div>
       )}
