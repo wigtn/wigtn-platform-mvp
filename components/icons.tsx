@@ -19,6 +19,11 @@ import {
   SquarePen,
   Star,
   ThumbsUp,
+  Bold,
+  Link2,
+  List,
+  Quote,
+  ChevronRight,
 } from "lucide-react";
 
 /** 크기는 부모 글자 크기를 따르고 색은 currentColor 를 따른다. */
@@ -49,3 +54,12 @@ export const IconThumbsUp = () => <ThumbsUp {...base} />;
 
 /** 신고. */
 export const IconFlag = () => <Flag {...base} />;
+
+/** 글쓰기 서식 도구. 글자만 있으면 눌리는 것으로 안 보인다. */
+export const IconBold = () => <Bold {...base} />;
+export const IconLink = () => <Link2 {...base} />;
+export const IconList = () => <List {...base} />;
+export const IconQuote = () => <Quote {...base} />;
+
+/** 목록에서 "눌러서 들어간다"를 알리는 표시. */
+export const IconChevron = () => <ChevronRight {...base} />;

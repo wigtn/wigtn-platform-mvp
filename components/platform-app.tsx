@@ -30,7 +30,12 @@ import {
 import { supabaseConfigured } from "@/lib/supabase";
 import { useDemoStateContext } from "./demo-state-provider";
 import {
+  IconBold,
+  IconChevron,
   IconEye,
+  IconLink,
+  IconList,
+  IconQuote,
   IconFlag,
   IconThumbsUp,
   IconLive,
@@ -786,7 +791,14 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
   else if (initialPath === "/community")
     content = <Community state={state} setState={setState} notify={notify} />;
   else if (initialPath === "/posts/new")
-    content = <PostForm state={state} setState={setState} notify={notify} />;
+    content = (
+      <PostForm
+        state={state}
+        setState={setState}
+        notify={notify}
+        onRoleChange={switchRole}
+      />
+    );
   else if (initialPath.startsWith("/posts/"))
     content = (
       <PostDetail
@@ -799,7 +811,12 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
     );
   else if (initialPath === "/questions/new")
     content = (
-      <QuestionForm state={state} setState={setState} notify={notify} />
+      <QuestionForm
+        state={state}
+        setState={setState}
+        notify={notify}
+        onRoleChange={switchRole}
+      />
     );
   else if (initialPath === "/account")
     content = (
@@ -1003,7 +1020,11 @@ function Home({ state }: { state: DemoState }) {
                     {company.industry} · {company.type}
                   </small>
                 </span>
-                <b>{company.score.toFixed(1)}</b>
+                {/* 점수만 크게 두면 근거가 안 보인다. 표본 수를 붙인다. */}
+                <b>
+                  {company.score.toFixed(1)}
+                  <small>리뷰 {company.reviewCount}</small>
+                </b>
               </Link>
             ))}
             <div className="preview-proof">
@@ -1237,6 +1258,10 @@ function CompanyCard({
         <Link className="card-link" href={`/companies/${company.slug}`}>
           {company.name}
         </Link>
+        {/* 눌러서 들어간다는 표시. 카드 전체가 링크라 단서가 필요하다. */}
+        <span className="card-go" aria-hidden="true">
+          <IconChevron />
+        </span>
       </h3>
       <p>{company.summary}</p>
       <div className="score-line">
@@ -1298,7 +1323,7 @@ function Companies({ state }: { state: DemoState }) {
             )}
           </select>
         </label>
-        <span>{filtered.length}개 조직</span>
+        <span>회사 {filtered.length}곳</span>
       </div>
       {filtered.length ? (
         <div className="company-list">
@@ -1810,9 +1835,15 @@ function Community({
                 placeholder="질문과 노하우 검색"
               />
             </label>
-            <span>{posts.length}개 결과 · 최신순</span>
+            <span className="feed-count">{posts.length}개 결과 · 최신순</span>
           </div>
           <div className="feed">
+            {posts.length === 0 ? (
+              <p className="list-empty">
+                조건에 맞는 글이 없습니다. 검색어를 줄이거나 다른 게시판을 눌러
+                보세요.
+              </p>
+            ) : null}
             {posts.map((post) => (
               <article
                 key={post.id}
@@ -1886,14 +1917,24 @@ function Community({
   );
 }
 
+/** 서식 도구. 아이콘과 이름을 같이 둔다 - 아이콘만으로는 뜻이 안 통한다. */
+const EDITOR_TOOLS = [
+  { label: "굵게", Icon: IconBold },
+  { label: "링크", Icon: IconLink },
+  { label: "목록", Icon: IconList },
+  { label: "인용", Icon: IconQuote },
+] as const;
+
 function PostForm({
   state,
   setState,
   notify,
+  onRoleChange,
 }: {
   state: DemoState;
   setState: (fn: (s: DemoState) => DemoState) => void;
   notify: (m: string) => void;
+  onRoleChange: (role: Role) => void;
 }) {
   const router = useRouter();
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -1938,47 +1979,66 @@ function PostForm({
         title="게시글 작성"
         description="영업 경험이나 업무 자료를 공유할 수 있습니다. 데모에서는 첨부 파일의 이름만 저장합니다."
       />
-      <form className="form-panel" onSubmit={submit}>
-        <label>
-          게시판
-          <select name="board" defaultValue="노하우">
-            {(["자유", "실적", "노하우"] as Post["board"][]).map((board) => (
-              <option key={board}>{board}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          제목
-          <input name="title" required minLength={5} />
-        </label>
-        <div className="editor-field">
-          <label htmlFor="post-body">내용</label>
-          <span className="editor-toolbar" aria-label="웹 에디터 도구">
-            {["굵게", "링크", "목록", "인용"].map((tool) => (
-              <button
-                type="button"
-                key={tool}
-                onClick={() => notify(`${tool} 서식 도구를 선택했습니다.`)}
-              >
-                {tool}
-              </button>
-            ))}
-          </span>
-          <textarea
-            id="post-body"
-            name="body"
-            rows={9}
-            required
-            minLength={20}
-          />
-        </div>
-        <label>
-          이미지 첨부
-          <input name="images" type="file" accept="image/*" multiple />
-          <small>JPG·PNG·WebP · 데모에서는 파일 이름만 저장합니다.</small>
-        </label>
-        <button className="button primary">게시글 등록</button>
-      </form>
+      {/*
+        비회원은 글을 쓸 수 없다. 전에는 폼이 그대로 열려서 비회원도
+        등록됐다 - 역할별 권한 차이를 보여 주는 데모인데 그 전제가 깨진다.
+      */}
+      {state.role === "guest" ? (
+        <LockedRoleFeature
+          badge="회원 전용"
+          title="게시글 작성"
+          description="일반 영업인 역할부터 글을 올릴 수 있습니다."
+          targetRole="sales"
+          onRoleChange={onRoleChange}
+        />
+      ) : (
+        <form className="form-panel" onSubmit={submit}>
+          <label>
+            게시판
+            <select name="board" defaultValue="노하우">
+              {(["자유", "실적", "노하우"] as Post["board"][]).map((board) => (
+                <option key={board}>{board}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            제목
+            <input name="title" required minLength={5} />
+          </label>
+          <div className="editor-field">
+            <label htmlFor="post-body">내용</label>
+            <span className="editor-toolbar" aria-label="웹 에디터 도구">
+              {EDITOR_TOOLS.map(({ label, Icon }) => (
+                <button
+                  type="button"
+                  key={label}
+                  title={label}
+                  aria-label={label}
+                  onClick={() => notify(`${label} 서식 도구를 선택했습니다.`)}
+                >
+                  <Icon />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </span>
+            <textarea
+              id="post-body"
+              name="body"
+              rows={9}
+              required
+              minLength={20}
+            />
+          </div>
+          <label>
+            이미지 첨부
+            <div className="upload-field">
+              <input name="images" type="file" accept="image/*" multiple />
+              <small>JPG·PNG·WebP · 데모에서는 파일 이름만 저장합니다.</small>
+            </div>
+          </label>
+          <button className="button primary">게시글 등록</button>
+        </form>
+      )}
     </main>
   );
 }
@@ -2143,6 +2203,11 @@ function PostDetail({
         <h2>
           회원 답변 <span>{post.comments.length}</span>
         </h2>
+        {post.comments.length === 0 ? (
+          <p className="list-empty">
+            아직 답변이 없습니다. 먼저 경험을 남겨 주세요.
+          </p>
+        ) : null}
         {post.comments.map((comment, index) => {
           const isReply = comment.startsWith(REPLY_MARK);
           return (
@@ -2212,7 +2277,7 @@ function PostDetail({
         <ReportDialog
           onClose={() => setReporting(false)}
           onSubmit={(reasonCode, details) => {
-            // 신고는 화면 상태를 안 바꾼다(운영 큐로만 간다). 그래도 서버에는
+            // 신고는 화면 상태를 안 바꾼다(운영 대기열로만 간다). 그래도 서버에는
             // 남아야 관리자 화면의 신고 건수가 진짜가 된다.
             persist("community.report.create", {
               targetType: "post",
@@ -2221,7 +2286,7 @@ function PostDetail({
               details,
             });
             setReporting(false);
-            notify("신고가 운영 큐에 접수됐습니다.");
+            notify("신고를 접수했습니다. 운영자가 확인합니다.");
           }}
         />
       ) : null}
@@ -2387,10 +2452,12 @@ function QuestionForm({
   state,
   setState,
   notify,
+  onRoleChange,
 }: {
   state: DemoState;
   setState: (fn: (s: DemoState) => DemoState) => void;
   notify: (m: string) => void;
+  onRoleChange: (role: Role) => void;
 }) {
   const [status, setStatus] = useState<
     "idle" | "queued" | "thinking" | "posted" | "error"
@@ -2472,7 +2539,17 @@ function QuestionForm({
         title="커뮤니티에 질문하기"
         description="질문 등록 후 AI 초안이 먼저 표시되고, 이후 회원 답변을 받을 수 있습니다."
       />
-      {status === "idle" ? (
+      {/* 비회원은 질문을 올릴 수 없다. 역할별 차이를 보여 주는 데모라
+          여기서 막지 않으면 전제가 무너진다. */}
+      {state.role === "guest" ? (
+        <LockedRoleFeature
+          badge="회원 전용"
+          title="질문 올리기"
+          description="일반 영업인 역할부터 질문하고 AI 답변을 받을 수 있습니다."
+          targetRole="sales"
+          onRoleChange={onRoleChange}
+        />
+      ) : status === "idle" ? (
         <form className="form-panel" onSubmit={ask}>
           <label>
             질문 제목
@@ -2589,7 +2666,7 @@ function Account({
           <span className="trust-chip">현재 역할 {roleNames[state.role]}</span>
           <dl>
             <div>
-              <dt>도움 받은 수</dt>
+              <dt>내 글이 받은 도움</dt>
               <dd>428</dd>
             </div>
             <div>
@@ -2746,6 +2823,11 @@ function Compare({ state }: { state: DemoState }) {
           </select>
         </label>
       </div>
+      {/* 초록 행이 무슨 뜻인지 알려 준다. 색만 칠하면 자동 채색으로 읽힌다. */}
+      <p className="compare-legend">
+        <span className="compare-legend-mark" aria-hidden="true" />
+        상대보다 높은 항목
+      </p>
       <div className="compare-grid">
         {selected.map((company, companyIndex) => {
           const other = selected[companyIndex === 0 ? 1 : 0];
@@ -2877,7 +2959,7 @@ function Admin({
         className={path === "/admin/companies" ? "active" : ""}
         href="/admin/companies"
       >
-        회사·XLSX
+        회사 데이터
       </Link>
       <Link
         className={path === "/admin/placements" ? "active" : ""}
@@ -2930,6 +3012,11 @@ function Admin({
           <span>상태</span>
           <span>처리</span>
         </div>
+        {reviewQueue.length === 0 ? (
+          <p className="list-empty">
+            검토할 리뷰가 없습니다. 새 신고나 탐지가 들어오면 여기에 쌓입니다.
+          </p>
+        ) : null}
         {reviewQueue.map((review) => (
           <div className="admin-row admin-review-row" key={review.id}>
             <div>
@@ -3195,7 +3282,7 @@ function Admin({
           <div>
             <span>가장 먼저 처리할 작업</span>
             <h2>개인정보 탐지로 보류된 리뷰 1건</h2>
-            <p>게시 기한까지 38분 남았습니다. 원문과 탐지 구간을 확인하세요.</p>
+            <p>검토 기한까지 38분 남았습니다. 원문과 탐지 구간을 확인하세요.</p>
           </div>
           <Link className="button primary" href="/admin/reviews">
             검토 시작
@@ -3218,7 +3305,7 @@ function Admin({
             </div>
             <strong>3</strong>
             <small>고위험 1건 · 오늘 신규 2건</small>
-            <Link href="/admin/reviews">분쟁 큐 열기</Link>
+            <Link href="/admin/reviews">신고 대기열 열기</Link>
           </article>
           <article>
             <div>
@@ -3365,14 +3452,26 @@ function PageTitle({
     </header>
   );
 }
-function AdminTitle({ title, count }: { title: string; count: string }) {
+function AdminTitle({
+  title,
+  count,
+  countLabel = "처리 대기",
+}: {
+  title: string;
+  count: string;
+  countLabel?: string;
+}) {
   return (
     <header className="admin-title">
       <div>
         <p>관리자 도구</p>
         <h1>{title}</h1>
       </div>
-      <strong>{count}</strong>
+      {/* 숫자만 크게 떠 있으면 무슨 값인지 알 수 없다. 라벨을 붙인다. */}
+      <div className="admin-title-count">
+        <strong>{count}</strong>
+        <span>{countLabel}</span>
+      </div>
     </header>
   );
 }

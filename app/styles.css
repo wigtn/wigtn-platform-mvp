@@ -769,12 +769,56 @@ textarea {
   resize: vertical;
   line-height: 1.65;
 }
+/*
+  6축 점수 슬라이더.
+
+  accent-color 만 주면 브라우저 기본 위젯이 그대로 보인다. 이 화면의
+  주된 입력인데 혼자 다른 제품처럼 보였다. 트랙과 손잡이를 직접 그린다.
+*/
 input[type="range"] {
   min-height: 24px;
   padding: 0;
-  accent-color: var(--primary);
   border: 0;
   box-shadow: none;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-strong, #e9e9e3);
+}
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-strong, #e9e9e3);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border: 2px solid var(--white);
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 1px 3px rgb(16 24 40 / 25%);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--white);
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 1px 3px rgb(16 24 40 / 25%);
+}
+input[type="range"]:hover::-webkit-slider-thumb {
+  background: var(--primary-hover);
+}
+input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.08);
 }
 .filter-bar > span {
   min-height: 46px;
@@ -953,8 +997,10 @@ input[type="range"] {
   color: #256d5b;
 }
 .privacy-note p {
-  margin: 4px 0 0;
-  color: #477c70;
+  margin: 5px 0 0;
+  /* 민트 배경 위에서 #477c70 은 대비가 모자라 작은 글씨가 흐려 보였다. */
+  color: #1f5a4c;
+  line-height: 1.65;
   font-size: 12px;
 }
 .editor-field {
@@ -2518,6 +2564,14 @@ input[type="file"]::file-selector-button:hover {
   margin-inline: 0;
   margin-top: 0;
   /*
+    사이드바 배경을 셸이 칠한다.
+
+    사이드바 자체는 화면에 고정(sticky)이라 높이가 화면만큼이다. 본문이
+    더 길면 어두운 배경이 중간에서 끊겨 레이아웃이 잘린 것처럼 보였다.
+    배경을 열 단위로 깔면 고정은 그대로 두고 색만 끝까지 이어진다.
+  */
+  background: linear-gradient(to right, #181816 0 238px, #f7f7f4 238px 100%);
+  /*
     아래 여백을 없앤다.
 
     기본값이 `margin: 28px auto 120px` + `min-height: 780px` 이라, 내용이
@@ -3489,6 +3543,10 @@ select:focus {
     여기서부터 사이드바가 가로 줄로 바뀐다. 넓은 화면용 붙박이 설정을
     그대로 두면 화면 높이만큼 늘어난 검은 덩어리가 본문을 덮는다.
   */
+  /* 가로 줄로 바뀌면 세로 배경이 어긋난다. 단색으로 되돌린다. */
+  .admin-shell {
+    background: #f7f7f4;
+  }
   .admin-nav {
     position: static;
     height: auto;
@@ -3595,9 +3653,26 @@ select:focus {
   .score-bars,
   .field-row,
   .dimension-fields,
-  .compare-grid,
   .trust-grid {
     grid-template-columns: 1fr;
+  }
+  /*
+    비교 화면은 좁아져도 두 칸을 유지한다.
+
+    1열로 접으면 두 회사를 번갈아 스크롤하며 외워야 한다 - 비교라는 행위
+    자체가 성립하지 않는다. 대신 글자와 여백을 줄여 좁은 폭에 맞춘다.
+  */
+  .compare-grid {
+    gap: 10px;
+  }
+  .compare-grid article {
+    padding: 16px 14px;
+  }
+  .compare-grid h2 {
+    font-size: 17px;
+  }
+  .compare-row {
+    font-size: 12px;
   }
   .company-card {
     min-height: 285px;
@@ -5333,24 +5408,23 @@ select:focus {
   margin-top: 4px;
 }
 
-/* 카드 전체를 누를 수 있게. 링크를 카드 위에 깔되 글자는 그대로 읽힌다. */
-.company-card.is-clickable {
-  position: relative;
-}
-.company-card .card-link::after {
-  content: "";
-  position: absolute;
-  inset: 0;
+/*
+  회사 이름 링크를 카드 폭만큼 넓힌다.
+
+  전에는 글자 부분만 눌렸다. 목록에서 카드를 눌러도 아무 일이 없고, 모바일
+  에서는 터치 대상도 작다.
+
+  카드 전체에 투명한 링크를 덮는 방법도 썼는데, 그 덮개가 자기 카드를 넘어
+  옆 카드까지 가려서 목록에서 엉뚱한 회사로 넘어갔다. e2e 가 잡았다.
+  덮개 없이 링크 자체를 키우는 쪽이 안전하다.
+*/
+.company-card .card-link {
+  display: block;
+  padding-block: 2px;
 }
 .company-card.is-clickable:hover {
   border-color: var(--border-strong);
   background: var(--surface);
-}
-/* 카드 안의 다른 링크·버튼은 덮개 위로 올려 계속 눌리게 한다. */
-.company-card a:not(.card-link),
-.company-card button {
-  position: relative;
-  z-index: 1;
 }
 
 /* ── 글 상세 동작 버튼 ─────────────────────────────────────────── */
@@ -5459,4 +5533,312 @@ select:focus {
   height: 1px;
   margin-bottom: 14px;
   background: var(--border-strong);
+}
+
+/* ── 등급 배지 ─────────────────────────────────────────────────────
+ *
+ * 작성자 옆 등급이 그냥 굵은 글씨로만 나와서, 검증된 사람이라는 표시가
+ * 이름의 일부처럼 읽혔다. 배지 모양을 준다.
+ */
+.post-meta b {
+  padding: 2px 7px;
+  border: 1px solid #cfe3d8;
+  border-radius: 999px;
+  background: var(--mint-soft, #e8f8f3);
+  color: #16724f;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+/* ── 공통 상태 ─────────────────────────────────────────────────────
+ *
+ * 눌리는 것과 안 눌리는 것, 지금 처리 중인 것이 구분되지 않았다.
+ * 컴포넌트마다 따로 두지 않고 한 곳에서 정한다.
+ */
+button:disabled,
+button[aria-disabled="true"],
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* 처리 중. 두 번 눌리는 것을 막고 진행 중임을 알린다. */
+.is-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+.is-loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  color: var(--white);
+  animation: fieldnote-spin 700ms linear infinite;
+}
+
+/* ── 게시판 필터 ───────────────────────────────────────────────────
+ *
+ * 어느 게시판을 보고 있는지 활성 표시가 약했다. 한 덩어리로 묶어
+ * 지금 자리가 드러나게 한다.
+ */
+.board-tabs {
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.board-tabs > button {
+  border-radius: calc(var(--radius-sm) - 1px);
+}
+.board-tabs > button.active {
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── 파일 첨부 ─────────────────────────────────────────────────────
+ *
+ * 기본 위젯 위에 점선 상자를 둘러, 끌어다 놓는 자리임을 먼저 알린다.
+ */
+.upload-field {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  text-align: center;
+}
+.upload-field:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.upload-field input[type="file"] {
+  border: 0;
+  background: transparent;
+  text-align: center;
+}
+
+/* 관리자 큰 숫자에 붙는 라벨. */
+.admin-title-count {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.admin-title-count span {
+  color: var(--text-faint);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+/* 비교 우위 범례. */
+.compare-legend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.compare-legend-mark {
+  width: 20px;
+  height: 10px;
+  border-radius: 3px;
+  background: #e6f4ec;
+}
+
+/* 카드가 눌린다는 표시. 평소엔 옅고 올리면 진해진다. */
+.card-go {
+  margin-left: 6px;
+  color: var(--text-faint);
+  opacity: 0.6;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+.company-card.is-clickable:hover .card-go {
+  color: var(--primary);
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+/* 서식 도구에 아이콘이 들어가면서 정렬을 맞춘다. */
+.editor-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ══ 좁은 화면 ═══════════════════════════════════════════════════════
+ *
+ * 손가락으로 누르는 화면에서는 눌리는 것이 충분히 커야 한다. 데스크톱
+ * 기준으로 짠 크기를 그대로 두면 30px 안팎이라 계속 빗나간다.
+ *
+ * 컴포넌트마다 따로 키우지 않고 여기서 한 번에 정한다. 44px 은 손끝이
+ * 닿는 최소치로 널리 쓰이는 값이다.
+ */
+@media (max-width: 760px) {
+  button,
+  .button,
+  select,
+  .board-tabs > button,
+  .admin-nav a,
+  .admin-queue-toolbar button,
+  .post-actions button,
+  .editor-toolbar button,
+  .comment-reply-toggle {
+    min-height: 44px;
+  }
+  /* 글자 링크도 실제로는 눌러서 이동하는 자리다. 높이를 확보하되
+     밑줄 위치가 흔들리지 않게 가운데 정렬로 둔다. */
+  .text-link,
+  .comment-reply-toggle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .post-actions {
+    gap: 8px;
+  }
+  .post-actions button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  /* 관리자 메뉴가 한 줄 가로 스크롤로 숨어서 뒤쪽 항목이 있는지 몰랐다.
+     줄바꿈으로 다 보이게 한다. */
+  .admin-nav {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+  .admin-nav a {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* 운영 화면의 핵심 필터라 특히 크게. */
+  .admin-queue-toolbar button {
+    padding-inline: 14px;
+  }
+
+  /* 리뷰 행이 본문·상태·액션으로 눌려 한눈에 안 읽혔다. 세로로 편다. */
+  .admin-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .admin-row button {
+    width: 100%;
+  }
+
+  /* 점수 입력은 이 화면의 주된 조작이다. 손잡이를 키운다. */
+  input[type="range"] {
+    min-height: 44px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 26px;
+    height: 26px;
+    margin-top: -11px;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/*
+ * 아주 좁은 화면의 비교표.
+ *
+ * 두 칸을 유지하는 것은 맞지만, 360px 에서는 한 칸이 160px 이라 "인센티브
+ * 투명성" 같은 축 이름이 구겨진다. 항목명을 값 위로 올려 가로 폭을 벌어준다.
+ */
+@media (max-width: 520px) {
+  .compare-row {
+    display: grid;
+    gap: 1px;
+    padding-block: 7px;
+  }
+  .compare-row span {
+    font-size: 11px;
+    line-height: 1.3;
+  }
+  .compare-row b {
+    font-size: 15px;
+  }
+  .compare-grid article {
+    padding: 12px 10px;
+  }
+}
+
+/*
+ * 목록이 비었을 때.
+ *
+ * 전에는 아무것도 안 그려서 화면이 잘린 것처럼 보였다. 왜 비었는지와
+ * 다음에 뭘 하면 되는지를 짧게 적는다.
+ */
+.list-empty {
+  margin: 0;
+  padding: 28px 18px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* 홈 추천 회사의 점수 아래 표본 수. 점수만 크면 근거 없이 읽힌다. */
+.preview-company b {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+  line-height: 1.1;
+}
+.preview-company b small {
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* 검색 결과 수. 입력창 옆에서 한 덩어리로 읽히게 한다. */
+.feed-count {
+  white-space: nowrap;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+/*
+ * 역할 안내 박스.
+ *
+ * 설명과 버튼이 양 끝으로 벌어져, 어떤 안내에 대한 행동인지 눈으로 잇기가
+ * 어려웠다. 폭을 좁혀 붙인다.
+ */
+.role-feature-note {
+  max-width: 720px;
+}
+@media (max-width: 760px) {
+  /* 좁은 화면에서는 세 칸이 눌린다. 아이콘·설명·버튼을 세로로 편다. */
+  .role-feature-note {
+    grid-template-columns: auto 1fr;
+    row-gap: 12px;
+  }
+  .role-feature-note > .button,
+  .role-feature-note > button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
 }
