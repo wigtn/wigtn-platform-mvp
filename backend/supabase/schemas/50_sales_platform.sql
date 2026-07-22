@@ -41,13 +41,21 @@ create table public.company_reviews (
   published_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  -- 영업환경 6축. 일반적인 회사 리뷰 4축(compensation·growth·culture·
+  -- leadership)이었는데, 화면과 포트폴리오가 내세우는 축과 달랐다.
+  -- 20260722120000_sales_six_axes.sql 과 같은 목록이어야 한다.
   constraint company_review_dimensions_valid check (
     jsonb_typeof(score_dimensions) = 'object'
-    and score_dimensions ?& array['compensation', 'growth', 'culture', 'leadership']
-    and (score_dimensions->>'compensation')::numeric between 1 and 5
-    and (score_dimensions->>'growth')::numeric between 1 and 5
-    and (score_dimensions->>'culture')::numeric between 1 and 5
-    and (score_dimensions->>'leadership')::numeric between 1 and 5
+    and score_dimensions ?& array[
+      'quota_realism', 'incentive_transparency', 'lead_quality',
+      'account_allocation', 'sales_tooling', 'manager_coaching'
+    ]
+    and (score_dimensions->>'quota_realism')::numeric between 1 and 5
+    and (score_dimensions->>'incentive_transparency')::numeric between 1 and 5
+    and (score_dimensions->>'lead_quality')::numeric between 1 and 5
+    and (score_dimensions->>'account_allocation')::numeric between 1 and 5
+    and (score_dimensions->>'sales_tooling')::numeric between 1 and 5
+    and (score_dimensions->>'manager_coaching')::numeric between 1 and 5
   )
 );
 create index company_reviews_company_published_idx
@@ -173,12 +181,19 @@ returns void language sql security definer set search_path = '' as $$
   select p_company_id,
          count(*)::integer,
          round(avg(overall_score), 2),
-         jsonb_build_object(
-           'compensation', round(avg((score_dimensions->>'compensation')::numeric), 2),
-           'growth', round(avg((score_dimensions->>'growth')::numeric), 2),
-           'culture', round(avg((score_dimensions->>'culture')::numeric), 2),
-           'leadership', round(avg((score_dimensions->>'leadership')::numeric), 2)
-         ), now()
+         -- 축 이름을 함수가 모르게 둔다. 축이 늘거나 바뀔 때마다 여기를
+         -- 고쳐야 하면, 한 군데를 빠뜨렸을 때 제약은 통과하는데 통계만
+         -- 낡은 축으로 남는다.
+         coalesce((
+           select jsonb_object_agg(k, round(avg_v, 2))
+             from (
+               select kv.k, avg(kv.v::numeric) as avg_v
+                 from public.company_reviews r2,
+                      lateral jsonb_each_text(r2.score_dimensions) as kv(k, v)
+                where r2.company_id = p_company_id and r2.status = 'published'
+                group by kv.k
+             ) per_axis
+         ), '{}'::jsonb), now()
   from public.company_reviews
   where company_id = p_company_id and status = 'published'
   on conflict (company_id) do update set
@@ -227,10 +242,10 @@ begin
   if not exists (select 1 from public.companies where id = p_company_id and is_active) then
     raise exception using errcode = '22023', message = 'active company required';
   end if;
-  v_score := round(((p_score_dimensions->>'compensation')::numeric
-    + (p_score_dimensions->>'growth')::numeric
-    + (p_score_dimensions->>'culture')::numeric
-    + (p_score_dimensions->>'leadership')::numeric) / 4.0, 1);
+  -- 들어온 축 전부의 평균. 4로 나누던 식이 남아 있으면 6축에서 평점이
+  -- 조용히 낮게 찍힌다 - 오류가 안 나서 더 나쁘다.
+  select round(avg(v::numeric), 1) into v_score
+    from jsonb_each_text(p_score_dimensions) as kv(k, v);
   insert into public.company_reviews
     (company_id, title, body, employment_status, overall_score, score_dimensions)
   values (p_company_id, trim(p_title), trim(p_body), p_employment_status, v_score, p_score_dimensions)

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
 import {
   companies as seedCompanies,
@@ -24,6 +24,16 @@ import {
   resetMyDemo,
 } from "@/lib/demo-store";
 import { supabaseConfigured } from "@/lib/supabase";
+import { useDemoStateContext } from "./demo-state-provider";
+import {
+  IconEye,
+  IconLive,
+  IconPen,
+  IconSearch,
+  IconSliders,
+  IconStar,
+  IconVerified,
+} from "./icons";
 
 /*
   회사 목록은 이 파일 39곳에서 `companies` 라는 이름으로 쓰인다. DB 에서
@@ -128,25 +138,25 @@ const roleNames: Record<Role, string> = {
 
 const roleExperience: Record<
   Role,
-  { icon: string; description: string; unlocks: string }
+  { icon: ReactNode; description: string; unlocks: string }
 > = {
   guest: {
-    icon: "○",
+    icon: <IconEye />,
     description: "회사 리뷰와 공개 커뮤니티를 읽습니다.",
     unlocks: "공개 회사 리뷰와 커뮤니티 열람",
   },
   sales: {
-    icon: "↗",
+    icon: <IconPen />,
     description: "프로필·게시글·답변 작성 흐름을 체험합니다.",
     unlocks: "프로필 관리, 게시글·답변 작성",
   },
   verified: {
-    icon: "✓",
+    icon: <IconVerified />,
     description: "재직 확인 배지가 붙는 리뷰와 답변을 작성합니다.",
     unlocks: "재직 확인 리뷰와 인증 배지 작성",
   },
   admin: {
-    icon: "⌘",
+    icon: <IconSliders />,
     description: "리뷰 검수·회원 인증·콘텐츠 운영 화면을 엽니다.",
     unlocks: "리뷰 검수, 회원 인증, 콘텐츠 운영",
   },
@@ -178,6 +188,8 @@ const demoAccounts: Record<
 const accountRoles = Object.keys(demoAccounts) as Array<Exclude<Role, "guest">>;
 
 const VISIT_KEY = "fieldnote-visited-v2";
+/** DB 없이 돌 때만 쓰는 보관함. 붙어 있으면 서버 원장이 정본이다. */
+const LOCAL_STATE_KEY = "fieldnote-demo-v1";
 
 /**
  * 화면 상태의 출처.
@@ -192,7 +204,10 @@ const VISIT_KEY = "fieldnote-visited-v2";
  * DB 가 안 붙거나 조회가 실패하면 시드 데이터로 돌아간다. 포트폴리오 링크를
  * 타고 온 사람에게 빈 화면을 보이는 것이 제일 나쁘다.
  */
-function useDemoState() {
+/** 레이아웃이 들고 있다가 화면에 내려 준다(components/demo-state-provider). */
+export type DemoStateBundle = ReturnType<typeof useDemoState>;
+
+export function useDemoState() {
   const [state, setState] = useState<DemoState>(baseline);
   const [ready, setReady] = useState(false);
   const [isFirstVisit, setIsFirstVisit] = useState(false);
@@ -206,9 +221,38 @@ function useDemoState() {
     const savedRole = window.localStorage.getItem(
       "fieldnote-role",
     ) as Role | null;
+    // 역할은 화면 설정이라 DB 와 무관하게 먼저 되살린다.
+    //
+    // 라우트를 옮기면 이 컴포넌트가 다시 마운트된다(catch-all 라우트 하나라
+    // 화면 전체가 갈린다). 그때 역할을 안 되살리면 방금 고른 관점이 사라진다 -
+    // "운영 관리자로 전환"을 눌러 /admin 에 갔는데 "역할이 필요합니다"가 뜬다.
+    //
+    // DB 를 읽는 쪽 안에만 두면, 연결이 안 되는 환경에서 역할 전환이 통째로
+    // 안 먹는다.
+    if (savedRole) setState((current) => ({ ...current, role: savedRole }));
 
     (async () => {
       if (!supabaseConfigured) {
+        // DB 가 없으면 예전처럼 브라우저에 통째로 보관한다.
+        //
+        // 라우트를 옮길 때마다 이 컴포넌트가 다시 마운트되므로, 어딘가에
+        // 남겨 두지 않으면 방금 쓴 글·리뷰가 화면을 넘기는 순간 사라진다.
+        try {
+          const saved = window.localStorage.getItem(LOCAL_STATE_KEY);
+          if (saved && !cancelled) {
+            const parsed = JSON.parse(saved) as Partial<DemoState>;
+            setState((current) => ({
+              ...current,
+              ...parsed,
+              role: savedRole ?? parsed.role ?? current.role,
+              reviews: parsed.reviews ?? current.reviews,
+              posts: parsed.posts ?? current.posts,
+              profile: { ...current.profile, ...parsed.profile },
+            }));
+          }
+        } catch {
+          window.localStorage.removeItem(LOCAL_STATE_KEY);
+        }
         if (!cancelled) setReady(true);
         return;
       }
@@ -252,11 +296,29 @@ function useDemoState() {
       const next = update(current);
       // 역할은 화면 설정이라 브라우저에 남긴다. 새로고침해도 유지된다.
       window.localStorage.setItem("fieldnote-role", next.role);
+      // DB 가 없을 때만 상태 전체를 남긴다. 붙어 있으면 서버 원장이 정본이라
+      // 두 곳에 두면 어느 쪽이 맞는지 알 수 없게 된다.
+      if (!supabaseConfigured) {
+        window.localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(next));
+      }
       return next;
     });
   };
 
-  return [state, updateState, { ready, isFirstVisit, live }] as const;
+  /*
+    첫 방문 표시는 한 번만 쓰인다.
+
+    상태를 레이아웃으로 올리면서 이 값이 세션 내내 살아남게 됐다. 그대로
+    두면 화면을 옮길 때마다 역할 선택 모달이 다시 뜬다 - 전에는 화면마다
+    새로 마운트되며 저절로 꺼졌다.
+  */
+  const markFirstVisitHandled = () => setIsFirstVisit(false);
+
+  return [
+    state,
+    updateState,
+    { ready, isFirstVisit, live, markFirstVisitHandled },
+  ] as const;
 }
 
 /**
@@ -483,7 +545,7 @@ function useDialogFocus(open: boolean, onClose: () => void) {
 }
 
 export function PlatformApp({ initialPath }: { initialPath: string }) {
-  const [state, setState, demoMeta] = useDemoState();
+  const [state, setState, demoMeta] = useDemoStateContext();
   const [toast, setToast] = useState("");
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
   const [accountLoginOpen, setAccountLoginOpen] = useState(false);
@@ -536,8 +598,11 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
   };
 
   useEffect(() => {
-    if (demoMeta.ready && demoMeta.isFirstVisit) setRolePickerOpen(true);
-  }, [demoMeta.isFirstVisit, demoMeta.ready]);
+    if (demoMeta.ready && demoMeta.isFirstVisit) {
+      setRolePickerOpen(true);
+      demoMeta.markFirstVisitHandled();
+    }
+  }, [demoMeta]);
 
   const switchRole = (role: Role, destination?: string) => {
     const roleMessage = `${roleNames[role]} 역할로 전환했습니다. 새로 볼 수 있는 것: ${roleExperience[role].unlocks}`;
@@ -758,7 +823,7 @@ function Home({ state }: { state: DemoState }) {
                 router.push(`/companies?q=${encodeURIComponent(query)}`);
               }}
             >
-              <span aria-hidden="true">⌕</span>
+              <IconSearch />
               <input
                 aria-label="회사 검색"
                 value={query}
@@ -1035,7 +1100,9 @@ function CompanyCard({
       </h3>
       <p>{company.summary}</p>
       <div className="score-line">
-        <span className="star">★</span>
+        <span className="star">
+          <IconStar />
+        </span>
         <strong>{score.toFixed(1)}</strong>
         <span>리뷰 {company.reviewCount}</span>
         <b className={company.trend >= 0 ? "up" : "down"}>
@@ -1289,7 +1356,9 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
                     {review.verified ? "재직 검증" : "일반"}
                   </span>
                   <span>{review.employment}</span>
-                  <strong>★ {review.score.toFixed(1)}</strong>
+                  <strong>
+                    <IconStar /> {review.score.toFixed(1)}
+                  </strong>
                 </div>
                 <h3>{review.title}</h3>
                 <p>{review.body}</p>
@@ -2362,7 +2431,9 @@ function Admin({
         className={path === "/admin/reviews" ? "active" : ""}
         href="/admin/reviews"
       >
-        리뷰 운영 <b>3</b>
+        {/* 목록과 같은 데이터를 센다. 숫자를 박아 두면 배지는 3건인데
+            목록은 0건인 상태가 생긴다. */}
+        리뷰 운영 <b>{state.reviews.filter((r) => r.flags?.length).length}</b>
       </Link>
       <Link
         className={path === "/admin/members" ? "active" : ""}
@@ -2965,7 +3036,7 @@ function DemoRoleBar({
     >
       <div className="page-shell demo-role-bar-inner">
         <div className="demo-status-copy">
-          <span aria-hidden="true">◇</span>
+          <IconLive />
           <p>
             <strong>데모 체험 중</strong>
             <span>

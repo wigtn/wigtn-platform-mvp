@@ -57,6 +57,12 @@ export const AXIS_KEY: Record<string, string> = Object.fromEntries(
   Object.entries(AXIS_LABEL).map(([key, label]) => [label, key]),
 );
 
+/** moderation_reason → 화면이 쓰는 갈래. 값이 없으면 검토 대상이 아니다. */
+function reviewFlags(reason: string | null): Array<"privacy" | "report"> {
+  if (!reason) return [];
+  return reason.includes("privacy") ? ["privacy"] : ["report"];
+}
+
 function labelDimensions(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {};
   if (raw && typeof raw === "object") {
@@ -93,7 +99,8 @@ export async function loadPublicData(): Promise<LoadedDemo | null> {
     supabase
       .from("company_reviews")
       .select(
-        "id, title, body, employment_status, overall_score, score_dimensions, status, verification_level, companies(slug)",
+        "id, title, body, employment_status, overall_score, score_dimensions," +
+          " status, verification_level, moderation_reason, companies(slug)",
       )
       .order("created_at", { ascending: false }),
     supabase.from("boards").select("id, slug").eq("is_active", true),
@@ -153,21 +160,42 @@ export async function loadPublicData(): Promise<LoadedDemo | null> {
     };
   });
 
-  const reviews: Review[] = (reviewsRes.data ?? []).map((row) => {
-    const company = (
-      row as { companies?: { slug: string } | { slug: string }[] }
-    ).companies;
+  // select 문자열이 길어지면 supabase-js 의 타입 추론이 풀려
+  // GenericStringError 로 떨어진다. 실제 응답 모양을 명시한다.
+  type ReviewRow = {
+    id: string;
+    title: string;
+    body: string;
+    employment_status: string;
+    overall_score: number | string;
+    score_dimensions: unknown;
+    status: string;
+    verification_level: string | null;
+    moderation_reason: string | null;
+    companies?: { slug: string } | { slug: string }[];
+  };
+  const reviews: Review[] = (
+    (reviewsRes.data ?? []) as unknown as ReviewRow[]
+  ).map((row) => {
+    const company = row.companies;
     const slug = Array.isArray(company) ? company[0]?.slug : company?.slug;
     return {
-      id: row.id as string,
+      id: row.id,
       companySlug: slug ?? "",
-      title: row.title as string,
-      body: row.body as string,
+      title: row.title,
+      body: row.body,
       score: Number(row.overall_score),
       dimensions: labelDimensions(row.score_dimensions),
       status: row.status === "hidden" ? "hidden" : "published",
       employment: row.employment_status === "former" ? "퇴사" : "재직",
       verified: row.verification_level === "document_verified",
+      // 관리자 검토 큐가 이 값으로 채워진다.
+      //
+      // DB 에는 리뷰 신고 테이블이 없다(reports 는 글·댓글만 가리킨다).
+      // 아는 건 moderation_reason 하나뿐이라, 그 값으로 갈래를 나눈다.
+      // 여기를 빠뜨렸더니 검토 큐가 통째로 비었다 - 사이드바 배지는 숫자가
+      // 박혀 있어서 "3건"이라고 나오는데 목록은 0건이었다.
+      flags: reviewFlags(row.moderation_reason),
     };
   });
 
