@@ -791,7 +791,14 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
   else if (initialPath === "/community")
     content = <Community state={state} setState={setState} notify={notify} />;
   else if (initialPath === "/posts/new")
-    content = <PostForm state={state} setState={setState} notify={notify} />;
+    content = (
+      <PostForm
+        state={state}
+        setState={setState}
+        notify={notify}
+        onRoleChange={switchRole}
+      />
+    );
   else if (initialPath.startsWith("/posts/"))
     content = (
       <PostDetail
@@ -804,7 +811,12 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
     );
   else if (initialPath === "/questions/new")
     content = (
-      <QuestionForm state={state} setState={setState} notify={notify} />
+      <QuestionForm
+        state={state}
+        setState={setState}
+        notify={notify}
+        onRoleChange={switchRole}
+      />
     );
   else if (initialPath === "/account")
     content = (
@@ -1917,10 +1929,12 @@ function PostForm({
   state,
   setState,
   notify,
+  onRoleChange,
 }: {
   state: DemoState;
   setState: (fn: (s: DemoState) => DemoState) => void;
   notify: (m: string) => void;
+  onRoleChange: (role: Role) => void;
 }) {
   const router = useRouter();
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -1965,52 +1979,66 @@ function PostForm({
         title="게시글 작성"
         description="영업 경험이나 업무 자료를 공유할 수 있습니다. 데모에서는 첨부 파일의 이름만 저장합니다."
       />
-      <form className="form-panel" onSubmit={submit}>
-        <label>
-          게시판
-          <select name="board" defaultValue="노하우">
-            {(["자유", "실적", "노하우"] as Post["board"][]).map((board) => (
-              <option key={board}>{board}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          제목
-          <input name="title" required minLength={5} />
-        </label>
-        <div className="editor-field">
-          <label htmlFor="post-body">내용</label>
-          <span className="editor-toolbar" aria-label="웹 에디터 도구">
-            {EDITOR_TOOLS.map(({ label, Icon }) => (
-              <button
-                type="button"
-                key={label}
-                title={label}
-                aria-label={label}
-                onClick={() => notify(`${label} 서식 도구를 선택했습니다.`)}
-              >
-                <Icon />
-                <span>{label}</span>
-              </button>
-            ))}
-          </span>
-          <textarea
-            id="post-body"
-            name="body"
-            rows={9}
-            required
-            minLength={20}
-          />
-        </div>
-        <label>
-          이미지 첨부
-          <div className="upload-field">
-            <input name="images" type="file" accept="image/*" multiple />
-            <small>JPG·PNG·WebP · 데모에서는 파일 이름만 저장합니다.</small>
+      {/*
+        비회원은 글을 쓸 수 없다. 전에는 폼이 그대로 열려서 비회원도
+        등록됐다 - 역할별 권한 차이를 보여 주는 데모인데 그 전제가 깨진다.
+      */}
+      {state.role === "guest" ? (
+        <LockedRoleFeature
+          badge="회원 전용"
+          title="게시글 작성"
+          description="일반 영업인 역할부터 글을 올릴 수 있습니다."
+          targetRole="sales"
+          onRoleChange={onRoleChange}
+        />
+      ) : (
+        <form className="form-panel" onSubmit={submit}>
+          <label>
+            게시판
+            <select name="board" defaultValue="노하우">
+              {(["자유", "실적", "노하우"] as Post["board"][]).map((board) => (
+                <option key={board}>{board}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            제목
+            <input name="title" required minLength={5} />
+          </label>
+          <div className="editor-field">
+            <label htmlFor="post-body">내용</label>
+            <span className="editor-toolbar" aria-label="웹 에디터 도구">
+              {EDITOR_TOOLS.map(({ label, Icon }) => (
+                <button
+                  type="button"
+                  key={label}
+                  title={label}
+                  aria-label={label}
+                  onClick={() => notify(`${label} 서식 도구를 선택했습니다.`)}
+                >
+                  <Icon />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </span>
+            <textarea
+              id="post-body"
+              name="body"
+              rows={9}
+              required
+              minLength={20}
+            />
           </div>
-        </label>
-        <button className="button primary">게시글 등록</button>
-      </form>
+          <label>
+            이미지 첨부
+            <div className="upload-field">
+              <input name="images" type="file" accept="image/*" multiple />
+              <small>JPG·PNG·WebP · 데모에서는 파일 이름만 저장합니다.</small>
+            </div>
+          </label>
+          <button className="button primary">게시글 등록</button>
+        </form>
+      )}
     </main>
   );
 }
@@ -2424,10 +2452,12 @@ function QuestionForm({
   state,
   setState,
   notify,
+  onRoleChange,
 }: {
   state: DemoState;
   setState: (fn: (s: DemoState) => DemoState) => void;
   notify: (m: string) => void;
+  onRoleChange: (role: Role) => void;
 }) {
   const [status, setStatus] = useState<
     "idle" | "queued" | "thinking" | "posted" | "error"
@@ -2509,7 +2539,17 @@ function QuestionForm({
         title="커뮤니티에 질문하기"
         description="질문 등록 후 AI 초안이 먼저 표시되고, 이후 회원 답변을 받을 수 있습니다."
       />
-      {status === "idle" ? (
+      {/* 비회원은 질문을 올릴 수 없다. 역할별 차이를 보여 주는 데모라
+          여기서 막지 않으면 전제가 무너진다. */}
+      {state.role === "guest" ? (
+        <LockedRoleFeature
+          badge="회원 전용"
+          title="질문 올리기"
+          description="일반 영업인 역할부터 질문하고 AI 답변을 받을 수 있습니다."
+          targetRole="sales"
+          onRoleChange={onRoleChange}
+        />
+      ) : status === "idle" ? (
         <form className="form-panel" onSubmit={ask}>
           <label>
             질문 제목

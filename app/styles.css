@@ -5406,24 +5406,23 @@ select:focus {
   margin-top: 4px;
 }
 
-/* 카드 전체를 누를 수 있게. 링크를 카드 위에 깔되 글자는 그대로 읽힌다. */
-.company-card.is-clickable {
-  position: relative;
-}
-.company-card .card-link::after {
-  content: "";
-  position: absolute;
-  inset: 0;
+/*
+  회사 이름 링크를 카드 폭만큼 넓힌다.
+
+  전에는 글자 부분만 눌렸다. 목록에서 카드를 눌러도 아무 일이 없고, 모바일
+  에서는 터치 대상도 작다.
+
+  카드 전체에 투명한 링크를 덮는 방법도 썼는데, 그 덮개가 자기 카드를 넘어
+  옆 카드까지 가려서 목록에서 엉뚱한 회사로 넘어갔다. e2e 가 잡았다.
+  덮개 없이 링크 자체를 키우는 쪽이 안전하다.
+*/
+.company-card .card-link {
+  display: block;
+  padding-block: 2px;
 }
 .company-card.is-clickable:hover {
   border-color: var(--border-strong);
   background: var(--surface);
-}
-/* 카드 안의 다른 링크·버튼은 덮개 위로 올려 계속 눌리게 한다. */
-.company-card a:not(.card-link),
-.company-card button {
-  position: relative;
-  z-index: 1;
 }
 
 /* ── 글 상세 동작 버튼 ─────────────────────────────────────────── */

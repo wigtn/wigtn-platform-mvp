@@ -110,6 +110,8 @@ test("회사 탐색부터 익명 리뷰 통계 반영까지 연결된다", async
 });
 
 test("일반 게시글과 이미지 첨부 메타데이터를 등록한다", async ({ page }) => {
+  // 비회원은 글을 쓸 수 없다. 회원 역할로 바꾸고 시작한다.
+  await switchRole(page, "일반 영업인");
   await page.goto("/posts/new");
   await page.getByLabel("게시판").selectOption("실적");
   await page.getByLabel("제목").fill("분기 목표를 초과한 파이프라인 운영 기록");
@@ -133,6 +135,8 @@ test("일반 게시글과 이미지 첨부 메타데이터를 등록한다", asy
 });
 
 test("질문 등록 후 AI 첫 답변 상태 전이가 완료된다", async ({ page }) => {
+  // 비회원은 질문을 올릴 수 없다.
+  await switchRole(page, "일반 영업인");
   /*
     이 테스트만 오래 걸린다. 질문을 큐에 넣으면 워커가 집어 가서 실제
     OpenAI 를 부르고, 그 답이 돌아와야 화면이 바뀐다.
@@ -247,7 +251,7 @@ test("헤더 메뉴만으로 주요 화면을 오갈 수 있다", async ({ page 
   for (const [label, heading] of [
     ["회사 리뷰", "회사 리뷰 찾기"],
     ["영업 Q&A", "먼저 검색하고,"],
-    ["회사 비교", "회사 두 곳 비교"],
+    ["회사 비교", "회사 비교"],
     ["검증 정책", "리뷰 작성자 보호 및 검증 정책"],
   ] as const) {
     await nav.getByRole("link", { name: label, exact: true }).click();
