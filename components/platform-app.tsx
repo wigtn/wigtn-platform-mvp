@@ -2022,7 +2022,11 @@ function QuestionForm({
           <button className="button primary">질문 등록</button>
         </form>
       ) : (
-        <div className="ai-progress">
+        <div
+          className="ai-progress"
+          aria-live="polite"
+          aria-busy={status === "queued" || status === "thinking"}
+        >
           <div
             className={`progress-step ${status !== "queued" ? "done" : "active"}`}
           >
@@ -2058,9 +2062,17 @@ function QuestionForm({
               </Link>
             </div>
           ) : (
-            <p className="thinking">
-              질문 내용을 확인하고 AI 초안을 작성하고 있습니다.
-            </p>
+            <div className="thinking" role="status">
+              <span aria-hidden="true" />
+              <div>
+                <b>
+                  {status === "queued"
+                    ? "질문에 민감한 정보가 없는지 확인하고 있습니다."
+                    : "상황을 정리해 바로 실행할 답변을 만들고 있습니다."}
+                </b>
+                <p>대개 10초 안팎이 걸립니다. 이 화면을 그대로 두어 주세요.</p>
+              </div>
+            </div>
           )}
         </div>
       )}
