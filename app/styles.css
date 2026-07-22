@@ -2562,6 +2562,14 @@ input[type="file"]::file-selector-button:hover {
   margin-inline: 0;
   margin-top: 0;
   /*
+    사이드바 배경을 셸이 칠한다.
+
+    사이드바 자체는 화면에 고정(sticky)이라 높이가 화면만큼이다. 본문이
+    더 길면 어두운 배경이 중간에서 끊겨 레이아웃이 잘린 것처럼 보였다.
+    배경을 열 단위로 깔면 고정은 그대로 두고 색만 끝까지 이어진다.
+  */
+  background: linear-gradient(to right, #181816 0 238px, #f7f7f4 238px 100%);
+  /*
     아래 여백을 없앤다.
 
     기본값이 `margin: 28px auto 120px` + `min-height: 780px` 이라, 내용이
@@ -3533,6 +3541,10 @@ select:focus {
     여기서부터 사이드바가 가로 줄로 바뀐다. 넓은 화면용 붙박이 설정을
     그대로 두면 화면 높이만큼 늘어난 검은 덩어리가 본문을 덮는다.
   */
+  /* 가로 줄로 바뀌면 세로 배경이 어긋난다. 단색으로 되돌린다. */
+  .admin-shell {
+    background: #f7f7f4;
+  }
   .admin-nav {
     position: static;
     height: auto;
@@ -5799,4 +5811,11 @@ textarea:focus-visible,
   color: var(--text-faint);
   font-size: 10px;
   font-weight: 500;
+}
+
+/* 검색 결과 수. 입력창 옆에서 한 덩어리로 읽히게 한다. */
+.feed-count {
+  white-space: nowrap;
+  color: var(--text-faint);
+  font-size: 11px;
 }

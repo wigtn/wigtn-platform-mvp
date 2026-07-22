@@ -1823,7 +1823,7 @@ function Community({
                 placeholder="질문과 노하우 검색"
               />
             </label>
-            <span>{posts.length}개 결과 · 최신순</span>
+            <span className="feed-count">{posts.length}개 결과 · 최신순</span>
           </div>
           <div className="feed">
             {posts.length === 0 ? (
@@ -2919,7 +2919,7 @@ function Admin({
         className={path === "/admin/companies" ? "active" : ""}
         href="/admin/companies"
       >
-        회사·XLSX
+        회사 데이터
       </Link>
       <Link
         className={path === "/admin/placements" ? "active" : ""}
