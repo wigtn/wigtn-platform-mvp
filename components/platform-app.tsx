@@ -2208,7 +2208,96 @@ function PostDetail({
           </form>
         )}
       </section>
+      {reporting ? (
+        <ReportDialog
+          onClose={() => setReporting(false)}
+          onSubmit={(reasonCode, details) => {
+            // 신고는 화면 상태를 안 바꾼다(운영 큐로만 간다). 그래도 서버에는
+            // 남아야 관리자 화면의 신고 건수가 진짜가 된다.
+            persist("community.report.create", {
+              targetType: "post",
+              targetId: post.id,
+              reasonCode,
+              details,
+            });
+            setReporting(false);
+            notify("신고가 운영 큐에 접수됐습니다.");
+          }}
+        />
+      ) : null}
     </main>
+  );
+}
+
+/**
+ * 신고 사유를 받는 창.
+ *
+ * 전에는 버튼을 누르는 즉시 접수됐다. 잘못 눌러도 되돌릴 방법이 없고,
+ * 운영자는 무엇이 문제였는지 모른 채 건수만 받는다.
+ */
+function ReportDialog({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (reasonCode: string, details: string) => void;
+}) {
+  const [reason, setReason] = useState<string>(REPORT_REASONS[0].code);
+  const [details, setDetails] = useState("");
+  const dialogRef = useDialogFocus(true, onClose);
+  return (
+    <div className="role-dialog-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="report-dialog"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="신고하기"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <span className="kicker">운영 신고</span>
+        <h2>어떤 점이 문제인가요?</h2>
+        <p>확인 후 운영자가 처리합니다. 사유를 골라 주세요.</p>
+        <div className="report-reasons">
+          {REPORT_REASONS.map((item) => (
+            <label
+              key={item.code}
+              className={reason === item.code ? "is-selected" : undefined}
+            >
+              <input
+                type="radio"
+                name="reason"
+                value={item.code}
+                checked={reason === item.code}
+                onChange={() => setReason(item.code)}
+              />
+              {item.label}
+            </label>
+          ))}
+        </div>
+        <label className="report-details">
+          상세 설명 <span className="muted">(선택)</span>
+          <textarea
+            rows={3}
+            value={details}
+            onChange={(event) => setDetails(event.target.value)}
+            placeholder="어떤 부분이 문제인지 적어 주시면 처리에 도움이 됩니다."
+          />
+        </label>
+        <div className="report-actions">
+          <button type="button" onClick={onClose}>
+            취소
+          </button>
+          <button
+            type="button"
+            className="button primary"
+            onClick={() => onSubmit(reason, details.trim())}
+          >
+            신고하기
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
