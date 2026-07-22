@@ -23,7 +23,10 @@ import {
   recordAction,
   resetMyDemo,
 } from "@/lib/demo-store";
-import type { FieldnoteAiAnswer } from "@/lib/fieldnote-ai";
+import {
+  parseFieldnoteAiAnswer,
+  type FieldnoteAiAnswer,
+} from "@/lib/fieldnote-ai";
 import { supabaseConfigured } from "@/lib/supabase";
 import { useDemoStateContext } from "./demo-state-provider";
 import {
@@ -545,16 +548,11 @@ function replayActions(
         const answer = String(req.answer ?? "");
         if (!answer || next.posts.length === 0) break;
         const [first, ...rest] = next.posts;
+        // 답변은 aiAnswer 로만 들고 간다. 전에는 댓글에도 원본 문자열을
+        // 밀어 넣었는데, 그 값이 구조화 JSON 이라 화면에 통째로 찍혔다.
         next = {
           ...next,
-          posts: [
-            {
-              ...first,
-              ai: "posted",
-              comments: [`AI 초안 · ${answer}`, ...first.comments],
-            },
-            ...rest,
-          ],
+          posts: [{ ...first, ai: "posted", aiAnswer: answer }, ...rest],
         };
         break;
       }
@@ -2018,15 +2016,22 @@ function PostDetail({
             ))}
           </div>
         ) : null}
-        {post.ai === "posted" ? (
+        {/*
+          실제 답변이 있으면 그걸 그린다.
+
+          전에는 어떤 질문이든 같은 고정 문구가 나왔다. 답변은 post.aiAnswer
+          에 이미 들어 있는데 쓰지 않았다.
+        */}
+        {post.aiAnswer ? (
+          <AiAnswerCard
+            answer={parseFieldnoteAiAnswer(post.aiAnswer)}
+            model={post.aiModel ?? ""}
+          />
+        ) : post.ai === "posted" ? (
           <aside className="ai-answer">
             <span>AI 초안 · 개인정보 검사 완료</span>
-            <h3>첫 미팅에서 승인자와 다음 일정을 확인하세요.</h3>
-            <p>
-              예산 승인자, 현재 문제로 발생하는 비용, 구매 일정을 확인하세요.
-              미팅이 끝나기 전에 다음 회의 참석자와 준비 자료도 정해두는 것이
-              좋습니다.
-            </p>
+            <h3>답변을 준비했습니다.</h3>
+            <p>질문 화면에서 전체 내용을 확인할 수 있습니다.</p>
           </aside>
         ) : null}
         <div className="post-actions">
@@ -2262,7 +2267,7 @@ function QuestionForm({
       badge: state.role === "verified" ? "검증 영업인 L2" : undefined,
       likes: 0,
       saved: false,
-      comments: rawAnswer ? [`AI 초안 · ${rawAnswer}`] : [],
+      comments: [],
       ai: rawAnswer ? "posted" : "queued",
       aiAnswer: rawAnswer ?? undefined,
       aiModel: model || undefined,
