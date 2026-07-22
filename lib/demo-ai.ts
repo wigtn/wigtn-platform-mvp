@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+type DemoSupabaseClient = SupabaseClient<any, string, string, any>;
+
 type AiPollResult = {
   requestId: string;
   status: "pending" | "ready" | "blocked" | "failed";
@@ -110,7 +112,7 @@ export function parseDemoAiAnswer(raw: string): StructuredAiAnswer {
   };
 }
 
-let browserClient: SupabaseClient | undefined;
+let browserClient: DemoSupabaseClient | undefined;
 
 export function isLiveAiDemoConfigured() {
   return Boolean(
@@ -123,8 +125,10 @@ function client() {
   if (browserClient) return browserClient;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const schema = process.env.NEXT_PUBLIC_SUPABASE_SCHEMA?.trim();
   if (!url || !key) throw new Error("AI 데모 연결 정보가 없습니다.");
   browserClient = createClient(url, key, {
+    db: schema ? { schema } : undefined,
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -139,7 +143,7 @@ function idempotencyKey(prefix: string) {
 }
 
 async function rpc<T>(
-  supabase: SupabaseClient,
+  supabase: DemoSupabaseClient,
   name: string,
   args?: Record<string, unknown>,
 ) {
@@ -148,7 +152,7 @@ async function rpc<T>(
   return result.data as T;
 }
 
-async function ensureAnonymousDemo(supabase: SupabaseClient) {
+async function ensureAnonymousDemo(supabase: DemoSupabaseClient) {
   const current = await supabase.auth.getSession();
   if (current.error) throw new Error(current.error.message);
   if (!current.data.session) {
