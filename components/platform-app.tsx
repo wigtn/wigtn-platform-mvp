@@ -191,6 +191,8 @@ const accountRoles = Object.keys(demoAccounts) as Array<Exclude<Role, "guest">>;
 const fallbackAiAnswerRaw = JSON.stringify(FALLBACK_AI_ANSWER);
 
 const VISIT_KEY = "fieldnote-visited-v2";
+/** DB 없이 돌 때만 쓰는 보관함. 붙어 있으면 서버 원장이 정본이다. */
+const LOCAL_STATE_KEY = "fieldnote-demo-v1";
 
 /**
  * 화면 상태의 출처.
@@ -231,6 +233,27 @@ function useDemoState() {
 
     (async () => {
       if (!supabaseConfigured) {
+        // DB 가 없으면 예전처럼 브라우저에 통째로 보관한다.
+        //
+        // 라우트를 옮길 때마다 이 컴포넌트가 다시 마운트되므로, 어딘가에
+        // 남겨 두지 않으면 방금 쓴 글·리뷰가 화면을 넘기는 순간 사라진다.
+        // DB 를 붙이면서 이걸 걷어냈다가 폴백 경로를 통째로 망가뜨렸다.
+        try {
+          const saved = window.localStorage.getItem(LOCAL_STATE_KEY);
+          if (saved && !cancelled) {
+            const parsed = JSON.parse(saved) as Partial<DemoState>;
+            setState((current) => ({
+              ...current,
+              ...parsed,
+              role: savedRole ?? parsed.role ?? current.role,
+              reviews: parsed.reviews ?? current.reviews,
+              posts: parsed.posts ?? current.posts,
+              profile: { ...current.profile, ...parsed.profile },
+            }));
+          }
+        } catch {
+          window.localStorage.removeItem(LOCAL_STATE_KEY);
+        }
         if (!cancelled) setReady(true);
         return;
       }
@@ -280,6 +303,11 @@ function useDemoState() {
       const next = update(current);
       // 역할은 화면 설정이라 브라우저에 남긴다. 새로고침해도 유지된다.
       window.localStorage.setItem("fieldnote-role", next.role);
+      // DB 가 없을 때만 상태 전체를 남긴다. 붙어 있으면 서버 원장이 정본이라
+      // 두 곳에 두면 어느 쪽이 맞는지 알 수 없게 된다.
+      if (!supabaseConfigured) {
+        window.localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(next));
+      }
       return next;
     });
   };
