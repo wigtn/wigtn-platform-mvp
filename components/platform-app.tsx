@@ -1520,9 +1520,15 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
             </p>
             <h1>{company.name}</h1>
             <p>{company.summary}</p>
+            {/*
+              한 화면에서 리뷰 수를 네 가지로 말했다. 여기 "리뷰 18건",
+              탭 "현직자 리뷰 2", 6축 "표본 18", 오른쪽 "현재 공개 2건".
+              18 은 회사 레코드에 적힌 값이고 실제 리뷰는 2건뿐이다.
+
+              "최근 업데이트 3일 전"도 모든 회사에 똑같이 박혀 있었다.
+            */}
             <div className="company-facts">
-              <span>리뷰 {company.reviewCount}건</span>
-              <span>최근 업데이트 3일 전</span>
+              <span>리뷰 {reviews.length}건</span>
               <span>최근 12개월 리뷰 반영</span>
             </div>
           </div>
@@ -1616,7 +1622,7 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
             <h2>영업환경 6축</h2>
           </div>
           <span className="trust-chip">
-            표본 {company.reviewCount} · 최근 12개월
+            표본 {reviews.length} · 최근 12개월
           </span>
         </div>
         <div className="score-bars">
@@ -1646,6 +1652,13 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
         </div>
         <div className="review-layout">
           <div className="review-list">
+            {/* 다른 목록에는 다 있는데 여기만 빈 상태가 없었다. 리뷰를 전부
+                가리면 커다란 빈 자리만 남아 화면이 덜 그려진 것처럼 보였다. */}
+            {reviews.length === 0 ? (
+              <p className="list-empty">
+                공개된 리뷰가 없습니다. 첫 리뷰를 남기면 여기에 표시됩니다.
+              </p>
+            ) : null}
             {reviews.map((review) => (
               <article key={review.id}>
                 <div>
@@ -2189,7 +2202,7 @@ function PostForm({
       board: data.get("board") as Post["board"],
       title: String(data.get("title")),
       body: String(data.get("body")),
-      author: roleNames[state.role],
+      author: state.profile.name,
       badge: state.role === "verified" ? "검증 영업인 L2" : undefined,
       likes: 0,
       saved: false,
@@ -2800,6 +2813,8 @@ function QuestionForm({
   notify: (m: string) => void;
   onRoleChange: (role: Role) => void;
 }) {
+  /** 이미 만든 글의 id. 다시 등록할 때 새로 만들지 않고 이 자리를 고친다. */
+  const createdIdRef = useRef<string | null>(null);
   const [status, setStatus] = useState<
     "idle" | "queued" | "thinking" | "posted" | "error"
   >("idle");
@@ -2856,12 +2871,21 @@ function QuestionForm({
       notify(message);
     }
 
+    /*
+      다시 시도해도 글이 하나만 남는다.
+
+      전에는 등록할 때마다 새 글을 앞에 붙였다. AI 답변이 실패해서 "질문
+      다듬기"로 돌아가 다시 등록하면, 커뮤니티에 똑같은 글이 두 개 생겼다.
+      실패한 쪽은 지울 방법도 없었다.
+
+      한 번 만든 글의 id 를 들고 있다가, 다시 등록하면 그 자리를 고친다.
+    */
     const post: Post = {
-      id: `p-${Date.now()}`,
+      id: createdIdRef.current ?? `p-${Date.now()}`,
       board: "Q&A",
       title,
       body: context,
-      author: roleNames[state.role],
+      author: state.profile.name,
       badge: state.role === "verified" ? "검증 영업인 L2" : undefined,
       likes: 0,
       saved: false,
@@ -2870,8 +2894,15 @@ function QuestionForm({
       aiAnswer: rawAnswer ?? undefined,
       aiModel: model || undefined,
     };
+    const isRetry = createdIdRef.current !== null;
+    createdIdRef.current = post.id;
     window.sessionStorage.setItem(PENDING_QUESTION_KEY, JSON.stringify(post));
-    setState((current) => ({ ...current, posts: [post, ...current.posts] }));
+    setState((current) => ({
+      ...current,
+      posts: isRetry
+        ? current.posts.map((item) => (item.id === post.id ? post : item))
+        : [post, ...current.posts],
+    }));
   };
   return (
     <main className="page-shell page narrow">
@@ -3308,12 +3339,25 @@ function Admin({
     "all" | "privacy" | "report"
   >("all");
   const flaggedReviews = state.reviews.filter((review) => review.flags?.length);
+  /*
+    처리한 건 세지 않는다.
+
+    전에는 신고 표시가 붙은 리뷰를 전부 셌다. 표시는 블라인드해도 안
+    없어지므로, 대기열의 세 건을 모두 처리하고 나서도 제목은 "03 처리
+    대기", 필터는 "전체 3", 사이드바 배지도 3 이었다. 할 일을 다 했는데
+    화면은 아무 일도 없었다고 말한다.
+
+    목록 자체는 처리한 것도 계속 보여 준다 - 안 그러면 잘못 가린 리뷰를
+    되돌릴 길이 사라진다.
+  */
+  const openReviews = flaggedReviews.filter(
+    (review) => review.status !== "hidden",
+  );
   const reviewCounts = {
-    all: flaggedReviews.length,
-    privacy: flaggedReviews.filter((review) =>
-      review.flags?.includes("privacy"),
-    ).length,
-    report: flaggedReviews.filter((review) => review.flags?.includes("report"))
+    all: openReviews.length,
+    privacy: openReviews.filter((review) => review.flags?.includes("privacy"))
+      .length,
+    report: openReviews.filter((review) => review.flags?.includes("report"))
       .length,
   };
   const reviewQueue = flaggedReviews.filter((review) => {
@@ -3374,7 +3418,7 @@ function Admin({
       >
         {/* 목록과 같은 데이터를 센다. 숫자를 박아 두면 배지는 3건인데
             목록은 0건인 상태가 생긴다. */}
-        리뷰 운영 <b>{state.reviews.filter((r) => r.flags?.length).length}</b>
+        리뷰 운영 <b>{reviewCounts.all}</b>
       </Link>
       <Link
         className={path === "/admin/members" ? "active" : ""}
