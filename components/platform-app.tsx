@@ -27,19 +27,18 @@ import {
   parseFieldnoteAiAnswer,
   type FieldnoteAiAnswer,
 } from "@/lib/fieldnote-ai";
+import { isPlainText, sanitizeRichText, stripTags } from "@/lib/rich-text";
 import { supabaseConfigured } from "@/lib/supabase";
 import { useDemoStateContext } from "./demo-state-provider";
+import { CompanyMark } from "./company-mark";
+import { RichEditor } from "./rich-editor";
 import {
-  IconBold,
   IconBookmark,
   IconCaution,
   IconCheck,
   IconChevron,
   IconLock,
   IconEye,
-  IconLink,
-  IconList,
-  IconQuote,
   IconFlag,
   IconThumbsUp,
   IconLive,
@@ -1194,8 +1193,8 @@ function Home({ state }: { state: DemoState }) {
                 href={`/companies/${company.slug}`}
                 key={company.slug}
               >
-                <span className={`company-logo logo-${company.slug}`}>
-                  {company.name.slice(0, 1)}
+                <span className="company-logo">
+                  <CompanyMark slug={company.slug} name={company.name} />
                 </span>
                 <span>
                   <strong>{company.name}</strong>
@@ -1262,8 +1261,8 @@ function Home({ state }: { state: DemoState }) {
               <span>이번 주 관심도 +{top[0].trend}%</span>
             </div>
             <div className="featured-company-main">
-              <span className={`company-logo logo-${top[0].slug}`}>
-                {top[0].name.slice(0, 1)}
+              <span className="company-logo">
+                <CompanyMark slug={top[0].slug} name={top[0].name} />
               </span>
               <div>
                 <p>
@@ -1328,8 +1327,8 @@ function Home({ state }: { state: DemoState }) {
                 key={company.slug}
               >
                 <strong>0{index + 2}</strong>
-                <span className={`company-logo logo-${company.slug}`}>
-                  {company.name.slice(0, 1)}
+                <span className="company-logo">
+                  <CompanyMark slug={company.slug} name={company.name} />
                 </span>
                 <span className="ranked-company-copy">
                   <b>{company.name}</b>
@@ -1461,8 +1460,8 @@ function CompanyCard({
     */
     <article className="company-card is-clickable">
       <div className="company-card-head">
-        <span className={`company-logo logo-${company.slug}`}>
-          {company.name.slice(0, 1)}
+        <span className="company-logo">
+          <CompanyMark slug={company.slug} name={company.name} />
         </span>
       </div>
       <p className="caption">
@@ -1501,9 +1500,13 @@ function Companies({ state }: { state: DemoState }) {
   // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
   const companies = pickCompanies(state);
   const [query, setQuery] = useState("");
+  /** 적히는 중인 글자. 확정 전까지 목록은 안 움직인다. */
+  const [draft, setDraft] = useState("");
   const [industry, setIndustry] = useState("전체");
   useEffect(() => {
-    setQuery(new URLSearchParams(window.location.search).get("q") ?? "");
+    const q = new URLSearchParams(window.location.search).get("q") ?? "";
+    setQuery(q);
+    setDraft(q);
   }, []);
   const filtered = companies.filter(
     (company) =>
@@ -1517,16 +1520,27 @@ function Companies({ state }: { state: DemoState }) {
         title="회사 리뷰 찾기"
         description="회사명이나 업종을 검색하고 영업환경 점수를 비교하세요."
       />
-      <div className="filter-bar">
+      {/* 커뮤니티와 같은 규칙. 타자를 칠 때마다 걸러지지 않고, 눌러야
+          찾는다. 업종은 고르는 즉시 걸러도 되는 값이라 그대로 둔다. */}
+      <form
+        className="filter-bar"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setQuery(draft.trim());
+        }}
+      >
         <label>
           회사 검색
           <input
             data-testid="company-search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
             placeholder="회사명, 업종, 영업유형"
           />
         </label>
+        <button className="button secondary" type="submit">
+          검색
+        </button>
         <label>
           업종
           <select
@@ -1542,7 +1556,7 @@ function Companies({ state }: { state: DemoState }) {
           </select>
         </label>
         <span>회사 {filtered.length}곳</span>
-      </div>
+      </form>
       {filtered.length ? (
         <div className="company-list">
           {filtered.map((company) => (
@@ -1563,6 +1577,7 @@ function Companies({ state }: { state: DemoState }) {
             className="button secondary"
             onClick={() => {
               setQuery("");
+              setDraft("");
               setIndustry("전체");
             }}
           >
@@ -1606,10 +1621,8 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
       </nav>
       <div className="company-hero">
         <div className="company-identity">
-          <span
-            className={`company-logo company-logo-large logo-${company.slug}`}
-          >
-            {company.name.slice(0, 1)}
+          <span className="company-logo company-logo-large">
+            <CompanyMark slug={company.slug} name={company.name} />
           </span>
           <div>
             <p className="kicker">
@@ -2052,10 +2065,14 @@ function Community({
   notify: (m: string) => void;
 }) {
   const [board, setBoard] = useState("전체");
+  /** 확정된 검색어. 목록은 이것만 본다. */
   const [search, setSearch] = useState("");
+  /** 입력칸에 적히는 중인 글자. 아직 검색이 아니다. */
+  const [draft, setDraft] = useState("");
+  const [page, setPage] = useState(1);
   const matches = (post: Post) =>
     !state.hiddenPostIds.includes(post.id) &&
-    `${post.title}${post.body}${post.author}`.includes(search);
+    `${post.title}${stripTags(post.body)}${post.author}`.includes(search);
   const posts = state.posts.filter(
     (post) => matches(post) && (board === "전체" || post.board === board),
   );
@@ -2070,6 +2087,22 @@ function Community({
   const allPosts = state.posts.filter(
     (post) => !state.hiddenPostIds.includes(post.id),
   );
+  /*
+    한 쪽에 다섯 개.
+
+    전에는 글이 몇 개든 한 화면에 전부 쏟았다. 커뮤니티는 글이 쌓이는
+    곳이라 그대로 두면 스크롤이 끝없이 길어진다.
+
+    열 개로 두면 지금 시드(여섯 개)에서는 쪽 이동이 한 번도 안 나타나
+    있으나 마나가 된다. 데모에서 실제로 동작하는 것이 보이도록 다섯으로
+    둔다.
+  */
+  const PAGE_SIZE = 5;
+  const pageCount = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
+  /* 걸러진 결과가 줄어 지금 쪽이 사라질 수 있다. 마지막 쪽으로 당긴다. */
+  const current = Math.min(page, pageCount);
+  const paged = posts.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+
   const boardCount = (value: string) =>
     state.posts.filter(
       (post) => matches(post) && (value === "전체" || post.board === value),
@@ -2145,7 +2178,10 @@ function Community({
             {["전체", "Q&A", "노하우", "실적", "자유"].map((value) => (
               <button
                 className={board === value ? "active" : ""}
-                onClick={() => setBoard(value)}
+                onClick={() => {
+                  setBoard(value);
+                  setPage(1);
+                }}
                 key={value}
               >
                 <span>{value}</span>
@@ -2165,17 +2201,50 @@ function Community({
           </div>
         </aside>
         <section className="community-main">
-          <div className="community-toolbar">
+          {/*
+            타자를 칠 때마다 목록이 걸러졌다.
+
+            한 글자 넣을 때마다 결과가 튀고, 지우는 중에도 계속 바뀐다.
+            어디까지가 내가 찾은 결과인지 알 수 없고, 다 적기 전에 목록이
+            비어 버리기도 한다. 다 적고 누를 때 찾는다.
+          */}
+          <form
+            className="community-toolbar"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setSearch(draft.trim());
+              setPage(1);
+            }}
+          >
             <label>
               <span className="visually-hidden">커뮤니티 검색</span>
               <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
                 placeholder="질문과 노하우 검색"
               />
             </label>
-            <span className="feed-count">{posts.length}개 결과</span>
-          </div>
+            <button className="button secondary" type="submit">
+              검색
+            </button>
+            {search ? (
+              <button
+                type="button"
+                className="text-link"
+                onClick={() => {
+                  setDraft("");
+                  setSearch("");
+                  setPage(1);
+                }}
+              >
+                검색 지우기
+              </button>
+            ) : null}
+            <span className="feed-count">
+              {search ? `"${search}" ` : ""}
+              {posts.length}개 결과
+            </span>
+          </form>
           <div className="feed">
             {posts.length === 0 ? (
               <p className="list-empty">
@@ -2183,7 +2252,7 @@ function Community({
                 보세요.
               </p>
             ) : null}
-            {posts.map((post) => (
+            {paged.map((post) => (
               <article
                 key={post.id}
                 className={post.board === "Q&A" ? "question-post" : ""}
@@ -2203,7 +2272,9 @@ function Community({
                   <h2>
                     <Link href={`/posts/${post.id}`}>{post.title}</Link>
                   </h2>
-                  <p>{post.body}</p>
+                  {/* 목록에서는 서식을 펼치지 않는다. 카드 안에
+                      인용이나 목록이 들어오면 줄 높이가 제각각이 된다. */}
+                  <p>{stripTags(post.body)}</p>
                   <div className="post-actions">
                     <span>도움 {post.likes}</span>
                     <span>답변 {post.comments.length}</span>
@@ -2225,6 +2296,40 @@ function Community({
               </article>
             ))}
           </div>
+          {pageCount > 1 ? (
+            <nav className="pager" aria-label="글 목록 쪽 이동">
+              <button
+                type="button"
+                onClick={() => setPage(current - 1)}
+                disabled={current === 1}
+              >
+                이전
+              </button>
+              <ol>
+                {Array.from({ length: pageCount }, (_, index) => index + 1).map(
+                  (number) => (
+                    <li key={number}>
+                      <button
+                        type="button"
+                        aria-current={number === current ? "page" : undefined}
+                        className={number === current ? "is-on" : undefined}
+                        onClick={() => setPage(number)}
+                      >
+                        {number}
+                      </button>
+                    </li>
+                  ),
+                )}
+              </ol>
+              <button
+                type="button"
+                onClick={() => setPage(current + 1)}
+                disabled={current === pageCount}
+              >
+                다음
+              </button>
+            </nav>
+          ) : null}
         </section>
         <aside className="community-rail">
           <section>
@@ -2243,8 +2348,10 @@ function Community({
                     type="button"
                     className="rail-topic"
                     onClick={() => {
+                      setDraft(topic);
                       setSearch(topic);
                       setBoard("전체");
+                      setPage(1);
                     }}
                   >
                     {topic}
@@ -2252,7 +2359,7 @@ function Community({
                   <span>
                     {
                       state.posts.filter((post) =>
-                        `${post.title}${post.body}`.includes(topic),
+                        `${post.title}${stripTags(post.body)}`.includes(topic),
                       ).length
                     }
                   </span>
@@ -2275,54 +2382,6 @@ function Community({
 }
 
 /** 서식 도구. 아이콘과 이름을 같이 둔다 - 아이콘만으로는 뜻이 안 통한다. */
-/*
-  서식 도구.
-
-  전에는 누르면 "굵게 서식 도구를 선택했습니다." 라는 알림만 떴다. 본문은
-  건드리지 않았으니 네 개 다 아무 일도 안 하는 버튼이었다. 눌러 보면 바로
-  들통나는 자리라, 없느니만 못했다.
-
-  고른 부분을 표시로 감싼다. 줄 단위 도구(목록·인용)는 각 줄 앞에 붙인다.
-*/
-const EDITOR_TOOLS = [
-  { label: "굵게", Icon: IconBold, wrap: "**" },
-  { label: "링크", Icon: IconLink, link: true },
-  { label: "목록", Icon: IconList, prefix: "- " },
-  { label: "인용", Icon: IconQuote, prefix: "> " },
-] as const;
-
-type EditorTool = (typeof EDITOR_TOOLS)[number];
-
-/** 고른 글자에 표시를 입힌다. 고른 게 없으면 자리만 만들고 커서를 넣는다. */
-function applyEditorTool(area: HTMLTextAreaElement, tool: EditorTool) {
-  const { selectionStart: from, selectionEnd: to } = area;
-  const picked = area.value.slice(from, to);
-
-  if ("prefix" in tool) {
-    const lines = (picked || "").split("\n");
-    area.setRangeText(
-      lines.map((line) => `${tool.prefix}${line}`).join("\n"),
-      from,
-      to,
-      "end",
-    );
-  } else if ("link" in tool) {
-    area.setRangeText(`[${picked || "링크 글자"}](https://)`, from, to, "end");
-  } else {
-    area.setRangeText(
-      `${tool.wrap}${picked || "굵게"}${tool.wrap}`,
-      from,
-      to,
-      "end",
-    );
-  }
-  // setRangeText 는 input 이벤트를 안 쏜다. React 가 모르면 안 되는 값은
-  // 아니지만(제어하지 않는 textarea 다), 글자 수 확인 같은 게 붙으면
-  // 필요하다.
-  area.dispatchEvent(new Event("input", { bubbles: true }));
-  area.focus();
-}
-
 function PostForm({
   state,
   setState,
@@ -2337,6 +2396,9 @@ function PostForm({
   const router = useRouter();
   /** 고른 파일 이름. 입력을 숨겼으므로 화면에 직접 보여 준다. */
   const [imageNames, setImageNames] = useState<string[]>([]);
+  /** 편집기가 만든 HTML 과, 글자 수를 세기 위한 순수 글자. */
+  const [body, setBody] = useState("");
+  const bodyText = stripTags(body);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -2411,32 +2473,25 @@ function PostForm({
             <input name="title" required minLength={5} />
           </label>
           <div className="editor-field">
-            <label htmlFor="post-body">내용</label>
-            <span className="editor-toolbar" aria-label="웹 에디터 도구">
-              {EDITOR_TOOLS.map((tool) => (
-                <button
-                  type="button"
-                  key={tool.label}
-                  title={tool.label}
-                  aria-label={tool.label}
-                  onClick={() => {
-                    const area =
-                      document.querySelector<HTMLTextAreaElement>("#post-body");
-                    if (area) applyEditorTool(area, tool);
-                  }}
-                >
-                  <tool.Icon />
-                  <span>{tool.label}</span>
-                </button>
-              ))}
-            </span>
-            <textarea
-              id="post-body"
+            <span className="field-label">내용</span>
+            {/*
+              전에는 textarea 에 `**굵게**` 같은 기호를 꽂아 넣었다. 누르면
+              글 안에 별표가 그대로 보였고, 굵어지지도 않았다. 서식은 누른
+              자리에서 그렇게 보여야 한다.
+            */}
+            <RichEditor value={body} onChange={setBody} />
+            {/* 편집기는 폼 값이 아니다. 등록할 때 같이 나가도록 숨은 칸에
+                담아 둔다 - required·minLength 검사도 여기서 걸린다. */}
+            <input
+              type="hidden"
               name="body"
-              rows={9}
-              required
-              minLength={20}
+              value={bodyText.length >= 20 ? body : ""}
             />
+            {bodyText.length > 0 && bodyText.length < 20 ? (
+              <small className="field-hint">
+                20자 이상 적어 주세요. 지금 {bodyText.length}자입니다.
+              </small>
+            ) : null}
           </div>
           <div className="field">
             <span className="field-label">이미지 첨부</span>
@@ -2574,7 +2629,22 @@ function PostDetail({
           {post.badge ? <b>{post.badge}</b> : null}
         </div>
         <h1>{post.title}</h1>
-        <p className="post-body">{post.body}</p>
+        {/*
+          본문은 편집기가 만든 HTML 이다. 남의 글은 DB 를 거쳐 오므로 그릴
+          때 한 번 더 거른다 - 허용한 여덟 태그만 남기고, 링크는 http(s)
+          만 통과시킨다.
+
+          편집기가 생기기 전에 쓴 글은 태그가 없다. 그건 그냥 글자로 그린다
+          (HTML 로 보면 줄바꿈이 사라져 한 덩어리가 된다).
+        */}
+        {isPlainText(post.body) ? (
+          <p className="post-body">{post.body}</p>
+        ) : (
+          <div
+            className="post-body rich-text"
+            dangerouslySetInnerHTML={{ __html: sanitizeRichText(post.body) }}
+          />
+        )}
         {post.images?.length ? (
           <div className="attachment-list">
             {post.images.map((image) => (
@@ -2645,10 +2715,32 @@ function PostDetail({
           </button>
         </div>
       </article>
-      <section className="comments">
-        <h2>
-          회원 답변 <span>{post.comments.length}</span>
-        </h2>
+      {/*
+        AI 초안과 같은 그릇에 담는다.
+
+        한 화면에 답변이 둘인데 담는 모양이 서로 달랐다. 위는 상단 굵은 선,
+        구역 머리, 좌측 라벨 열까지 갖춘 카드였고 아래는 제목 하나에 점선
+        빈 박스와 기본 입력창이었다. 왜 다른지 읽히는 이유가 없었다 -
+        의도가 아니라 한쪽만 만들고 맞추지 않은 것이다.
+
+        **내용은 자유 문장 그대로 둔다.** 사람에게 다섯 칸을 채우라고 하면
+        답변 자체가 안 달린다. 담는 그릇만 맞춘다.
+      */}
+      <section className="comments answer-block">
+        <header className="answer-block-header">
+          <div>
+            <span className="answer-block-mark" aria-hidden="true">
+              <IconPen />
+            </span>
+            <div>
+              <b>회원 답변</b>
+              <small>
+                현직자가 겪은 실제 경험입니다. 정해진 형식이 없습니다.
+              </small>
+            </div>
+          </div>
+          <span className="answer-block-count">{post.comments.length}</span>
+        </header>
         {post.comments.length === 0 ? (
           <p className="list-empty">
             아직 답변이 없습니다. 먼저 경험을 남겨 주세요.
@@ -2668,40 +2760,42 @@ function PostDetail({
                     ? "검증 영업인"
                     : "커뮤니티 멤버"}
               </strong>
-              <p>{isReply ? comment.slice(REPLY_MARK.length) : comment}</p>
-              {/* 답글에는 다시 답글을 달지 않는다. 한 단계까지만 둔다. */}
-              {!isReply && state.role !== "guest" ? (
-                <button
-                  className="comment-reply-toggle"
-                  onClick={() =>
-                    setReplyingTo(replyingTo === index ? null : index)
-                  }
-                >
-                  {replyingTo === index ? "답글 취소" : "답글"}
-                </button>
-              ) : null}
-              {/*
+              <div className="answer-body">
+                <p>{isReply ? comment.slice(REPLY_MARK.length) : comment}</p>
+                {/* 답글에는 다시 답글을 달지 않는다. 한 단계까지만 둔다. */}
+                {!isReply && state.role !== "guest" ? (
+                  <button
+                    className="comment-reply-toggle"
+                    onClick={() =>
+                      setReplyingTo(replyingTo === index ? null : index)
+                    }
+                  >
+                    {replyingTo === index ? "답글 취소" : "답글"}
+                  </button>
+                ) : null}
+                {/*
                 답글 입력창은 그 답변 바로 아래에 연다. 전에는 화면 맨 아래
                 공용 입력창의 상태만 바뀌어서, 어디에 답글을 다는 중인지
                 보이지 않았다.
               */}
-              {replyingTo === index ? (
-                <form
-                  onInvalidCapture={koreanValidity}
-                  onInputCapture={clearValidity}
-                  className="comment-form is-inline"
-                  onSubmit={addComment}
-                >
-                  <label>
-                    답글 쓰기
-                    <textarea name="comment" rows={3} required />
-                  </label>
-                  <button type="button" onClick={() => setReplyingTo(null)}>
-                    취소
-                  </button>
-                  <button className="button primary">답글 등록</button>
-                </form>
-              ) : null}
+                {replyingTo === index ? (
+                  <form
+                    onInvalidCapture={koreanValidity}
+                    onInputCapture={clearValidity}
+                    className="comment-form is-inline"
+                    onSubmit={addComment}
+                  >
+                    <label>
+                      답글 쓰기
+                      <textarea name="comment" rows={3} required />
+                    </label>
+                    <button type="button" onClick={() => setReplyingTo(null)}>
+                      취소
+                    </button>
+                    <button className="button primary">답글 등록</button>
+                  </form>
+                ) : null}
+              </div>
             </article>
           );
         })}
