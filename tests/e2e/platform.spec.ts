@@ -89,6 +89,8 @@ test("회사 탐색부터 익명 리뷰 통계 반영까지 연결된다", async
   await page.goto("/");
   await page.getByRole("link", { name: "회사 탐색 시작" }).click();
   await page.getByTestId("company-search").fill("노스스타");
+  // 검색은 이제 눌러야 걸린다. 타자마다 목록이 튀지 않게 바꿨다.
+  await page.getByRole("button", { name: "검색", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "노스스타 클라우드" }),
   ).toBeVisible();
@@ -136,8 +138,10 @@ test("일반 게시글과 이미지 첨부 메타데이터를 등록한다", asy
   await page.goto("/posts/new");
   await page.getByLabel("게시판").selectOption("실적");
   await page.getByLabel("제목").fill("분기 목표를 초과한 파이프라인 운영 기록");
+  /* 본문은 이제 textarea 가 아니라 편집기(contenteditable)다. 서식 버튼이
+     마크다운 기호를 꽂아 넣던 걸 실제 서식으로 바꿨다. */
   await page
-    .getByLabel("내용")
+    .locator(".rich-editor-surface")
     .fill(
       "리드 응답 시간을 줄이고 매주 단계별 전환율을 확인해 막힌 구간부터 개선했습니다.",
     );
@@ -192,6 +196,7 @@ test("질문 등록 후 AI 첫 답변 상태 전이가 완료된다", async ({ p
 test("회사 검색 빈 상태에서 조건을 바로 초기화할 수 있다", async ({ page }) => {
   await page.goto("/companies");
   await page.getByTestId("company-search").fill("없는 회사 이름");
+  await page.getByRole("button", { name: "검색", exact: true }).click();
   await expect(page.getByText("조건에 맞는 회사가 없습니다.")).toBeVisible();
   await page.getByRole("button", { name: "검색 조건 초기화" }).click();
   await expect(
