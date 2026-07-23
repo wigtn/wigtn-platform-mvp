@@ -7,6 +7,7 @@
 import { chromium } from "@playwright/test";
 
 const WIDTHS = [
+  { name: "xs", width: 320, height: 800 },
   { name: "mobile", width: 390, height: 844 },
   { name: "tablet", width: 768, height: 1024 },
 ];
