@@ -1346,19 +1346,22 @@ input[type="file"]::file-selector-button:hover {
   본문 바로 아래에 글자처럼 흘러서 문장 끝인지 누르는 자리인지 안 읽혔다.
   글 상세의 "도움됐어요 / 신고" 와 같은 모양으로 맞춘다.
 */
+/* 답변 줄의 오른쪽 끝. 본문을 읽는 데 방해되지 않게 작게 둔다. */
 .answer-actions {
-  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
 }
 .answer-actions .comment-reply-toggle {
-  gap: 6px;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--white);
-  font-size: 12px;
+  min-height: 0;
+  margin: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+  font-size: 11px;
 }
 .answer-actions .comment-reply-toggle:hover {
-  border-color: var(--border-strong);
   color: var(--primary);
 }
 .comments article p {
@@ -4405,17 +4408,64 @@ select:focus {
     width: 56px;
     height: 56px;
   }
-  .featured-company-signals {
+  /*
+    숫자 두 개가 화면 양끝으로 벌어졌다.
+
+    `space-between` 이라 358px 안에서 "6 등록 회사" 와 "7 공개 리뷰" 사이가
+    200px 넘게 비었다. 한 쌍으로 읽혀야 하는 값인데 서로 남처럼 떨어져
+    있었다. 왼쪽에 붙여 둔다.
+  */
+  .preview-proof {
+    justify-content: flex-start;
+    gap: 20px;
+    padding-top: 14px;
+  }
+
+  /* 세 줄이 4px 간격으로 붙어 한 덩어리로 뭉쳤다. */
+  .trust-bar-inner {
+    gap: 8px;
+    padding-block: 18px;
+  }
+
+  /*
+    홈 글 목록.
+
+    `60px 1fr auto` 를 그대로 써서 게시판 이름이 제목 옆에 붙었다. 390px
+    에서는 제목이 288px 로 눌려 두세 줄로 접힌다. 이름을 제목 위로 올리고
+    도움·댓글 수를 그 옆에 둔다.
+  */
+  .story-list a {
     grid-template-columns: 1fr;
+    gap: 6px;
+    padding-block: 18px;
   }
-  .featured-company-signals div,
+  .story-stats {
+    order: 3;
+  }
+
+  /* 머리 블록이 195px 이었다. 제목과 설명 사이가 28px 씩 벌어져 있었다. */
+  .home-companies .section-heading {
+    gap: 14px;
+    padding-bottom: 16px;
+  }
+
+  /*
+    지표 셋을 한 줄씩 쌓았더니 209px 이 됐다. 짧은 숫자 셋에 화면 4분의
+    1을 쓴 셈이다. 좁아도 셋은 나란히 들어간다 - 값이 "4.2", "1건" 처럼
+    짧다.
+  */
+  .featured-company-signals {
+    grid-template-columns: repeat(3, 1fr);
+    margin-top: 26px;
+  }
+  .featured-company-signals div {
+    padding: 12px 0;
+  }
   .featured-company-signals div + div {
-    padding: 11px 0;
-    border-right: 0;
-    border-bottom: 1px solid #d2d2cb;
+    padding-left: 12px;
   }
-  .featured-company-signals div:last-child {
-    border-bottom: 0;
+  .featured-company-signals dd {
+    font-size: 15px;
   }
   .ranked-company {
     grid-template-columns: 28px 40px 1fr 45px;

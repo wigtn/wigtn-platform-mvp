@@ -44,7 +44,6 @@ import {
   IconLive,
   IconPen,
   IconSearch,
-  IconSparkles,
   IconSliders,
   IconStar,
   IconVerified,
@@ -2788,14 +2787,16 @@ function PostDetail({
                 */}
                 {!isReply && state.role !== "guest" ? (
                   <div className="answer-actions">
+                    {/* 테두리에 아이콘까지 붙였더니 답변 본문만큼 눈에
+                        들어왔다. 답변을 읽는 자리지 버튼을 보는 자리가
+                        아니다. 글자만 남기고 오른쪽 끝으로 뺀다. */}
                     <button
                       className="comment-reply-toggle"
                       onClick={() =>
                         setReplyingTo(replyingTo === index ? null : index)
                       }
                     >
-                      <IconPen />
-                      {replyingTo === index ? "답글 취소" : "답글 쓰기"}
+                      {replyingTo === index ? "취소" : "답글"}
                     </button>
                   </div>
                 ) : null}
@@ -3004,11 +3005,16 @@ function AiAnswerCard({
     <section className="fieldnote-answer" aria-label="AI 초안">
       <header className="fieldnote-answer-header">
         <div>
-          {/* 전에는 "F" 머리글자였다. 회사 로고처럼 읽혀서, 이 글을 기계가
-              썼다는 신호가 화면 어디에도 없었다. */}
-          <span className="fieldnote-answer-mark" aria-hidden="true">
-            <IconSparkles />
-          </span>
+          {/*
+            표시를 아예 뺐다.
+
+            "F" 머리글자는 회사 로고처럼 읽혔고, 반짝임 아이콘으로 바꿨더니
+            AI 붙은 제품이면 다 쓰는 그림이라 오히려 티가 났다. 무엇으로
+            바꾸든 장식이 하나 더 붙는 것이다.
+
+            제목이 "AI가 쓴 초안" 이고 오른쪽에 모델 이름이 있다. 이미 다
+            말했다.
+          */}
           <div>
             {/*
               "실무 답변" 이라고만 적혀 있었다. 아래에는 "회원 답변" 이
@@ -3017,7 +3023,6 @@ function AiAnswerCard({
               "AI 초안" 이라고 부르고 여기만 아니었다.
             */}
             <b>AI가 쓴 초안</b>
-            <small>사람이 검토하지 않은 자동 생성 글입니다.</small>
           </div>
         </div>
         {/* 모델 이름이 카드 맨 아래 각주에 있었다. 진짜 모델이 답한 건지
