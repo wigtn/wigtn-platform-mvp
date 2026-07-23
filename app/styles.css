@@ -2454,10 +2454,21 @@ input[type="file"]::file-selector-button:hover {
 .community-channels .board-tabs button {
   display: flex;
   justify-content: space-between;
-  padding: 12px 2px;
+  /* 좌우 2px 이 있어서 글자만 위 제목보다 안쪽으로 밀려 있었다. */
+  padding: 12px 0;
   border-radius: 0;
   border-bottom: 1px solid #d2d2cb;
   background: transparent;
+}
+/*
+  마지막 줄의 밑줄을 뺀다.
+
+  목록이 밑줄로 끝나고 28px 아래에서 아래 안내가 또 윗줄로 시작해서, 아무것도
+  없는 자리에 가로선 두 개가 나란히 놓였다. 목록의 끝은 아래 안내의 줄이
+  대신한다.
+*/
+.community-channels .board-tabs button:last-of-type {
+  border-bottom: 0;
 }
 .community-channels .board-tabs button.active {
   background: transparent;

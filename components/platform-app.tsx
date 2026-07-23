@@ -235,6 +235,38 @@ function overlayTransientState(state: DemoState): DemoState {
     if (!Array.isArray(transient.posts) || !Array.isArray(transient.reviews)) {
       return state;
     }
+    /*
+      스냅샷이 서버 데이터를 통째로 덮지 않게 한다.
+
+      전에는 `...transient` 를 그대로 펼쳐서 posts·reviews 배열이 방금 읽은
+      서버 값을 통째로 밀어냈다. 이 스냅샷은 **탭이 열려 있는 동안 계속**
+      살아 있으므로, 서버에서 바뀐 것이 탭을 닫기 전까지 화면에 안 나온다.
+
+      실제로 이것 때문에 등급 배지가 안 보였다. DB 에 컬럼을 만들고 값을
+      채우고 조회까지 200 으로 잘 받아 왔는데, 화면은 배지가 없던 시절의
+      스냅샷을 계속 그리고 있었다. 오류가 없어서 원인을 찾기 어려웠다.
+
+      스냅샷이 알아야 하는 건 **방문자가 방금 한 일**뿐이다. 서버가 아는
+      글은 서버 값을 쓰고, 내 흔적(좋아요·스크랩·댓글·AI 답변)만 얹는다.
+      서버가 아직 모르는 글은 그대로 앞에 붙인다.
+    */
+    const mine = new Map(transient.posts.map((post) => [post.id, post]));
+    const merged = (state.posts ?? []).map((post) => {
+      const saved = mine.get(post.id);
+      if (!saved) return post;
+      mine.delete(post.id);
+      return {
+        ...post,
+        liked: saved.liked,
+        likes: saved.likes,
+        saved: saved.saved,
+        comments: saved.comments,
+        ai: saved.ai ?? post.ai,
+        aiAnswer: saved.aiAnswer ?? post.aiAnswer,
+        aiModel: saved.aiModel ?? post.aiModel,
+      };
+    });
+
     return {
       ...state,
       ...transient,
@@ -244,6 +276,19 @@ function overlayTransientState(state: DemoState): DemoState {
         : transient.companies,
       boardIds: state.boardIds ?? transient.boardIds,
       companyIds: state.companyIds ?? transient.companyIds,
+      // 서버가 아직 모르는 글(방금 쓴 것)을 앞에, 서버가 아는 글을 뒤에.
+      posts: [...mine.values(), ...merged],
+      /*
+        리뷰도 같은 규칙이다. 서버 값을 정본으로 두되, 원장이 아직 못 따라온
+        내 리뷰는 잃지 않는다. `state.reviews` 를 통째로 쓰면 방금 쓴 리뷰가
+        잠깐 사라졌다가 나타난다.
+      */
+      reviews: [
+        ...transient.reviews.filter(
+          (review) => !(state.reviews ?? []).some((r) => r.id === review.id),
+        ),
+        ...(state.reviews ?? []),
+      ],
     } as DemoState;
   } catch {
     return state;
