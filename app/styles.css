@@ -1251,21 +1251,84 @@ input[type="file"]::file-selector-button:hover {
 .ai-result p {
   color: var(--text-subtle);
 }
-.comments {
-  margin-top: 48px;
-  padding-top: 28px;
-  border-top: 1px solid var(--border-strong);
+/*
+  회원 답변을 AI 초안과 같은 그릇에 담는다.
+
+  한 화면에 답변이 둘인데 담는 모양이 서로 달랐다. 위는 상단 굵은 선과
+  구역 머리, 좌측 라벨 열을 갖춘 카드였고 아래는 제목 하나에 기본 입력창
+  이었다. 왜 다른지 읽히는 이유가 없었다.
+
+  내용은 자유 문장 그대로 둔다. 담는 규칙만 맞춘다 - 같은 상단선, 같은
+  구역 머리, 같은 128px 라벨 열.
+*/
+.answer-block {
+  margin-top: 40px;
+  padding-top: 0;
+  border-top: 2px solid var(--text);
+  border-bottom: 1px solid #cfcfc8;
+  background: #fbfbf8;
 }
-.comments h2 {
-  color: var(--navy);
-  font-size: 23px;
+.answer-block-header {
+  min-height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 17px 20px;
+  border-bottom: 1px solid #d8d8d2;
 }
+.answer-block-header > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.answer-block-mark {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  background: var(--white);
+  font-size: 17px;
+}
+.answer-block-header b {
+  display: block;
+  font-size: 14px;
+}
+.answer-block-header small {
+  display: block;
+  color: var(--text-subtle);
+  font-size: 11px;
+}
+.answer-block-count {
+  color: var(--text-subtle);
+  font-size: 13px;
+  font-weight: 800;
+}
+/* AI 카드의 항목 줄과 같은 칸 나눔. 왼쪽은 누가 썼는지, 오른쪽은 내용. */
 .comments article {
-  padding: 21px 0;
-  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 128px 1fr;
+  gap: 24px;
+  padding: 20px;
+  border-bottom: 1px solid #e4e4dd;
+}
+.comments article > strong {
+  color: var(--text-subtle);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 .comments article p {
-  color: var(--text-subtle);
+  margin: 0;
+  color: var(--text);
+}
+.comments .list-empty {
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid #e4e4dd;
 }
 .comments article button {
   padding: 0;
@@ -1287,10 +1350,10 @@ input[type="file"]::file-selector-button:hover {
 .comment-form {
   display: grid;
   gap: 12px;
-  margin-top: 28px;
+  margin-top: 0;
   padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: 0;
+  border-radius: 0;
   background: var(--white);
 }
 .comment-form .role-access-badge {
@@ -5859,10 +5922,16 @@ select:focus {
 }
 
 /* ── 답글 ─────────────────────────────────────────────────────── */
+/*
+  답글은 한 단계 들여쓴다.
+
+  전에는 왼쪽에 선을 그었는데, 사장님이 "박스 왼쪽 라인" 을 빼라고 한
+  갈래와 같은 모양이다. 라벨 열이 생겼으니 그 열을 비워 두는 것만으로
+  단계가 읽힌다.
+*/
 .comments article.is-reply {
-  margin-left: 26px;
-  padding-left: 14px;
-  border-left: 1px solid var(--border);
+  padding-left: 44px;
+  background: #f6f6f2;
 }
 .comment-reply-toggle {
   padding: 4px 0;

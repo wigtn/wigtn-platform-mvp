@@ -2704,10 +2704,32 @@ function PostDetail({
           </button>
         </div>
       </article>
-      <section className="comments">
-        <h2>
-          회원 답변 <span>{post.comments.length}</span>
-        </h2>
+      {/*
+        AI 초안과 같은 그릇에 담는다.
+
+        한 화면에 답변이 둘인데 담는 모양이 서로 달랐다. 위는 상단 굵은 선,
+        구역 머리, 좌측 라벨 열까지 갖춘 카드였고 아래는 제목 하나에 점선
+        빈 박스와 기본 입력창이었다. 왜 다른지 읽히는 이유가 없었다 -
+        의도가 아니라 한쪽만 만들고 맞추지 않은 것이다.
+
+        **내용은 자유 문장 그대로 둔다.** 사람에게 다섯 칸을 채우라고 하면
+        답변 자체가 안 달린다. 담는 그릇만 맞춘다.
+      */}
+      <section className="comments answer-block">
+        <header className="answer-block-header">
+          <div>
+            <span className="answer-block-mark" aria-hidden="true">
+              <IconPen />
+            </span>
+            <div>
+              <b>회원 답변</b>
+              <small>
+                현직자가 겪은 실제 경험입니다. 정해진 형식이 없습니다.
+              </small>
+            </div>
+          </div>
+          <span className="answer-block-count">{post.comments.length}</span>
+        </header>
         {post.comments.length === 0 ? (
           <p className="list-empty">
             아직 답변이 없습니다. 먼저 경험을 남겨 주세요.
@@ -2727,40 +2749,42 @@ function PostDetail({
                     ? "검증 영업인"
                     : "커뮤니티 멤버"}
               </strong>
-              <p>{isReply ? comment.slice(REPLY_MARK.length) : comment}</p>
-              {/* 답글에는 다시 답글을 달지 않는다. 한 단계까지만 둔다. */}
-              {!isReply && state.role !== "guest" ? (
-                <button
-                  className="comment-reply-toggle"
-                  onClick={() =>
-                    setReplyingTo(replyingTo === index ? null : index)
-                  }
-                >
-                  {replyingTo === index ? "답글 취소" : "답글"}
-                </button>
-              ) : null}
-              {/*
+              <div className="answer-body">
+                <p>{isReply ? comment.slice(REPLY_MARK.length) : comment}</p>
+                {/* 답글에는 다시 답글을 달지 않는다. 한 단계까지만 둔다. */}
+                {!isReply && state.role !== "guest" ? (
+                  <button
+                    className="comment-reply-toggle"
+                    onClick={() =>
+                      setReplyingTo(replyingTo === index ? null : index)
+                    }
+                  >
+                    {replyingTo === index ? "답글 취소" : "답글"}
+                  </button>
+                ) : null}
+                {/*
                 답글 입력창은 그 답변 바로 아래에 연다. 전에는 화면 맨 아래
                 공용 입력창의 상태만 바뀌어서, 어디에 답글을 다는 중인지
                 보이지 않았다.
               */}
-              {replyingTo === index ? (
-                <form
-                  onInvalidCapture={koreanValidity}
-                  onInputCapture={clearValidity}
-                  className="comment-form is-inline"
-                  onSubmit={addComment}
-                >
-                  <label>
-                    답글 쓰기
-                    <textarea name="comment" rows={3} required />
-                  </label>
-                  <button type="button" onClick={() => setReplyingTo(null)}>
-                    취소
-                  </button>
-                  <button className="button primary">답글 등록</button>
-                </form>
-              ) : null}
+                {replyingTo === index ? (
+                  <form
+                    onInvalidCapture={koreanValidity}
+                    onInputCapture={clearValidity}
+                    className="comment-form is-inline"
+                    onSubmit={addComment}
+                  >
+                    <label>
+                      답글 쓰기
+                      <textarea name="comment" rows={3} required />
+                    </label>
+                    <button type="button" onClick={() => setReplyingTo(null)}>
+                      취소
+                    </button>
+                    <button className="button primary">답글 등록</button>
+                  </form>
+                ) : null}
+              </div>
             </article>
           );
         })}
