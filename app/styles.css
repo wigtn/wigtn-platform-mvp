@@ -1882,16 +1882,27 @@ input[type="file"]::file-selector-button:hover {
   border-color: var(--primary);
   background: var(--primary);
 }
-.company-logo,
-.logo-orbit-bioworks,
-.logo-ledger-lab,
-.logo-harbor-robotics,
-.logo-greenmile-commerce,
-.logo-mosaic-learning {
+/*
+  회사 표시.
+
+  전에는 이름 첫 글자를 네모에 넣었다("모", "노", "하"…). 목록을 훑을 때
+  회사가 구분되지 않고, 로고 자리에 글자만 있으니 아직 안 만든 화면처럼
+  보였다. 이름에서 정해진 방식으로 고른 도형을 그린다.
+*/
+.company-logo {
   border: 1px solid #cfcfc7;
   border-radius: 2px;
   background: #fff;
   color: #1d1d1a;
+}
+.company-mark {
+  width: 58%;
+  height: 58%;
+}
+/* 회사 상세의 큰 표시. 도형이 커지면 선이 가늘어 보여 비율을 줄인다. */
+.company-logo-large .company-mark {
+  width: 46%;
+  height: 46%;
 }
 /*
   대문자 변환을 뺐다.
@@ -2683,6 +2694,147 @@ input[type="file"]::file-selector-button:hover {
 /* 바로가기로 본문에 초점이 갔을 때 본문 전체에 테두리를 그리지 않는다. */
 main:focus {
   outline: none;
+}
+
+/* ══ 쪽 이동 ═════════════════════════════════════════════════════════
+ *
+ * 전에는 글이 몇 개든 한 화면에 전부 쏟았다. 커뮤니티는 글이 쌓이는 곳이라
+ * 그대로 두면 스크롤이 끝없이 길어진다.
+ */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+}
+.pager ol {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pager button {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--white);
+  color: var(--text-subtle);
+  font-size: 12px;
+  font-weight: 650;
+}
+.pager button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.pager button.is-on {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--white);
+}
+/* 첫 쪽·마지막 쪽에서는 눌러도 갈 곳이 없다. 눌리는 것처럼 보이지 않게 한다. */
+.pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 검색이 폼이 되면서 버튼이 한 줄에 들어간다. */
+.community-toolbar {
+  flex-wrap: wrap;
+}
+.community-toolbar .feed-count {
+  margin-left: auto;
+}
+
+/* ══ 글 편집기 ═══════════════════════════════════════════════════════
+ *
+ * 전에는 textarea 였다. 서식 버튼이 `**굵게**` 같은 기호를 글 안에 꽂아
+ * 넣어서, 쓰는 사람 눈에 문법이 그대로 보였다. TipTap 으로 바꾸면서
+ * 입력칸이 div 가 되므로, 다른 입력칸과 같은 모양을 여기서 맞춘다.
+ */
+.rich-editor {
+  display: grid;
+}
+.rich-editor .editor-toolbar {
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+/* 지금 걸려 있는 서식을 알려 준다. 전에는 눌러도 표시가 없었다. */
+.editor-toolbar button.is-on {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.rich-editor-surface {
+  min-height: 210px;
+  padding: 14px 15px;
+  border: 1px solid var(--border-strong);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--white);
+  font-size: 14px;
+  line-height: 1.7;
+  outline: none;
+}
+.rich-editor-surface:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+}
+/* 아무것도 안 썼을 때 안내. TipTap 은 빈 문단에 이 표시를 붙여 준다. */
+.rich-editor-surface p.is-editor-empty:first-child::before {
+  content: "영업 현장에서 겪은 상황과 그때 한 판단을 적어 주세요.";
+  float: left;
+  height: 0;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+/*
+  편집기 안과 글 상세가 같은 모양으로 보이게 한다. 쓸 때와 읽을 때가
+  다르면, 올리고 나서 "내가 쓴 게 이게 맞나" 싶어진다.
+*/
+.rich-editor-surface > *:first-child,
+.rich-text > *:first-child {
+  margin-top: 0;
+}
+.rich-editor-surface > *:last-child,
+.rich-text > *:last-child {
+  margin-bottom: 0;
+}
+.rich-editor-surface p,
+.rich-text p {
+  margin: 0 0 12px;
+}
+.rich-editor-surface ul,
+.rich-editor-surface ol,
+.rich-text ul,
+.rich-text ol {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+.rich-editor-surface li,
+.rich-text li {
+  margin-bottom: 4px;
+}
+.rich-editor-surface blockquote,
+.rich-text blockquote {
+  margin: 0 0 12px;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-subtle);
+}
+.rich-editor-surface a,
+.rich-text a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* 글자 수가 모자랄 때 조용히 막히지 않게 이유를 적는다. */
+.field-hint {
+  color: var(--text-subtle);
+  font-size: 11px;
 }
 
 /* 본문 바로가기. 탭으로 닿을 때만 나타난다. */
