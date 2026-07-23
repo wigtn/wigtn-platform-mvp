@@ -84,6 +84,9 @@ test("헤더에서 권한별 데모 계정으로 로그인한다", async ({ page
 });
 
 test("회사 탐색부터 익명 리뷰 통계 반영까지 연결된다", async ({ page }) => {
+  // 비회원은 리뷰를 쓸 수 없다. 글·질문 폼과 같은 규칙이다.
+  await switchRole(page, "일반 영업인");
+  await page.goto("/");
   await page.getByRole("link", { name: "회사 탐색 시작" }).click();
   await page.getByTestId("company-search").fill("노스스타");
   await expect(
