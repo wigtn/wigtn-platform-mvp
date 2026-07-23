@@ -5712,19 +5712,7 @@ select:focus {
   align-items: center;
   gap: 12px;
 }
-.fieldnote-answer-mark {
-  width: 38px;
-  height: 38px;
-  font-size: 17px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  background: var(--text);
-  color: #fff;
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 800;
-}
+
 .fieldnote-answer-header b {
   display: block;
   color: var(--text);
@@ -5736,21 +5724,71 @@ select:focus {
   color: var(--text-subtle);
   font-size: 11px;
 }
-.fieldnote-answer-status {
-  display: inline-flex;
+/*
+  글 상세의 머리 부분.
+
+  전에는 게시판·이름·배지가 한 줄에 붙어 있어 누가 썼는지가 분류처럼
+  읽혔고, 이름 옆에는 아무 표시도 없었다. 답변 쪽에는 머리글자를 뒀는데
+  글쓴이에게는 없어서, 한 화면에서 사람을 나타내는 방식이 둘이었다.
+
+  게시판 → 제목 → 글쓴이 순으로 세우고, 글쓴이 줄 아래에 선을 그어 본문과
+  나눈다.
+*/
+.post-board {
+  margin-bottom: 12px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 750;
+}
+.post-byline {
+  display: flex;
   align-items: center;
-  gap: 7px;
-  color: #4d5d52;
+  gap: 10px;
+  margin: 20px 0 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.post-byline > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.post-byline strong {
+  font-size: 14px;
+}
+/* 본문 끝과 동작 줄 사이도 나눈다. 전에는 그냥 붙어 있었다. */
+.post-detail .post-actions {
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* 이제 모델 이름만 남는다. 초록 점과 "작성 완료" 는 뺐다. */
+.fieldnote-answer-status {
+  color: var(--text-faint);
   font-size: 11px;
-  font-weight: 700;
+  font-style: italic;
   white-space: nowrap;
 }
-.fieldnote-answer-status i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #2d8a5c;
-  box-shadow: 0 0 0 4px rgba(45, 138, 92, 0.11);
+
+/*
+  누가 썼는지 붙이는 글자표.
+
+  그림으로는 "AI" 를 말할 방법이 마땅치 않았다. 회사 로고처럼 읽히거나,
+  어디서 본 아이콘이 된다. 신문이 기사 위에 "사설" 을 붙이듯 적는다.
+*/
+.fieldnote-answer-tag {
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  padding: 4px 8px;
+  border: 1px solid var(--text);
+  border-radius: 2px;
+  background: var(--text);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
 }
 .fieldnote-answer-summary {
   display: grid;
