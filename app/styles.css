@@ -61,6 +61,21 @@ body {
   font-size: 15px;
   line-height: 1.6;
   letter-spacing: -0.015em;
+  /*
+    한글을 어절 단위로 끊는다.
+
+    기본값(normal)은 한글을 글자 단위로 끊는다. 좁은 화면에서 제목이
+
+        운영 관리자 역할이 필요합니
+        다
+
+    처럼 끝 글자 하나만 다음 줄로 떨어졌다. 영어에는 없는 현상이라
+    데스크톱만 보면 안 드러난다.
+  */
+  word-break: keep-all;
+  /* keep-all 만 두면 줄보다 긴 토큰(URL, 긴 영단어)이 칸을 뚫고 나간다.
+     혼자서도 안 들어가는 것만 쪼갠다. */
+  overflow-wrap: break-word;
 }
 a {
   color: inherit;
@@ -549,7 +564,17 @@ textarea::placeholder {
   font-size: 11px;
   font-weight: 600;
 }
+/*
+  이름과 화살표를 한 줄에 붙인다.
+
+  전에는 h3 가 그냥 블록이라, 목록에서 이름 칸(220px)이 좁으면 화살표만
+  다음 줄로 떨어졌다. 이름 아래에 화살표 하나가 붕 떠 있어서 뭔가 빠진
+  것처럼 보였다.
+*/
 .company-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   margin: 0 0 9px;
   color: #252d3d;
   font-size: 19px;
@@ -1429,6 +1454,9 @@ input[type="file"]::file-selector-button:hover {
 .activity-list a {
   display: grid;
   grid-template-columns: 65px 1fr;
+  /* 11px 갈래표와 본문 글씨의 크기가 달라, 맞춰 두지 않으면 같은 줄인데
+     위아래로 어긋나 보인다. */
+  align-items: baseline;
   gap: 12px;
   padding: 14px 0;
   border-top: 1px solid var(--border);
@@ -1436,6 +1464,11 @@ input[type="file"]::file-selector-button:hover {
 .activity-list span {
   color: var(--primary);
   font-size: 11px;
+}
+/* 활동 한 줄은 제목이 아니라 기록이다. 본문 굵기로 둔다. */
+.activity-list strong {
+  font-size: 14px;
+  font-weight: 600;
 }
 .compare-select {
   display: grid;
@@ -2025,14 +2058,16 @@ input[type="file"]::file-selector-button:hover {
   border-top: 2px solid #171715;
 }
 .company-list .company-card {
-  min-height: 126px;
+  /* 126px 은 내용에 비해 너무 높았다. 한 줄에 회사 하나인데 스크롤을
+     세 번 해야 여섯 곳이 보였다. */
+  min-height: 96px;
   display: grid;
   grid-template-areas: "logo meta desc score" "logo name desc score";
   grid-template-columns: 68px 220px 1fr 220px;
   grid-template-rows: 1fr 1fr;
   gap: 0 20px;
   align-items: center;
-  padding: 20px 0;
+  padding: 14px 0;
   border: 0;
   border-bottom: 1px solid #d2d2cb;
   border-radius: 0;
@@ -2322,7 +2357,9 @@ input[type="file"]::file-selector-button:hover {
 .community-hero-inner {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 35px;
+  /* 가로 간격만 준다. 세로 간격까지 주면 아래 통계줄의 margin 과 겹쳐
+     설명 문장과 통계 사이가 80px 넘게 비었다. */
+  gap: 0 35px;
 }
 .community-hero h1 {
   margin: 0;
@@ -2483,12 +2520,26 @@ input[type="file"]::file-selector-button:hover {
   color: var(--text-subtle);
   font-size: 13px;
 }
+/*
+  스크랩 버튼.
+
+  전에는 밑줄만 그었는데, 글과 글을 나누는 구분선이 거의 같은 높이에 있어서
+  줄 두 개가 겹쳐 보였다. 어디까지가 버튼인지 안 읽혔다. 아이콘을 주고
+  밑줄은 뺀다 - 도움됐어요·신고와 같은 모양이 된다.
+*/
 .community-main .post-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   margin-left: auto;
-  border: 0;
-  border-bottom: 1px solid #8d8d86;
-  border-radius: 0;
-  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--white);
+}
+.community-main .post-actions button.is-on {
+  border-color: #cfe3d8;
+  background: var(--mint-soft, #e8f8f3);
+  color: #16724f;
 }
 .community-rail section {
   padding: 0 0 26px;
@@ -3626,8 +3677,28 @@ select:focus {
   .hero-lead {
     font-size: 16px;
   }
+  /*
+    좁은 화면에서는 이 카드를 통째로 숨겼었다.
+
+    순위 3줄은 바로 아래 "이번 주 많이 본 회사"와 같은 내용이라 안 보여도
+    되지만, **회원 수와 리뷰 수는 여기에만 있다.** 카드를 통째로 없애니
+    첫 화면에서 서비스 규모를 알려 주는 숫자가 모바일에만 사라졌다.
+
+    겹치는 순위만 접고 숫자는 남긴다.
+  */
   .career-preview {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .career-preview .preview-head,
+  .career-preview .preview-company {
     display: none;
+  }
+  .career-preview .preview-proof {
+    margin: 0;
+    padding: 0;
+    border: 0;
   }
   .trust-bar-inner {
     min-height: 78px;
@@ -3731,6 +3802,11 @@ select:focus {
   }
   .compare-select span {
     text-align: center;
+  }
+  /* 두 선택을 가로로 잇던 선이다. 세로로 쌓이면 이을 것이 없어서, 짧은
+     줄 하나가 선택 사이에 홀로 남는다. */
+  .compare-divider {
+    display: none;
   }
   .footer-inner {
     grid-template-columns: 1fr;
@@ -5716,9 +5792,16 @@ textarea:focus-visible,
   .post-actions {
     gap: 8px;
   }
-  .post-actions button {
+  /* 글 상세는 도움됐어요·신고 둘이 한 줄을 나눠 쓴다. 폭을 반씩 채우면
+     엄지로 누르기 좋다. */
+  .post-detail .post-actions button {
     flex: 1 1 auto;
     justify-content: center;
+  }
+  /* 목록의 스크랩은 그 줄에 혼자 있다. 같은 규칙을 주면 남은 폭을 전부
+     먹어서 글자 하나짜리 버튼이 화면 절반이 됐다. */
+  .community-main .post-actions button {
+    flex: 0 0 auto;
   }
 
   /* 관리자 메뉴가 한 줄 가로 스크롤로 숨어서 뒤쪽 항목이 있는지 몰랐다.

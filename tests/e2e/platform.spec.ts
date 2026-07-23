@@ -90,7 +90,18 @@ test("회사 탐색부터 익명 리뷰 통계 반영까지 연결된다", async
     page.getByRole("heading", { name: "노스스타 클라우드" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "노스스타 클라우드" }).click();
+
+  // 6축 중 리드 품질의 현재 평균. 리뷰를 넣은 뒤 이 값이 움직여야 한다.
+  const leadQuality = page
+    .locator(".score-bars > div")
+    .filter({ hasText: "리드 품질" })
+    .locator("strong");
+  const before = await leadQuality.innerText();
+
   await page.getByRole("link", { name: "익명 리뷰 작성" }).click();
+  // 회사 페이지에서 왔으면 그 회사가 골라져 있어야 한다. 전에는 목록 첫
+  // 회사가 떠 있어서, 그냥 등록하면 리뷰가 다른 회사에 달렸다.
+  await expect(page.locator("select").first()).toHaveValue("northstar-cloud");
   await page
     .getByLabel("한 줄 요약")
     .fill("코칭과 목표 조정이 실제로 연결됩니다");
@@ -104,9 +115,16 @@ test("회사 탐색부터 익명 리뷰 통계 반영까지 연결된다", async
   await expect(
     page.getByText("코칭과 목표 조정이 실제로 연결됩니다"),
   ).toBeVisible();
-  await expect(
-    page.locator(".score-bars").getByText("4.8", { exact: true }),
-  ).toBeVisible();
+  /*
+    전에는 "4.8 이 그대로 보인다"고 봤다. 축 점수는 공개된 리뷰 전체의
+    평균이라, 내가 넣은 리뷰가 유일할 때만 맞는 기대였다. 시드에 리뷰가
+    쌓이는 순간 4.8 은 나올 수 없다.
+
+    확인할 것은 값이 얼마냐가 아니라 **내 리뷰가 통계에 반영됐는가**다.
+    4.8 은 기존 평균보다 높으니 평균은 올라가야 한다.
+  */
+  await expect(leadQuality).not.toHaveText(before);
+  expect(Number(await leadQuality.innerText())).toBeGreaterThan(Number(before));
 });
 
 test("일반 게시글과 이미지 첨부 메타데이터를 등록한다", async ({ page }) => {

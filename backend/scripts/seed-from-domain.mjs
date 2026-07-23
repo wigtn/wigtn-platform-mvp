@@ -141,9 +141,21 @@ const REVIEW_AUTHORS = allReviews.map((r, i) => ({
 }));
 const ADMIN = { handle: "admin", name: "운영 관리자" };
 
+/*
+  등급 배지는 글이 아니라 **사람**에 붙는다.
+
+  정적 데이터에서는 `post.badge` 로 글마다 들고 있었지만, 같은 사람이 쓴
+  글에는 같은 배지가 붙어야 한다. 글마다 따로 두면 한 사람의 배지가 글에
+  따라 달라지는 상태가 만들어진다. 작성자별로 한 번만 정한다.
+*/
+const BADGE_BY_AUTHOR = new Map(
+  initialPosts.filter((p) => p.badge).map((p) => [p.author, p.badge]),
+);
+
 const people = [...new Set(initialPosts.map((p) => p.author))].map((name) => ({
   handle: `u_${uuidFor("handle", name).slice(0, 8)}`,
   name,
+  badge: BADGE_BY_AUTHOR.get(name) ?? null,
 }));
 const allPeople = [...people, ...REVIEW_AUTHORS, ADMIN];
 
@@ -189,20 +201,22 @@ w(`on conflict (id) do nothing;`);
 w(``);
 w(`-- 프로필 행은 auth 트리거가 이미 만들었다. 표시 이름만 채운다.`);
 w(
-  `insert into stg_fieldnote.profiles (user_id, handle, display_name, account_status) values`,
+  `insert into stg_fieldnote.profiles (user_id, handle, display_name, account_status, badge) values`,
 );
 w(
   allPeople
     .map(
       (p) =>
-        `  (${q(uuidFor("user", p.handle))}, ${q(p.handle)}, ${q(p.name)}, 'active')`,
+        `  (${q(uuidFor("user", p.handle))}, ${q(p.handle)}, ${q(p.name)}, 'active',` +
+        ` ${p.badge ? q(p.badge) : "null"})`,
     )
     .join(",\n"),
 );
 w(`on conflict (user_id) do update set`);
 w(`  handle = excluded.handle,`);
 w(`  display_name = excluded.display_name,`);
-w(`  account_status = excluded.account_status;`);
+w(`  account_status = excluded.account_status,`);
+w(`  badge = excluded.badge;`);
 w(``);
 
 w(`-- ── 회사 ────────────────────────────────────────────────────────`);
