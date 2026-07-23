@@ -28,6 +28,9 @@ import {
   Lock,
   Check,
   TriangleAlert,
+  Building2,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 
 /** 크기는 부모 글자 크기를 따르고 색은 currentColor 를 따른다. */
@@ -74,6 +77,22 @@ export const IconLock = () => <Lock {...base} />;
 
 /** 확인된 항목. 전에는 `✓` 글자였는데 획 굵기가 다른 아이콘들과 안 맞았다. */
 export const IconCheck = () => <Check {...base} />;
+
+/**
+ * 회사.
+ *
+ * 한때는 이름 첫 글자, 그다음엔 이름에서 뽑은 도형이었다. 글자는 안 만든
+ * 화면처럼 보였고 도형은 아이콘 세트로 읽혔다. 가상의 회사라 진짜 로고가
+ * 없으니, 무엇을 그리든 로고인 척하는 그림이 된다.
+ *
+ * 로고인 척하지 않고 "회사" 라고만 말한다. 여섯 곳이 같은 그림이어도 이름이
+ * 바로 옆에 있다.
+ */
+export const IconBuilding = () => <Building2 {...base} />;
+
+/** 관심도 오름·내림. 숫자를 읽기 전에 방향부터 보이게 한다. */
+export const IconTrendUp = () => <TrendingUp {...base} />;
+export const IconTrendDown = () => <TrendingDown {...base} />;
 
 /** 주의. 전에는 `!` 글자를 그대로 썼다. */
 export const IconCaution = () => <TriangleAlert {...base} />;
