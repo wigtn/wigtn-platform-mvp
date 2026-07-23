@@ -1687,9 +1687,20 @@ input[type="file"]::file-selector-button:hover {
 .compare-grid article > p {
   color: var(--text-subtle);
 }
+/*
+  비교 화면의 두 열은 줄이 맞아야 한다.
+
+  320px 에서 "노스스타 클라우드" 는 두 줄로 접히고 "오빗 바이오웍스" 는 한
+  줄이라, 아래 6축이 통째로 27px 씩 어긋났다. 나란히 놓고 보라고 만든
+  화면에서 같은 항목이 같은 높이에 없으면 비교가 안 된다.
+
+  이름 칸을 두 줄 높이로 잡아 둔다 - 접히든 안 접히든 높이가 같다.
+*/
 .compare-grid h2 {
+  min-height: 2.6em;
   color: var(--navy);
   font-size: 22px;
+  line-height: 1.3;
 }
 .compare-grid > article > strong {
   display: block;
@@ -6405,6 +6416,68 @@ textarea:focus-visible,
  * 컴포넌트마다 따로 키우지 않고 여기서 한 번에 정한다. 44px 은 손끝이
  * 닿는 최소치로 널리 쓰이는 값이다.
  */
+/* ══ 손끝과 눈 ═══════════════════════════════════════════════════════
+ *
+ * 320·360·390·430·768px 을 실측해서 나온 것들이다. 수평 스크롤은 없었지만
+ * 두 가지가 걸렸다.
+ *
+ *   손이 닿는 크기   질문 올리기 44×12, 글 제목 282×23, 빵부스러기 40×18
+ *   글씨 크기        10px 안내문, 11px 업종 표기
+ *
+ * 앞서 만든 44px 규칙은 button·select 만 봤다. 화면에서 실제로 누르는 것의
+ * 절반은 그냥 `a` 다 - 글 제목, 탭, 빵부스러기, 인기 검색.
+ *
+ * 보이는 크기는 그대로 두고 **누르는 칸만** 키운다. 위아래 여백을 주고
+ * 같은 만큼 음수 여백으로 되돌리면 줄 간격이 안 흐트러진다.
+ */
+/*
+  폭이 아니라 **손가락으로 누르는지**로 가른다.
+
+  처음엔 760px 아래에만 걸었는데, 768px 태블릿은 그대로 남았다. 화면이
+  넓어도 손으로 누르는 건 같다. `pointer: coarse` 는 마우스가 아닌 입력을
+  가리키므로 폭과 상관없이 맞는다.
+*/
+@media (max-width: 1024px), (pointer: coarse) {
+  .breadcrumb a,
+  .company-tabs a,
+  .popular-searches a,
+  .feed h2 a,
+  .story-list a h3,
+  .compare-grid .text-link,
+  .community-rail a,
+  .channel-guide a,
+  .hero-explore-link,
+  .trust-bar a,
+  .ranked-note a,
+  .preview-head a,
+  .text-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-block: -10px;
+    padding-block: 10px;
+  }
+
+  /*
+    10~11px 글씨가 본문에 섞여 있었다. 손에 들고 보는 화면에서 10px 은
+    읽으려면 눈을 가까이 대야 한다. 12px 을 바닥으로 둔다.
+  */
+  .channel-guide p,
+  .community-rail p,
+  .answer-standard p,
+  .company-card .caption,
+  .ranked-note p,
+  .ranked-note span,
+  .insight-note,
+  .preview-proof {
+    font-size: 12px;
+  }
+  .channel-guide strong,
+  .answer-standard strong {
+    font-size: 13px;
+  }
+}
+
 @media (max-width: 760px) {
   button,
   .button,
