@@ -2756,7 +2756,20 @@ function PostDetail({
               key={`${comment}-${index}`}
               className={isReply ? "is-reply" : undefined}
             >
+              {/*
+                이름만 한 줄 있으니 왼쪽 칸이 휑했다. 회사 표시·계정 화면과
+                같은 규칙으로 머리글자를 둔다 - 새로 만드는 게 아니라 이미
+                쓰던 표시를 여기도 쓰는 것이다.
+              */}
               <strong>
+                <span className="answer-avatar" aria-hidden="true">
+                  {(isReply
+                    ? "답글"
+                    : index === 0
+                      ? "검증 영업인"
+                      : "커뮤니티 멤버"
+                  ).slice(0, 1)}
+                </span>
                 {isReply
                   ? "답글"
                   : index === 0
@@ -2765,16 +2778,25 @@ function PostDetail({
               </strong>
               <div className="answer-body">
                 <p>{isReply ? comment.slice(REPLY_MARK.length) : comment}</p>
-                {/* 답글에는 다시 답글을 달지 않는다. 한 단계까지만 둔다. */}
+                {/*
+                  답글 버튼이 본문 바로 아래에 글자처럼 흘러서, 문장 끝인지
+                  누르는 자리인지 안 읽혔다. 테두리를 주고 동작 줄로 뺀다 -
+                  글 상세의 "도움됐어요 / 신고" 와 같은 모양이다.
+
+                  답글에는 다시 답글을 달지 않는다. 한 단계까지만 둔다.
+                */}
                 {!isReply && state.role !== "guest" ? (
-                  <button
-                    className="comment-reply-toggle"
-                    onClick={() =>
-                      setReplyingTo(replyingTo === index ? null : index)
-                    }
-                  >
-                    {replyingTo === index ? "답글 취소" : "답글"}
-                  </button>
+                  <div className="answer-actions">
+                    <button
+                      className="comment-reply-toggle"
+                      onClick={() =>
+                        setReplyingTo(replyingTo === index ? null : index)
+                      }
+                    >
+                      <IconPen />
+                      {replyingTo === index ? "답글 취소" : "답글 쓰기"}
+                    </button>
+                  </div>
                 ) : null}
                 {/*
                 답글 입력창은 그 답변 바로 아래에 연다. 전에는 화면 맨 아래
@@ -2817,7 +2839,10 @@ function PostDetail({
             className="comment-form"
             onSubmit={addComment}
           >
-            <span className="role-access-badge">회원 전용</span>
+            {/* "회원 전용" 배지가 붙어 있었다. 이 폼은 비회원에게는 아예
+                안 보이고 잠금 안내가 대신 뜬다 - 즉 이 배지를 볼 수 있는
+                사람은 전부 이미 회원이다. 무엇이 회원 전용인지 알려 주지
+                않고 자리만 차지했다. */}
             <label>
               답변 작성
               <textarea name="comment" rows={4} required />
@@ -2967,9 +2992,12 @@ function ReportDialog({
 function AiAnswerCard({
   answer,
   model,
+  action,
 }: {
   answer: FieldnoteAiAnswer;
   model: string;
+  /** 카드 아래 버튼. 어디로 가는지는 이 카드를 쓰는 화면이 정한다. */
+  action?: ReactNode;
 }) {
   return (
     <section className="fieldnote-answer" aria-label="AI 초안">
@@ -3062,9 +3090,16 @@ function AiAnswerCard({
 
       <footer className="fieldnote-answer-footer">
         <p>AI 초안은 실제 고객 상황에 맞게 조정해 사용하세요.</p>
-        <Link className="button primary" href="/community">
-          커뮤니티에서 보기
-        </Link>
+        {/*
+          전에는 어디서 보든 "커뮤니티에서 보기" 로 목록에 갔다.
+
+          글 상세에서는 이미 그 글을 보고 있으니 그냥 목록으로 나가는
+          버튼이었고, 이름은 무언가 더 있는 것처럼 들렸다. 질문을 막 올린
+          자리에서는 방금 쓴 글로 가야 하는데 목록으로 갔다.
+
+          어디로 가는지는 부르는 쪽이 안다. 그쪽에서 넘겨받는다.
+        */}
+        {action}
       </footer>
     </section>
   );
@@ -3263,7 +3298,20 @@ function QuestionForm({
             <span>커뮤니티 답변 대기</span>
           </div>
           {status === "posted" && aiAnswer ? (
-            <AiAnswerCard answer={aiAnswer} model={aiModel} />
+            <AiAnswerCard
+              answer={aiAnswer}
+              model={aiModel}
+              action={
+                createdIdRef.current ? (
+                  <Link
+                    className="button primary"
+                    href={`/posts/${createdIdRef.current}`}
+                  >
+                    올린 질문 보기
+                  </Link>
+                ) : null
+              }
+            />
           ) : status === "error" ? (
             <div className="ai-result ai-result-error" role="alert">
               <span>AI 답변을 준비하지 못했습니다</span>
