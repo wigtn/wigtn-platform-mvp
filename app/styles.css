@@ -444,26 +444,6 @@ textarea::placeholder {
   font-size: 16px;
   font-weight: 850;
 }
-.logo-orbit-bioworks {
-  background: #eaf8f2;
-  color: #158264;
-}
-.logo-ledger-lab {
-  background: #fff2e8;
-  color: #c76e1a;
-}
-.logo-harbor-robotics {
-  background: #eaf4ff;
-  color: #3074b8;
-}
-.logo-greenmile-commerce {
-  background: #f1f8e8;
-  color: #59882d;
-}
-.logo-mosaic-learning {
-  background: #f8edff;
-  color: #8f4ebb;
-}
 .preview-proof {
   display: flex;
   justify-content: space-between;
@@ -501,8 +481,26 @@ textarea::placeholder {
   font-size: 13px;
   font-weight: 700;
 }
+/*
+  홈 섹션의 경계와 간격.
+
+  다섯 덩어리 중 둘(회사 섹션, 하단 안내)은 배경도 선도 없어서 어디서
+  끝나고 어디서 시작하는지 여백으로만 알 수 있었다. 그 여백마저 86px /
+  84px / 86px 로 제각각이었고, 좁은 화면에서는 60 / 84 / 60 이라 가운데
+  덩어리만 유독 넓었다.
+
+  간격을 값 하나로 모으고, 배경이 없는 섹션에는 실선을 그어 경계를
+  만든다 - 이 화면의 다른 구분과 같은 방식이다.
+*/
+:root {
+  --section-gap: 84px;
+}
 .section {
-  padding-block: 86px;
+  padding-block: var(--section-gap);
+}
+.section + .section,
+.section:not(:first-child) {
+  border-top: 1px solid var(--border);
 }
 .section-heading {
   display: flex;
@@ -621,21 +619,29 @@ textarea::placeholder {
 /*
   관심도 증감.
 
-  오르면 초록, 내리면 `--danger` 빨강이었다. 그 빨강(#d94b54)은 브랜드
-  빨강(#e34b32)과 40px 거리에서 나란히 놓여, 한 화면에 비슷한 빨강이 둘
-  있었다. 초록까지 더하면 강조색이 셋이다.
+  한때 둘 다 무채색으로 뒀다. 강조색을 줄이려던 것인데, 오르내림은 숫자를
+  읽기 전에 방향부터 알아야 하는 값이다. 색이 없으면 매번 +/- 기호를 눈으로
+  찾아야 한다.
 
-  +/- 기호가 이미 방향을 말한다. 눈길이 필요한 쪽(내림)만 브랜드 빨강을
-  쓴다.
+  색을 되살리되 알약으로 감싸 뜻이 있는 표시라는 걸 분명히 한다. 내림은
+  브랜드 빨강을 그대로 쓴다 - 비슷한 빨강을 하나 더 만들지 않는다.
 */
+.up,
+.down {
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
 .up {
-  color: var(--text-subtle);
+  background: #e9f4ee;
+  color: #1c6b4a;
 }
 .down {
+  background: var(--primary-soft);
   color: var(--primary);
 }
 .insight-section {
-  padding-block: 84px;
+  padding-block: var(--section-gap);
   background: var(--surface);
   border-block: 1px solid var(--border);
 }
@@ -664,9 +670,20 @@ textarea::placeholder {
 .story-list a:hover h3 {
   color: var(--primary);
 }
-.story-board {
-  color: var(--primary);
-  font-size: 12px;
+/*
+  게시판 이름.
+
+  글자만 빨갛게 띄워 뒀더니 제목의 일부처럼 붙어 읽혔다. 분류를 나타내는
+  값이라 테두리로 감싼다.
+*/
+.story-board,
+.post-board {
+  width: fit-content;
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-subtle);
+  font-size: 11px;
   font-weight: 750;
 }
 .story-copy {
@@ -761,9 +778,16 @@ textarea::placeholder {
   color: var(--text-subtle);
   font-size: 16px;
 }
+/*
+  검색 버튼이 들어오면서 칸이 하나 늘었다.
+
+  `1.5fr 0.72fr auto` 그대로 두면 버튼이 두 번째 칸(0.72fr)을 통째로 먹어
+  270px 짜리 버튼이 되고, 회사 수는 다음 줄로 밀린다. 버튼은 글자만큼만
+  차지하면 된다.
+*/
 .filter-bar {
   display: grid;
-  grid-template-columns: 1.5fr 0.72fr auto;
+  grid-template-columns: 1.5fr auto 0.72fr auto;
   gap: 12px;
   align-items: end;
   margin-bottom: 24px;
@@ -1189,7 +1213,10 @@ input[type="file"]::file-selector-button:hover {
   font-size: 11px;
 }
 .post-meta span {
-  color: var(--primary);
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-subtle);
   font-weight: 750;
 }
 .post-meta b,
@@ -1995,20 +2022,29 @@ input[type="file"]::file-selector-button:hover {
   회사가 구분되지 않고, 로고 자리에 글자만 있으니 아직 안 만든 화면처럼
   보였다. 이름에서 정해진 방식으로 고른 도형을 그린다.
 */
+/*
+  로고 자리.
+
+  흰 바탕에 얇은 테두리였다. 안의 도형도 얇은 선이라 전체가 아이콘 세트로
+  읽혔다. 실제 회사 로고는 면으로 채워져 있고 배경과 또렷하게 갈린다.
+
+  바탕을 진하게 채우고 마크를 흰색으로 뺀다. 여섯 곳이 같은 색이지만
+  형태가 달라 구분되고, 이 화면의 색 규칙(단색 + 빨강 하나)도 안 깨진다.
+*/
 .company-logo {
-  border: 1px solid #cfcfc7;
-  border-radius: 2px;
-  background: #fff;
-  color: #1d1d1a;
+  border: 0;
+  border-radius: 4px;
+  background: var(--text);
+  color: var(--white);
 }
 .company-mark {
-  width: 58%;
-  height: 58%;
+  width: 52%;
+  height: 52%;
 }
-/* 회사 상세의 큰 표시. 도형이 커지면 선이 가늘어 보여 비율을 줄인다. */
+/* 회사 상세의 큰 표시. */
 .company-logo-large .company-mark {
-  width: 46%;
-  height: 46%;
+  width: 44%;
+  height: 44%;
 }
 /*
   대문자 변환을 뺐다.
@@ -2026,17 +2062,28 @@ input[type="file"]::file-selector-button:hover {
   padding-bottom: 23px;
   border-bottom: 2px solid #151513;
 }
+/*
+  추천 회사 영역.
+
+  전에는 면이 하나도 없고 실선으로만 나눠 놨다 - 가운데 세로선, 아래
+  가로선, 지표 사이 선. 덩어리가 어디서 시작하고 끝나는지 선을 눈으로
+  따라가야 알 수 있었고, 화면에서 이 영역만 유독 비어 보였다.
+
+  두 덩어리에 각각 면을 준다. 나누는 선 대신 사이를 띄운다.
+*/
 .recommendation-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(420px, 0.9fr);
+  gap: 20px;
   min-height: 490px;
-  border-bottom: 1px solid #bdbdb6;
 }
 .featured-company {
   display: flex;
   flex-direction: column;
-  padding: 32px 42px 34px 0;
-  border-right: 1px solid #bdbdb6;
+  padding: 28px 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
 }
 .featured-company-topline,
 .ranked-heading {
@@ -2109,7 +2156,10 @@ input[type="file"]::file-selector-button:hover {
 .ranked-companies {
   display: flex;
   flex-direction: column;
-  padding-left: 34px;
+  padding: 20px 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 .ranked-heading {
   display: grid;
@@ -3493,39 +3543,11 @@ main:focus {
   transform: translateX(4px);
 }
 .company-logo {
-  border-color: #cbd4ef;
-  background: var(--blue-soft);
-  color: var(--blue);
   transition:
     color 180ms ease,
     background 180ms ease,
     border-color 180ms ease,
     transform 220ms var(--ease-out);
-}
-.logo-orbit-bioworks {
-  border-color: #acdcca;
-  background: var(--mint-soft);
-  color: #11775c;
-}
-.logo-ledger-lab {
-  border-color: #efd2a0;
-  background: var(--amber-soft);
-  color: #a45c0c;
-}
-.logo-harbor-robotics {
-  border-color: #b7d5f1;
-  background: #eaf4ff;
-  color: #2569a9;
-}
-.logo-greenmile-commerce {
-  border-color: #c8dba9;
-  background: #edf5e4;
-  color: #4d7825;
-}
-.logo-mosaic-learning {
-  border-color: #d6c6ec;
-  background: var(--violet-soft);
-  color: var(--violet);
 }
 .preview-company:hover .company-logo,
 .ranked-company:hover .company-logo,
@@ -4144,8 +4166,8 @@ select:focus {
     display: block;
     margin: 0 0 2px;
   }
-  .section {
-    padding-block: 60px;
+  :root {
+    --section-gap: 56px;
   }
   .section-heading {
     align-items: flex-start;
@@ -4795,16 +4817,11 @@ select:focus {
   padding-inline: 0;
 }
 
-.company-logo,
-.logo-orbit-bioworks,
-.logo-ledger-lab,
-.logo-harbor-robotics,
-.logo-greenmile-commerce,
-.logo-mosaic-learning {
-  border-color: #d2d2cb;
-  background: #f7f7f4;
-  color: #252522;
-}
+/*
+  회사별 색 클래스(`logo-*`)를 쓰던 규칙이었다. 로고를 도형 마크로 바꾸면서
+  마크업에서 그 클래스가 사라졌는데 규칙만 남아, 정작 지금 쓰는
+  `.company-logo` 의 배경까지 덮고 있었다.
+*/
 
 .trust-bar {
   border-bottom-color: #deded8;
@@ -5736,9 +5753,6 @@ select:focus {
 */
 .post-board {
   margin-bottom: 12px;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 750;
 }
 .post-byline {
   display: flex;

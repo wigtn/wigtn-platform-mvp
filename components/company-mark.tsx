@@ -1,11 +1,15 @@
 /**
- * 회사 표시.
+ * 회사 로고.
  *
- * ## 왜 글자를 뺐나
+ * ## 어떻게 여기까지 왔나
  *
- * 전에는 회사 이름의 첫 글자를 네모 안에 넣었다("모", "노", "하"…). 목록을
- * 훑을 때 회사가 구분되지 않고, 로고 자리에 글자만 있으니 아직 안 만든
- * 화면처럼 보였다.
+ * 처음엔 이름 첫 글자를 네모에 넣었다("모", "노", "하"…). 목록을 훑을 때
+ * 회사가 구분되지 않고, 로고 자리에 글자만 있으니 아직 안 만든 화면처럼
+ * 보였다.
+ *
+ * 다음엔 얇은 선 도형으로 바꿨는데, 이번엔 아이콘 세트처럼 읽혔다. 실제
+ * 회사 로고는 선이 아니라 **면**이다 - 작게 줄여도 형태가 남고 흑백으로
+ * 찍어도 뭉개지지 않는다. 그래서 전부 채운 도형으로 다시 그렸다.
  *
  * ## 왜 이미지 파일이 아닌가
  *
@@ -13,13 +17,8 @@
  * 늘고, 화면 크기마다 다시 그려야 하고, 색을 바꾸려면 파일을 다시 만들어야
  * 한다.
  *
- * 대신 회사 이름에서 **정해진 방식으로** 도형을 고른다. 같은 회사는 늘
- * 같은 도형이고, 어떤 크기에서도 또렷하고, 색은 지금 글자색을 따라간다.
- * 회사가 늘어나도 코드를 안 고쳐도 된다.
- *
- * 도형은 아홉 가지다. 흔한 기업 마크의 최소 단위 - 원, 겹친 사각, 반원,
- * 세 줄, 대각 분할, 고리, 십자, 삼각, 네 칸 - 을 골라서 단색으로도 서로
- * 구분된다. 여섯 가지였을 때는 회사 여섯 곳 중 둘이 같은 도형을 받았다.
+ * 대신 이름에서 **정해진 방식으로** 고른다. 같은 회사는 늘 같은 로고이고,
+ * 어떤 크기에서도 또렷하고, 회사가 늘어나도 코드를 안 고쳐도 된다.
  */
 
 /** 이름을 숫자로 바꾼다. 같은 이름이면 늘 같은 값이 나온다. */
@@ -31,56 +30,41 @@ function hashOf(seed: string): number {
   return hash;
 }
 
-/** 도형 여섯 가지. viewBox 는 24×24 로 통일한다. */
+/*
+  전부 면으로 채운다.
+
+  겹치는 곳은 `fill-rule="evenodd"` 로 뚫는다 - 단색 한 겹으로 그리면서
+  안쪽에 형태를 만드는, 기업 마크에서 흔한 방식이다.
+
+  아홉 가지를 둔다. 여섯이었을 때는 회사 여섯 곳 중 둘이 같은 로고를 받았다.
+*/
 const SHAPES = [
-  // 원 안의 점 — 가장 단순한 형태
-  <g key="0">
-    <circle cx="12" cy="12" r="8" fill="none" strokeWidth="1.6" />
-    <circle cx="12" cy="12" r="2.6" />
-  </g>,
-  // 겹친 사각
-  <g key="1">
-    <rect x="4" y="4" width="11" height="11" fill="none" strokeWidth="1.6" />
-    <rect x="9" y="9" width="11" height="11" fill="none" strokeWidth="1.6" />
-  </g>,
-  // 반원 두 개가 맞물린 형태
-  <g key="2">
-    <path d="M12 4a8 8 0 0 1 0 16z" />
-    <path d="M12 4a8 8 0 0 0 0 16" fill="none" strokeWidth="1.6" />
-  </g>,
-  // 굵기가 다른 세 줄
-  <g key="3">
-    <rect x="4" y="6" width="16" height="2.6" />
-    <rect x="4" y="11" width="11" height="2.6" />
-    <rect x="4" y="16" width="6" height="2.6" />
-  </g>,
+  // 원에서 사분면 하나를 덜어낸 형태
+  <path key="0" fillRule="evenodd" d="M12 2a10 10 0 1 0 10 10H12z" />,
+  // 두 겹 사각. 안쪽이 뚫린다
+  <path
+    key="1"
+    fillRule="evenodd"
+    d="M2 2h13v13H2zm4 4v5h5V6zM9 9h13v13H9zm4 4v5h5v-5z"
+  />,
+  // 사각과 반원이 맞물린 형태
+  <path key="2" d="M2 2h9v20H2zM12 2a10 10 0 0 1 0 20z" />,
+  // 계단
+  <path key="3" d="M2 16h6v6H2zm7-7h6v13H9zm7-7h6v20h-6z" />,
   // 대각으로 나뉜 사각
-  <g key="4">
-    <rect x="4" y="4" width="16" height="16" fill="none" strokeWidth="1.6" />
-    <path d="M4 20 20 4 20 20z" />
-  </g>,
+  <path key="4" fillRule="evenodd" d="M2 2h20v20zM2 7v11h11z" />,
   // 끊긴 고리
-  <g key="5">
-    <path d="M20 12a8 8 0 1 1-8-8" fill="none" strokeWidth="2.2" />
-    <circle cx="20" cy="12" r="2.4" />
-  </g>,
+  <path
+    key="5"
+    fillRule="evenodd"
+    d="M12 2a10 10 0 1 0 10 10h-5a5 5 0 1 1-5-5z"
+  />,
   // 십자
-  <g key="6">
-    <rect x="10.4" y="3" width="3.2" height="18" />
-    <rect x="3" y="10.4" width="18" height="3.2" />
-  </g>,
-  // 겹친 삼각
-  <g key="7">
-    <path d="M12 4 21 19H3z" fill="none" strokeWidth="1.6" />
-    <path d="M12 11 16.5 19h-9z" />
-  </g>,
-  // 네 칸 중 둘
-  <g key="8">
-    <rect x="4" y="4" width="7" height="7" />
-    <rect x="13" y="13" width="7" height="7" />
-    <rect x="13" y="4" width="7" height="7" fill="none" strokeWidth="1.6" />
-    <rect x="4" y="13" width="7" height="7" fill="none" strokeWidth="1.6" />
-  </g>,
+  <path key="6" d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7z" />,
+  // 삼각 두 겹
+  <path key="7" fillRule="evenodd" d="M12 2 22 21H2zm0 8 4 7H8z" />,
+  // 네 칸 중 대각 둘
+  <path key="8" d="M2 2h9v9H2zm11 11h9v9h-9z" />,
 ];
 
 export function CompanyMark({ slug, name }: { slug: string; name: string }) {
@@ -90,8 +74,6 @@ export function CompanyMark({ slug, name }: { slug: string; name: string }) {
       className="company-mark"
       viewBox="0 0 24 24"
       fill="currentColor"
-      stroke="currentColor"
-      strokeLinejoin="round"
       role="img"
       aria-label={`${name} 로고`}
     >
