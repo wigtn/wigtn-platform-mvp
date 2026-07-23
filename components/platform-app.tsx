@@ -3279,7 +3279,9 @@ function Admin({
             </span>
             {/* 남의 글을 안 보이게 만드는 동작이라 한 번 묻는다. */}
             <button
-              className={review.status === "hidden" ? undefined : "is-destructive"}
+              className={
+                review.status === "hidden" ? undefined : "is-destructive"
+              }
               onClick={() => {
                 const hiding = review.status !== "hidden";
                 setConfirm({

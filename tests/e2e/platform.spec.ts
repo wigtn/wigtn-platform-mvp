@@ -222,7 +222,10 @@ test("관리자 역할로 리뷰 블라인드와 복구를 체험한다", async 
   await expect(
     page.getByRole("dialog", { name: "이 리뷰를 블라인드할까요?" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "블라인드", exact: true }).last().click();
+  await page
+    .getByRole("button", { name: "블라인드", exact: true })
+    .last()
+    .click();
   await expect(page.getByRole("button", { name: "복구" })).toBeVisible();
 });
 
