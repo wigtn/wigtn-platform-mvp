@@ -107,6 +107,20 @@ function clearValidity(event: { target: EventTarget | null }) {
   field?.setCustomValidity?.("");
 }
 
+/**
+ * 화면이 아는 공개 리뷰 수.
+ *
+ * `company.reviewCount` 는 서버 집계라 방문자가 방금 쓴 리뷰를 모른다.
+ * 점수는 화면 상태에서 계산하므로, 리뷰를 하나 쓰면 목록에서 **점수는
+ * 3.6→3.9 로 움직이는데 옆의 "리뷰 1"은 그대로**였다. 상세 화면은 같은
+ * 리뷰를 2건이라고 했다. 같은 것을 세는 자리는 출처가 같아야 한다.
+ */
+function reviewCountOf(reviews: Review[], slug: string): number {
+  return reviews.filter(
+    (review) => review.companySlug === slug && review.status === "published",
+  ).length;
+}
+
 function scoreText(value: number | null): string {
   return value === null ? "집계 전" : value.toFixed(1);
 }
@@ -1150,7 +1164,9 @@ function Home({ state }: { state: DemoState }) {
                   {scoreText(
                     companyScore(state.reviews, company.slug, company.score),
                   )}
-                  <small>리뷰 {company.reviewCount}</small>
+                  <small>
+                    리뷰 {reviewCountOf(state.reviews, company.slug)}
+                  </small>
                 </b>
               </Link>
             ))}
@@ -1226,8 +1242,8 @@ function Home({ state }: { state: DemoState }) {
                 <dd>{topDimension(top[0]) ?? "집계 전"}</dd>
               </div>
               <div>
-                <dt>재직 확인 리뷰</dt>
-                <dd>{top[0].reviewCount}건</dd>
+                <dt>공개 리뷰</dt>
+                <dd>{reviewCountOf(state.reviews, top[0].slug)}건</dd>
               </div>
             </dl>
             <div className="featured-company-actions">
@@ -1363,6 +1379,7 @@ function Home({ state }: { state: DemoState }) {
 function CompanyCard({
   company,
   score,
+  reviewCount,
   index,
 }: {
   // 전에는 `(typeof companies)[number]` 였다. 회사 목록이 모듈 상수가
@@ -1370,6 +1387,8 @@ function CompanyCard({
   company: Company;
   /** 공개 리뷰가 없으면 null. 화면에는 "집계 전"으로 나간다. */
   score: number | null;
+  /** 점수와 같은 출처에서 센 개수. 서버 집계와 어긋나지 않게 한다. */
+  reviewCount: number;
   index: number;
 }) {
   return (
@@ -1409,7 +1428,7 @@ function CompanyCard({
           </span>
         ) : null}
         <strong>{scoreText(score)}</strong>
-        <span>리뷰 {company.reviewCount}</span>
+        <span>리뷰 {reviewCount}</span>
         <b className={company.trend >= 0 ? "up" : "down"}>
           관심도 {company.trend >= 0 ? "+" : ""}
           {company.trend}%
@@ -1472,6 +1491,7 @@ function Companies({ state }: { state: DemoState }) {
               key={company.slug}
               company={company}
               score={companyScore(state.reviews, company.slug, company.score)}
+              reviewCount={reviewCountOf(state.reviews, company.slug)}
               index={index + 1}
             />
           ))}
@@ -3669,7 +3689,8 @@ function Admin({
               <span>{company.industry}</span>
               <strong>{company.name}</strong>
               <small>
-                리뷰 {company.reviewCount}건 · {company.type}
+                리뷰 {reviewCountOf(state.reviews, company.slug)}건 ·{" "}
+                {company.type}
               </small>
             </div>
             <Link className="text-link" href={`/companies/${company.slug}`}>
