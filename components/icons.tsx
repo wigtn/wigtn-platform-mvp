@@ -28,7 +28,6 @@ import {
   Lock,
   Check,
   TriangleAlert,
-  Sparkles,
 } from "lucide-react";
 
 /** 크기는 부모 글자 크기를 따르고 색은 currentColor 를 따른다. */
@@ -75,9 +74,6 @@ export const IconLock = () => <Lock {...base} />;
 
 /** 확인된 항목. 전에는 `✓` 글자였는데 획 굵기가 다른 아이콘들과 안 맞았다. */
 export const IconCheck = () => <Check {...base} />;
-
-/** 기계가 쓴 것. 사람 글과 섞이지 않게 표시한다. */
-export const IconSparkles = () => <Sparkles {...base} />;
 
 /** 주의. 전에는 `!` 글자를 그대로 썼다. */
 export const IconCaution = () => <TriangleAlert {...base} />;
