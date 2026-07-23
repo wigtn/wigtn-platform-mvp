@@ -3040,12 +3040,14 @@ function QuestionForm({
           >
             <b>01</b>
             <span>질문 내용 검사</span>
+            {status !== "queued" ? <IconCheck /> : null}
           </div>
           <div
             className={`progress-step ${status === "thinking" ? "active" : status === "posted" ? "done" : ""}`}
           >
             <b>02</b>
             <span>AI 초안 작성</span>
+            {status === "posted" ? <IconCheck /> : null}
           </div>
           <div
             className={`progress-step ${status === "posted" ? "active" : ""}`}
