@@ -2740,12 +2740,7 @@ function PostDetail({
             <span className="answer-block-mark" aria-hidden="true">
               <IconPen />
             </span>
-            <div>
-              <b>회원 답변</b>
-              <small>
-                현직자가 겪은 실제 경험입니다. 정해진 형식이 없습니다.
-              </small>
-            </div>
+            <b>회원 답변</b>
           </div>
           <span className="answer-block-count">{post.comments.length}</span>
         </header>
