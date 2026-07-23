@@ -2152,7 +2152,7 @@ function Community({
               4개"만 안 움직여서 더 어긋나 보였다.
             */}
             <div>
-              <dt>답변이 달린 글</dt>
+              <dt>회원 답변이 달린 글</dt>
               <dd>
                 {allPosts.filter((post) => post.comments.length).length}/
                 {allPosts.length}
@@ -2277,10 +2277,18 @@ function Community({
                   <p>{stripTags(post.body)}</p>
                   <div className="post-actions">
                     <span>도움 {post.likes}</span>
-                    <span>답변 {post.comments.length}</span>
-                    {/* `post.ai` 는 queued·thinking 일 때도 참이다. 답변이
-                        0건인 글에 "첫 답변 완료"가 붙었고, 관리자 화면은
-                        같은 글을 "AI 첫 답변 대기"로 세고 있었다. */}
+                    {/*
+                      "답변 N" 이 무엇을 세는지 안 밝혔다.
+
+                      AI 초안은 comments 가 아니라 별도 필드에 있어서 이
+                      숫자에 안 들어간다. 그래서 AI 답변이 멀쩡히 달린 글이
+                      "답변 0 · 첫 답변 완료" 로 나왔다 - 답변이 하나 있는데
+                      0 이라고 하니, 안 달린 줄 읽힌다.
+
+                      상세 화면은 이미 "회원 답변 N" 이라고 구분해서 쓴다.
+                      목록도 같은 말을 쓴다.
+                    */}
+                    <span>회원 답변 {post.comments.length}</span>
                     {post.ai === "posted" ? (
                       <span className="ai-label">첫 답변 완료</span>
                     ) : null}
@@ -2969,15 +2977,23 @@ function AiAnswerCard({
   model: string;
 }) {
   return (
-    <section className="fieldnote-answer" aria-label="AI 실무 답변">
+    <section className="fieldnote-answer" aria-label="AI 초안">
       <header className="fieldnote-answer-header">
         <div>
           <span className="fieldnote-answer-mark" aria-hidden="true">
             F
           </span>
           <div>
-            <b>FIELDNOTE 실무 답변</b>
-            <small>입력·출력 안전성 검사를 통과한 초안입니다.</small>
+            {/*
+              "실무 답변" 이라고만 적혀 있었다. 아래에는 "회원 답변" 이
+              따로 있어서, 둘 다 답변인데 뭐가 다른지 이름만으로는 알 수
+              없었다. 정작 이 카드가 AI 가 쓴 것인데 화면의 다른 곳은 전부
+              "AI 초안" 이라고 부르고 여기만 아니었다.
+            */}
+            <b>FIELDNOTE AI 초안</b>
+            <small>
+              질문을 올리면 바로 붙는 초안입니다. 회원 답변은 아래에 쌓입니다.
+            </small>
           </div>
         </div>
         {/* 모델 이름이 카드 맨 아래 각주에 있었다. 진짜 모델이 답한 건지
@@ -4136,7 +4152,7 @@ function Admin({
               {/* `post.id === "p4"` 는 DB 의 uuid 에는 절대 안 맞는다.
                   신고 대화창으로 접수한 것도 여기 안 잡혔다. */}
               <small>
-                답변 {post.comments.length} · 도움 {post.likes}
+                회원 답변 {post.comments.length} · 도움 {post.likes}
               </small>
             </div>
             <button
