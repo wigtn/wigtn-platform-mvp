@@ -170,10 +170,16 @@ textarea::placeholder {
   gap: 10px;
 }
 .header-write {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--text-subtle);
   font-size: 13px;
   font-weight: 650;
   padding: 9px 10px;
+}
+.header-write > svg {
+  display: none;
 }
 .header-role {
   display: inline-flex;
@@ -423,7 +429,7 @@ textarea::placeholder {
   white-space: nowrap;
 }
 .preview-company > b {
-  color: var(--warning);
+  color: var(--primary);
   font-size: 15px;
 }
 .company-logo {
@@ -595,8 +601,15 @@ textarea::placeholder {
   padding-top: 19px;
   border-top: 1px solid var(--border);
 }
+/*
+  별과 점수는 어디서나 같은 색이다.
+
+  회사 상세 맨 위 별은 빨강인데 바로 아래 리뷰 줄의 별은 주황이었다.
+  같은 화면에 두 색이 같이 보이면 다른 뜻인 줄 읽힌다. 강조색은 하나로
+  둔다.
+*/
 .score-line .star {
-  color: var(--warning);
+  color: var(--primary);
   font-size: 14px;
 }
 .score-line strong {
@@ -963,7 +976,7 @@ input[type="range"]:active::-webkit-slider-thumb {
 }
 .review-list article > div strong {
   margin-left: auto;
-  color: var(--warning);
+  color: var(--primary);
   font-size: 18px;
 }
 .review-list h3 {
@@ -2175,12 +2188,16 @@ input[type="file"]::file-selector-button:hover {
   color: var(--navy);
   font-size: 68px;
 }
-.company-detail-page .score-monument strong::before {
-  content: "★";
-  margin-right: 8px;
+/* 별은 이제 아이콘 컴포넌트다. 68px 숫자 옆이라 크기를 따로 정한다. */
+.company-detail-page .score-monument strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.score-star {
   color: var(--primary);
-  font-size: 20px;
-  vertical-align: 20px;
+  font-size: 22px;
+  line-height: 1;
 }
 .company-decision-actions {
   display: grid;
@@ -2247,7 +2264,7 @@ input[type="file"]::file-selector-button:hover {
 }
 .fit-checklist {
   padding: 25px;
-  border-top: 4px solid var(--primary);
+  border-top: 1px solid var(--border);
   background: #f2f2ed;
 }
 .fit-checklist > span {
@@ -2262,17 +2279,17 @@ input[type="file"]::file-selector-button:hover {
   list-style: none;
 }
 .fit-checklist li {
-  position: relative;
-  padding-left: 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
   color: var(--text-subtle);
   font-size: 12px;
 }
-.fit-checklist li::before {
-  content: "✓";
-  position: absolute;
-  left: 0;
-  color: #16724f;
-  font-weight: 800;
+/* 체크는 이제 아이콘이다. 글자 크기를 따라가면 본문보다 커 보여서 줄인다. */
+.fit-checklist li > svg {
+  flex: none;
+  color: var(--text-faint);
+  font-size: 11px;
 }
 .fit-checklist a {
   font-size: 11px;
@@ -2532,14 +2549,19 @@ input[type="file"]::file-selector-button:hover {
   align-items: center;
   gap: 5px;
   margin-left: auto;
+  /* 이 앱의 버튼은 전부 모서리 7px 이다. 여기만 알약이면 다른 갈래로
+     보인다. */
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 7px;
   background: var(--white);
 }
+/* 담긴 상태. 초록으로 칠하면 강조색이 하나 더 생긴다. 채운 아이콘과
+   진한 글씨로만 구분한다. */
 .community-main .post-actions button.is-on {
-  border-color: #cfe3d8;
-  background: var(--mint-soft, #e8f8f3);
-  color: #16724f;
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
 }
 .community-rail section {
   padding: 0 0 26px;
@@ -2572,16 +2594,70 @@ input[type="file"]::file-selector-button:hover {
 .community-rail li span {
   color: var(--text-faint);
 }
+/*
+  되돌리기 어려운 버튼.
+
+  승인과 반려가 테두리·굵기·크기까지 같아서, 8px 옆의 버튼을 잘못 누르면
+  구분이 안 됐다. 색을 채우지는 않는다 - 관리자 화면에 빨간 버튼이 여럿
+  생기면 그것대로 시끄럽다. 글자와 테두리만 바꾼다.
+*/
+.admin-row-actions .is-destructive,
+.admin-row .is-destructive {
+  border-color: #e3c8c2;
+  color: #a33a26;
+}
+.admin-row-actions .is-destructive:hover,
+.admin-row .is-destructive:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+/*
+  눌리는 칸을 키운다.
+
+  답글 버튼이 21×19px 이라 이 앱에서 제일 작았다. 보이는 글자 크기는
+  그대로 두고 위아래 여백만 준다 - 줄 간격이 흐트러지지 않게 음수 여백으로
+  되돌린다.
+*/
+.comment-reply-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  margin-block: -8px;
+  padding-block: 8px;
+}
+/* 빨간 글씨라 오류 표시처럼 보였다. 누르는 자리로 읽히게 둔다. */
+.comment-reply-toggle {
+  color: var(--text-subtle);
+}
+.comment-reply-toggle:hover {
+  color: var(--primary);
+}
+
+/* 링크였다가 검색을 거는 버튼이 됐다. 생김새는 그대로 둔다. */
+.rail-topic {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rail-topic:hover {
+  color: var(--primary);
+}
 .community-rail .answer-standard {
   margin-top: 28px;
   padding: 20px;
   border: 0;
-  border-top: 4px solid var(--primary);
+  border-top: 1px solid var(--border);
   background: #f0f0eb;
 }
 .answer-standard > span {
   color: var(--primary);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
 }
 .answer-standard strong {
@@ -2636,7 +2712,8 @@ input[type="file"]::file-selector-button:hover {
   overflow: visible;
   border: 0;
   border-radius: 0;
-  background: #f7f7f4;
+  /* 배경은 위에서 열 단위 그라데이션으로 칠했다. 여기서 단색을 다시
+     선언하면 그게 이겨서, 사이드바의 검은 열이 화면 높이에서 끊긴다. */
 }
 /*
   사이드바를 화면에 고정한다.
@@ -2678,9 +2755,16 @@ input[type="file"]::file-selector-button:hover {
   letter-spacing: -0.03em;
 }
 .admin-nav-brand span,
+/*
+  관리자 화면 글씨를 11px 아래로 두지 않는다.
+
+  사이드바 구역 이름과 대기열 배지가 9px 이었다. 화면에서 제일 자주 읽는
+  자리인데 눈에 안 들어왔다. 촘촘한 느낌은 여백으로 내고 글씨는 읽히게
+  둔다.
+*/
 .admin-nav-label {
   color: #777771;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.09em;
 }
 .admin-nav-label {
@@ -2696,7 +2780,7 @@ input[type="file"]::file-selector-button:hover {
   padding: 1px 5px;
   background: #33332f;
   color: #bdbdb6;
-  font-size: 9px;
+  font-size: 11px;
   text-align: center;
 }
 .admin-nav a.active {
@@ -2711,7 +2795,7 @@ input[type="file"]::file-selector-button:hover {
   padding: 20px 10px 0;
   border-top: 1px solid #33332f;
   color: #93938c;
-  font-size: 9px;
+  font-size: 11px;
 }
 .admin-nav-status i,
 .admin-contextbar i {
@@ -2731,7 +2815,7 @@ input[type="file"]::file-selector-button:hover {
   margin-bottom: 40px;
   border-bottom: 1px solid #d2d2cb;
   color: var(--text-faint);
-  font-size: 9px;
+  font-size: 11px;
 }
 .admin-contextbar div {
   display: flex;
@@ -2755,7 +2839,7 @@ input[type="file"]::file-selector-button:hover {
 }
 .priority-brief span {
   color: var(--primary);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
 }
 .priority-brief h2 {
@@ -2786,7 +2870,7 @@ input[type="file"]::file-selector-button:hover {
 }
 .admin-metrics article > div b {
   color: #16724f;
-  font-size: 9px;
+  font-size: 11px;
 }
 .admin-metrics article > div b.urgent {
   color: var(--primary);
@@ -2812,7 +2896,7 @@ input[type="file"]::file-selector-button:hover {
 }
 .admin-section-head span {
   color: var(--primary);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 800;
 }
 .admin-section-head h2 {
@@ -2821,7 +2905,7 @@ input[type="file"]::file-selector-button:hover {
 }
 .admin-section-head > b {
   color: var(--text-faint);
-  font-size: 9px;
+  font-size: 11px;
 }
 .work-queue-row {
   display: grid;
@@ -2839,7 +2923,7 @@ input[type="file"]::file-selector-button:hover {
 .priority {
   padding: 2px 4px;
   border: 1px solid #c8c8c0;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 800;
   text-align: center;
 }
@@ -2887,7 +2971,7 @@ input[type="file"]::file-selector-button:hover {
 }
 .admin-queue-toolbar > span {
   color: var(--text-faint);
-  font-size: 9px;
+  font-size: 11px;
 }
 .admin-list-head,
 .admin-review-row {
@@ -2900,7 +2984,7 @@ input[type="file"]::file-selector-button:hover {
   padding: 10px 0;
   border-bottom: 1px solid #c8c8c0;
   color: var(--text-faint);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 .admin-list-head span:nth-child(n + 2) {
@@ -2924,7 +3008,7 @@ input[type="file"]::file-selector-button:hover {
   padding: 4px 8px;
   border: 1px solid #bdbdb6;
   color: var(--text-subtle) !important;
-  font-size: 9px !important;
+  font-size: 11px !important;
   font-weight: 700;
 }
 .admin-row-status.published {
@@ -3503,17 +3587,13 @@ select:focus {
 .compare-row.leading b {
   color: #13795e;
 }
-.trust-grid article:nth-child(1) {
-}
-.trust-grid article:nth-child(2) {
-  border-top: 4px solid var(--mint);
-}
-.trust-grid article:nth-child(3) {
-  border-top: 4px solid var(--violet);
-}
-.trust-grid article:nth-child(4) {
-  border-top: 4px solid var(--warning);
-}
+/*
+  카드마다 굵은 윗줄을 두던 규칙을 뺐다.
+
+  색은 이미 뒤에서 회색으로 덮여 있었는데 두께 4px 은 남아, 1번 카드만
+  1px 실선이고 2~4번만 굵은 줄이 되는 상태였다. 같은 격의 카드 넷이
+  서로 다르게 보였다.
+*/
 .trust-grid article {
   transition:
     box-shadow 220ms ease,
@@ -3565,8 +3645,23 @@ select:focus {
   .site-header nav {
     gap: 18px;
   }
-  .header-write {
+  /*
+    전에는 통째로 숨겼다. 리뷰 작성은 이 서비스의 주된 동작인데, 좁은
+    화면에서는 들어갈 길이 아예 없어졌다. 글자만 접고 아이콘을 남긴다.
+  */
+  .header-write > span {
     display: none;
+  }
+  .header-write > svg {
+    display: block;
+    font-size: 17px;
+  }
+  .header-write {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 7px;
   }
   .hero-layout {
     grid-template-columns: 1fr 360px;
@@ -3864,8 +3959,10 @@ select:focus {
     grid-column: 1 / -1;
     width: 100%;
   }
+  /* 통째로 숨기지 않는다. 한 줄에 안 들어가면 줄을 바꾼다. */
   .popular-searches {
-    display: none;
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
   .company-grid {
     grid-template-columns: 1fr;
@@ -5603,11 +5700,13 @@ select:focus {
   align-items: end;
 }
 /* 두 선택 사이를 잇는 선. 전에는 "VS" 글자가 들어가 있었다. */
+/* 두 선택 사이를 잇는 선. 46px 짜리 select 의 한가운데에 오게 둔다.
+   전에는 위쪽 테두리 높이에 떠 있어서 선이 아니라 얼룩처럼 보였다. */
 .compare-divider {
-  align-self: center;
+  align-self: end;
   width: 26px;
   height: 1px;
-  margin-bottom: 14px;
+  margin-bottom: 22px;
   background: var(--border-strong);
 }
 
@@ -5705,10 +5804,32 @@ textarea:focus-visible,
   border-color: var(--primary);
   background: var(--primary-soft);
 }
+/* 브라우저가 그리는 칸은 숨기고, 감싼 label 이 버튼 노릇을 한다.
+   display:none 은 쓰지 않는다 - 키보드 초점이 안 잡힌다. */
 .upload-field input[type="file"] {
-  border: 0;
-  background: transparent;
-  text-align: center;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.upload-pick {
+  position: relative;
+  justify-self: center;
+  cursor: pointer;
+}
+/* 키보드로 옮겨 왔을 때 어디인지 보이게 한다. */
+.upload-field input[type="file"]:focus-visible + span,
+.upload-pick:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* 폼 안의 다른 칸들과 라벨 모양을 맞춘다. label 이 아니라 div 라
+   기본 스타일을 못 받는다. */
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 /* 관리자 큰 숫자에 붙는 라벨. */

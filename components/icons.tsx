@@ -26,6 +26,7 @@ import {
   ChevronRight,
   Bookmark,
   Lock,
+  Check,
 } from "lucide-react";
 
 /** 크기는 부모 글자 크기를 따르고 색은 currentColor 를 따른다. */
@@ -69,6 +70,9 @@ export const IconChevron = () => <ChevronRight {...base} />;
 /** 지금 역할로는 못 쓰는 기능. 전에는 `⌁` 글자를 그대로 썼는데, 뜻도 안
  *  읽히고 글꼴에 따라 모양이 달라졌다. */
 export const IconLock = () => <Lock {...base} />;
+
+/** 확인된 항목. 전에는 `✓` 글자였는데 획 굵기가 다른 아이콘들과 안 맞았다. */
+export const IconCheck = () => <Check {...base} />;
 
 /** 스크랩. 담긴 상태는 채워서 구분한다. */
 export const IconBookmark = ({ filled = false }: { filled?: boolean }) => (
