@@ -115,6 +115,38 @@ function clearValidity(event: { target: EventTarget | null }) {
  * 3.6→3.9 로 움직이는데 옆의 "리뷰 1"은 그대로**였다. 상세 화면은 같은
  * 리뷰를 2건이라고 했다. 같은 것을 세는 자리는 출처가 같아야 한다.
  */
+/**
+ * 6축 점수를 공개 리뷰에서 계산한다.
+ *
+ * 회사 상세 안에만 있던 계산이라, 비교 화면은 회사 레코드의 값을 그대로
+ * 썼다. 리뷰를 하나 쓰면 비교 화면의 종합 점수는 움직이는데 6축은 그대로라,
+ * 한 번만 눌러 들어가면 같은 회사의 같은 항목이 3.5 와 2.8 로 갈렸다.
+ *
+ * 공개 리뷰가 없으면 null - 화면은 "집계 전"으로 쓴다. 리뷰가 0건인데
+ * 막대 여섯 개가 꽉 차 있으면 안 된다.
+ */
+function dimensionScoresOf(
+  reviews: Review[],
+  company: Company,
+): Record<string, number> | null {
+  const visible = reviews.filter(
+    (review) =>
+      review.companySlug === company.slug && review.status === "published",
+  );
+  if (!visible.length) return null;
+  return Object.fromEntries(
+    reviewDimensions.map((label) => {
+      const values = visible
+        .map((review) => review.dimensions?.[label])
+        .filter((value): value is number => typeof value === "number");
+      const value = values.length
+        ? values.reduce((sum, item) => sum + item, 0) / values.length
+        : company.scores[label];
+      return [label, value];
+    }),
+  );
+}
+
 function reviewCountOf(reviews: Review[], slug: string): number {
   return reviews.filter(
     (review) => review.companySlug === slug && review.status === "published",
@@ -304,11 +336,26 @@ function overlayTransientState(state: DemoState): DemoState {
       글은 서버 값을 쓰고, 내 흔적(좋아요·스크랩·댓글·AI 답변)만 얹는다.
       서버가 아직 모르는 글은 그대로 앞에 붙인다.
     */
+    /*
+      같은 글을 id 로만 찾으면 안 된다.
+
+      질문을 올리면 화면은 `p-<시각>` 이라는 임시 id 로 글을 먼저 만든다.
+      서버 원장이 따라오면 `replayActions` 가 **서버 uuid** 로 같은 글을
+      다시 만든다. id 가 다르니 임시본이 "서버가 모르는 글"로 남아, 목록에
+      똑같은 질문이 두 개 떴다. 새로 고쳐도 안 없어졌다.
+
+      제목과 본문이 같으면 같은 글로 본다. 아래 pending 질문 합치기가 이미
+      쓰는 기준이다.
+    */
+    const sameStory = (a: Post, b: Post) =>
+      a.title === b.title && a.body === b.body;
     const mine = new Map(transient.posts.map((post) => [post.id, post]));
     const merged = (state.posts ?? []).map((post) => {
-      const saved = mine.get(post.id);
+      const saved =
+        mine.get(post.id) ??
+        [...mine.values()].find((item) => sameStory(item, post));
       if (!saved) return post;
-      mine.delete(post.id);
+      mine.delete(saved.id);
       return {
         ...post,
         liked: saved.liked,
@@ -1084,7 +1131,7 @@ function Home({ state }: { state: DemoState }) {
   const [query, setQuery] = useState("");
   const router = useRouter();
   return (
-    <main id="main">
+    <main id="main" tabIndex={-1}>
       <section className="hero">
         <div className="page-shell hero-layout">
           <div className="hero-copy reveal">
@@ -1239,7 +1286,12 @@ function Home({ state }: { state: DemoState }) {
               </div>
               <div>
                 <dt>가장 높은 항목</dt>
-                <dd>{topDimension(top[0]) ?? "집계 전"}</dd>
+                <dd>
+                  {companyScore(state.reviews, top[0].slug, top[0].score) ===
+                  null
+                    ? "집계 전"
+                    : (topDimension(top[0]) ?? "집계 전")}
+                </dd>
               </div>
               <div>
                 <dt>공개 리뷰</dt>
@@ -1281,7 +1333,17 @@ function Home({ state }: { state: DemoState }) {
                 </span>
                 <span className="ranked-company-copy">
                   <b>{company.name}</b>
-                  <small>{topDimension(company) ?? "집계 전"}</small>
+                  {/* 점수가 "집계 전"인데 부제만 "세일즈 툴 4.7" 이면
+                      한 줄 안에서 말이 어긋난다. */}
+                  <small>
+                    {companyScore(
+                      state.reviews,
+                      company.slug,
+                      company.score,
+                    ) === null
+                      ? "집계 전"
+                      : (topDimension(company) ?? "집계 전")}
+                  </small>
                 </span>
                 <span className="ranked-company-score">
                   {scoreText(
@@ -1380,7 +1442,6 @@ function CompanyCard({
   company,
   score,
   reviewCount,
-  index,
 }: {
   // 전에는 `(typeof companies)[number]` 였다. 회사 목록이 모듈 상수가
   // 아니라 DB 에서 오므로 타입을 직접 가리킨다.
@@ -1389,7 +1450,6 @@ function CompanyCard({
   score: number | null;
   /** 점수와 같은 출처에서 센 개수. 서버 집계와 어긋나지 않게 한다. */
   reviewCount: number;
-  index: number;
 }) {
   return (
     /*
@@ -1404,7 +1464,6 @@ function CompanyCard({
         <span className={`company-logo logo-${company.slug}`}>
           {company.name.slice(0, 1)}
         </span>
-        <span className="company-index">#{String(index).padStart(2, "0")}</span>
       </div>
       <p className="caption">
         {company.industry} · {company.type}
@@ -1452,7 +1511,7 @@ function Companies({ state }: { state: DemoState }) {
       `${company.name}${company.industry}${company.type}`.includes(query),
   );
   return (
-    <main id="main" className="page-shell page">
+    <main id="main" tabIndex={-1} className="page-shell page">
       <PageTitle
         eyebrow="회사 리뷰"
         title="회사 리뷰 찾기"
@@ -1486,13 +1545,12 @@ function Companies({ state }: { state: DemoState }) {
       </div>
       {filtered.length ? (
         <div className="company-list">
-          {filtered.map((company, index) => (
+          {filtered.map((company) => (
             <CompanyCard
               key={company.slug}
               company={company}
               score={companyScore(state.reviews, company.slug, company.score)}
               reviewCount={reviewCountOf(state.reviews, company.slug)}
-              index={index + 1}
             />
           ))}
         </div>
@@ -1529,24 +1587,18 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
       review.companySlug === company.slug && review.status === "published",
   );
   const score = companyScore(state.reviews, company.slug, company.score);
-  const dimensionScores = Object.fromEntries(
-    reviewDimensions.map((label) => {
-      const values = reviews
-        .map((review) => review.dimensions?.[label])
-        .filter((value): value is number => typeof value === "number");
-      const value = values.length
-        ? values.reduce((sum, item) => sum + item, 0) / values.length
-        : company.scores[label];
-      return [label, value];
-    }),
-  );
-  const rankedDimensions = Object.entries(dimensionScores).sort(
+  const dimensionScores = dimensionScoresOf(state.reviews, company);
+  const rankedDimensions = Object.entries(dimensionScores ?? {}).sort(
     ([, a], [, b]) => b - a,
   );
   const strongest = rankedDimensions[0];
   const weakest = rankedDimensions[rankedDimensions.length - 1];
   return (
-    <main id="main" className="page-shell page company-detail-page">
+    <main
+      id="main"
+      tabIndex={-1}
+      className="page-shell page company-detail-page"
+    >
       <nav className="breadcrumb" aria-label="현재 위치">
         <Link href="/companies">회사 탐색</Link>
         <span>/</span>
@@ -1617,24 +1669,39 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
           <p className="kicker">리뷰 요약</p>
           <h2>리뷰에서 확인된 주요 내용</h2>
           <div className="decision-findings">
-            <article>
-              <span className="finding-label positive">강점</span>
-              <div>
-                <strong>
-                  {strongest[0]} {strongest[1].toFixed(1)}
-                </strong>
-                <p>6개 평가 항목 중 가장 높은 점수입니다.</p>
-              </div>
-            </article>
-            <article>
-              <span className="finding-label caution">확인</span>
-              <div>
-                <strong>
-                  {weakest[0]} {weakest[1].toFixed(1)}
-                </strong>
-                <p>6개 평가 항목 중 가장 낮은 점수입니다.</p>
-              </div>
-            </article>
+            {/* 리뷰가 0건이면 강점도 확인 항목도 말할 수 없다. 위에서
+                "집계 전"이라고 해 놓고 여기서 "세일즈 툴 4.7 이 가장 높은
+                점수"라고 하면 앞뒤가 안 맞는다. */}
+            {strongest && weakest ? (
+              <>
+                <article>
+                  <span className="finding-label positive">강점</span>
+                  <div>
+                    <strong>
+                      {strongest[0]} {strongest[1].toFixed(1)}
+                    </strong>
+                    <p>6개 평가 항목 중 가장 높은 점수입니다.</p>
+                  </div>
+                </article>
+                <article>
+                  <span className="finding-label caution">확인</span>
+                  <div>
+                    <strong>
+                      {weakest[0]} {weakest[1].toFixed(1)}
+                    </strong>
+                    <p>6개 평가 항목 중 가장 낮은 점수입니다.</p>
+                  </div>
+                </article>
+              </>
+            ) : (
+              <article>
+                <span className="finding-label neutral">집계 전</span>
+                <div>
+                  <strong>공개된 리뷰 없음</strong>
+                  <p>리뷰가 쌓이면 강점과 확인 항목이 여기에 나옵니다.</p>
+                </div>
+              </article>
+            )}
             <article>
               <span className="finding-label neutral">변화</span>
               <div>
@@ -1672,17 +1739,25 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
             표본 {reviews.length} · 최근 12개월
           </span>
         </div>
-        <div className="score-bars">
-          {Object.entries(dimensionScores).map(([label, value]) => (
-            <div key={label}>
-              <span>{label}</span>
-              <div>
-                <i style={{ width: `${value * 20}%` }} />
+        {/* 리뷰가 0건인데 막대 여섯 개가 꽉 차 있으면 안 된다. 바로 위
+            꼬리표가 "표본 0" 이라 특히 어긋나 보였다. */}
+        {dimensionScores ? (
+          <div className="score-bars">
+            {Object.entries(dimensionScores).map(([label, value]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <div>
+                  <i style={{ width: `${value * 20}%` }} />
+                </div>
+                <strong>{value.toFixed(1)}</strong>
               </div>
-              <strong>{value.toFixed(1)}</strong>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <p className="list-empty">
+            공개된 리뷰가 없어 항목별 점수를 계산할 수 없습니다.
+          </p>
+        )}
       </section>
       <section className="section-tight" id="reviews">
         <div className="section-heading">
@@ -1819,7 +1894,7 @@ function ReviewForm({
     router.push(`/companies/${companySlug}`);
   };
   return (
-    <main id="main" className="page-shell page narrow">
+    <main id="main" tabIndex={-1} className="page-shell page narrow">
       <PageTitle
         eyebrow="회사 리뷰"
         title="익명 리뷰 작성"
@@ -1990,6 +2065,10 @@ function Community({
     인데 왼쪽에는 "전체 4" 가 그대로 떠 있었다. 어느 쪽이 맞는 말인지
     알 수 없다.
   */
+  /** 걸러지지 않은 전체. 머리말 숫자는 이걸 센다. */
+  const allPosts = state.posts.filter(
+    (post) => !state.hiddenPostIds.includes(post.id),
+  );
   const boardCount = (value: string) =>
     state.posts.filter(
       (post) => matches(post) && (value === "전체" || post.board === value),
@@ -2005,7 +2084,7 @@ function Community({
     notify("스크랩 상태가 변경됐습니다.");
   };
   return (
-    <main id="main" className="page community-page">
+    <main id="main" tabIndex={-1} className="page community-page">
       <section className="community-hero">
         <div className="page-shell community-hero-inner">
           <div>
@@ -2032,16 +2111,24 @@ function Community({
             셀 수 있는 것만 센다.
           */}
           <dl className="community-stats">
+            {/*
+              걸러진 목록(`posts`)에서 셌더니 게시판 탭을 누르거나 검색어를
+              넣을 때마다 머리말 숫자가 같이 움직였다. 서비스 전체를 말하는
+              자리인데 "답변이 달린 글 0/0" 이 되기도 했다. 셋 중 "게시판
+              4개"만 안 움직여서 더 어긋나 보였다.
+            */}
             <div>
               <dt>답변이 달린 글</dt>
               <dd>
-                {posts.filter((post) => post.comments.length).length}/
-                {posts.length}
+                {allPosts.filter((post) => post.comments.length).length}/
+                {allPosts.length}
               </dd>
             </div>
             <div>
               <dt>AI 첫 답변</dt>
-              <dd>{posts.filter((post) => post.ai === "posted").length}건</dd>
+              <dd>
+                {allPosts.filter((post) => post.ai === "posted").length}건
+              </dd>
             </div>
             <div>
               <dt>게시판</dt>
@@ -2285,7 +2372,7 @@ function PostForm({
     router.push(`/posts/${id}`);
   };
   return (
-    <main id="main" className="page-shell page narrow">
+    <main id="main" tabIndex={-1} className="page-shell page narrow">
       <PageTitle
         eyebrow="커뮤니티"
         title="게시글 작성"
@@ -2478,7 +2565,7 @@ function PostDetail({
     );
   };
   return (
-    <main id="main" className="page-shell page narrow">
+    <main id="main" tabIndex={-1} className="page-shell page narrow">
       <article className="post-detail">
         <div className="post-meta">
           <span>{post.board}</span>
@@ -2970,7 +3057,7 @@ function QuestionForm({
     }));
   };
   return (
-    <main id="main" className="page-shell page narrow">
+    <main id="main" tabIndex={-1} className="page-shell page narrow">
       <PageTitle
         eyebrow="영업 Q&A"
         title="커뮤니티에 질문하기"
@@ -3116,7 +3203,7 @@ function Account({
   const myHelpful = mine.reduce((sum, post) => sum + post.likes, 0);
   const myScrapped = visible.filter((post) => post.saved);
   return (
-    <main id="main" className="page-shell page">
+    <main id="main" tabIndex={-1} className="page-shell page">
       <PageTitle
         eyebrow="마이페이지"
         title="내 활동 관리"
@@ -3286,7 +3373,7 @@ function Compare({ state }: { state: DemoState }) {
     companies.find((c) => c.slug === b)!,
   ];
   return (
-    <main id="main" className="page-shell page">
+    <main id="main" tabIndex={-1} className="page-shell page">
       <PageTitle
         eyebrow="회사 비교"
         title="회사 비교"
@@ -3335,6 +3422,8 @@ function Compare({ state }: { state: DemoState }) {
             other.slug,
             other.score,
           );
+          const axes = dimensionScoresOf(state.reviews, company);
+          const otherAxes = dimensionScoresOf(state.reviews, other);
           /*
             두 회사 중 하나라도 공개 리뷰가 없으면 앞선다고 말할 수 없다.
             숫자가 없는데 "종합 점수 +0.4" 가 뜨면 안 된다.
@@ -3356,15 +3445,33 @@ function Compare({ state }: { state: DemoState }) {
                   <span>종합 점수 +{(score - otherScore).toFixed(1)}</span>
                 ) : null}
               </div>
-              {Object.entries(company.scores).map(([label, value]) => (
-                <div
-                  className={`compare-row ${value > other.scores[label] ? "leading" : ""}`}
-                  key={label}
-                >
-                  <span>{label}</span>
-                  <b>{value.toFixed(1)}</b>
-                </div>
-              ))}
+              {/*
+                전에는 `company.scores` - 회사 레코드의 값을 그대로 썼다.
+                종합 점수는 리뷰에서 계산하므로, 리뷰를 하나 쓰면 종합만
+                움직이고 6축은 그대로였다. 한 번 눌러 들어가면 같은 회사의
+                같은 항목이 3.5 와 2.8 로 갈렸다.
+
+                리뷰가 없으면 항목도 못 센다. "집계 전"이라고 해 놓고 아래에
+                숫자 여섯 개를 늘어놓으면 안 된다.
+              */}
+              {axes ? (
+                reviewDimensions.map((label) => {
+                  const value = axes[label];
+                  const rival = otherAxes?.[label];
+                  const ahead = rival !== undefined && value > rival;
+                  return (
+                    <div
+                      className={`compare-row ${ahead ? "leading" : ""}`}
+                      key={label}
+                    >
+                      <span>{label}</span>
+                      <b>{value.toFixed(1)}</b>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="list-empty">공개된 리뷰가 없습니다.</p>
+              )}
               <Link className="text-link" href={`/companies/${company.slug}`}>
                 리뷰 자세히 보기
               </Link>
@@ -3441,7 +3548,7 @@ function Admin({
   });
   if (state.role !== "admin")
     return (
-      <main id="main" className="page-shell page narrow">
+      <main id="main" tabIndex={-1} className="page-shell page narrow">
         <PageTitle
           eyebrow="접근 권한"
           title="운영 관리자 역할이 필요합니다"
@@ -3504,7 +3611,9 @@ function Admin({
         className={path === "/admin/content" ? "active" : ""}
         href="/admin/content"
       >
-        콘텐츠 <b>{moderationPosts.length}</b>
+        {/* 리뷰·회원은 처리할 건수인데 콘텐츠는 늘 4다. 같은 배지를 달면
+            처리할 일이 있는 줄 읽힌다. */}
+        콘텐츠
       </Link>
       <span className="admin-nav-label">데이터 관리</span>
       <Link
@@ -3519,10 +3628,9 @@ function Admin({
       >
         홈 배치
       </Link>
-      <div className="admin-nav-status">
-        <i />
-        <span>시스템 정상</span>
-      </div>
+      {/* "시스템 정상"이 초록 점과 함께 박혀 있었다. 12px 위 상단 줄이
+          이미 진짜 연결 상태를 말하고 있어서, 둘 중 하나는 지어낸 말이다.
+          아는 쪽만 남긴다. */}
     </nav>
   );
   let panel;
@@ -4085,7 +4193,7 @@ function Admin({
       </>
     );
   return (
-    <main id="main" className="admin-shell">
+    <main id="main" tabIndex={-1} className="admin-shell">
       {nav}
       <section className="admin-panel">
         <div className="admin-contextbar">
@@ -4130,7 +4238,7 @@ function Admin({
 
 function Trust() {
   return (
-    <main id="main" className="page-shell page">
+    <main id="main" tabIndex={-1} className="page-shell page">
       <PageTitle
         eyebrow="운영 정책"
         title="리뷰 작성자 보호 및 검증 정책"
@@ -4215,7 +4323,7 @@ function AdminTitle({
 }
 function NotFound() {
   return (
-    <main id="main" className="page-shell page narrow">
+    <main id="main" tabIndex={-1} className="page-shell page narrow">
       <PageTitle
         eyebrow="404"
         title="페이지를 찾을 수 없습니다"
