@@ -2661,6 +2661,11 @@ input[type="file"]::file-selector-button:hover {
   color: var(--primary);
 }
 
+/* 라벨 안의 "(선택)"이 좁은 칸에서 혼자 다음 줄로 떨어졌다. */
+.report-details .muted {
+  display: inline;
+}
+
 /* 본문 바로가기. 탭으로 닿을 때만 나타난다. */
 .skip-link {
   position: fixed;
@@ -5496,18 +5501,17 @@ select:focus {
   gap: 12px;
   margin: 20px;
   padding: 16px 18px;
-  background: #f3f0e7;
+  background: var(--surface);
 }
+/* `!` 글자에 동그라미를 씌워 쓰던 자리다. 아이콘이 되면서 테두리가
+   필요 없어졌다. */
 .fieldnote-answer-caution > span {
   width: 26px;
   height: 26px;
   display: grid;
   place-items: center;
-  border: 1px solid #9a8151;
-  border-radius: 50%;
-  color: #745c31;
-  font-size: 12px;
-  font-weight: 800;
+  color: var(--text-subtle);
+  font-size: 18px;
 }
 .fieldnote-answer-caution b {
   color: #66522f;

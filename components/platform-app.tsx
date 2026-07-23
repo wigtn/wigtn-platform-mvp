@@ -32,6 +32,7 @@ import { useDemoStateContext } from "./demo-state-provider";
 import {
   IconBold,
   IconBookmark,
+  IconCaution,
   IconCheck,
   IconChevron,
   IconLock,
@@ -2484,13 +2485,12 @@ function PostDetail({
             answer={parseFieldnoteAiAnswer(post.aiAnswer)}
             model={post.aiModel ?? ""}
           />
-        ) : post.ai === "posted" ? (
-          <aside className="ai-answer">
-            <span>AI 초안 · 개인정보 검사 완료</span>
-            <h3>답변을 준비했습니다.</h3>
-            <p>질문 화면에서 전체 내용을 확인할 수 있습니다.</p>
-          </aside>
         ) : null}
+        {/*
+          전에는 답변 내용이 없는데도 "답변을 준비했습니다 / 질문 화면에서
+          전체 내용을 확인할 수 있습니다."가 떴다. 그 질문 화면으로 갈 길이
+          없고 이 글이 바로 그 질문이다. 내용이 있을 때만 보여 준다.
+        */}
         <div className="post-actions">
           {/*
             같은 사람이 여러 번 누르면 계속 올라가던 것을 토글로 바꿨다.
@@ -2824,7 +2824,9 @@ function AiAnswerCard({
       ) : null}
 
       <div className="fieldnote-answer-caution">
-        <span aria-hidden="true">!</span>
+        <span aria-hidden="true">
+          <IconCaution />
+        </span>
         <div>
           <b>놓치기 쉬운 점</b>
           <p>{answer.caution}</p>
@@ -3522,9 +3524,14 @@ function Admin({
               신고 {reviewCounts.report}
             </button>
           </div>
-          <span>목표 처리시간 2시간 · 현재 SLA 정상</span>
+          {/* "목표 처리시간 2시간 · 현재 SLA 정상"은 어디서도 확인할 수
+              없는 값이고, 영어 머리말을 걷어낸 뒤 화면에 남은 유일한
+              로마자 약어였다. */}
         </div>
-        <div className="admin-list-head" aria-hidden="true">
+        {/* aria-hidden 이 붙어 있어서 화면 낭독기에는 열 이름이 통째로
+            없었다. 대신할 표 구조도 없어, 각 줄이 무슨 값인지 알 방법이
+            없었다. 감춤을 뺀다. */}
+        <div className="admin-list-head">
           <span>리뷰</span>
           <span>상태</span>
           <span>처리</span>
@@ -3829,17 +3836,22 @@ function Admin({
   else if (path === "/admin/content")
     panel = (
       <>
+        {/* 앞에서 네 개를 자른 목록일 뿐 신고된 글이 아니었다. 모든 줄이
+            "신고 0"인데 제목은 "04 처리 대기"였다. */}
         <AdminTitle
-          title="게시글·댓글 모니터링"
+          title="최근 게시글"
           count={String(moderationPosts.length).padStart(2, "0")}
+          countLabel="최근 글"
         />
         {moderationPosts.map((post) => (
           <div className="admin-row" key={post.id}>
             <div>
               <span>{post.board}</span>
               <strong>{post.title}</strong>
+              {/* `post.id === "p4"` 는 DB 의 uuid 에는 절대 안 맞는다.
+                  신고 대화창으로 접수한 것도 여기 안 잡혔다. */}
               <small>
-                신고 {post.id === "p4" ? 2 : 0} · 도움 {post.likes}
+                답변 {post.comments.length} · 도움 {post.likes}
               </small>
             </div>
             <button
