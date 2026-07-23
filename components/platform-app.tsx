@@ -1869,6 +1869,7 @@ function ReviewForm({
       status: "published",
       employment: data.get("employment") as "재직" | "퇴사",
       verified: state.role === "verified",
+      mine: true,
     };
     setState((current) => ({
       ...current,
@@ -3202,6 +3203,8 @@ function Account({
   */
   const myHelpful = mine.reduce((sum, post) => sum + post.likes, 0);
   const myScrapped = visible.filter((post) => post.saved);
+  /* 리뷰는 익명이라 작성자를 저장하지 않는다. 이번에 쓴 것만 표시해 둔다. */
+  const myReviews = state.reviews.filter((review) => review.mine);
   return (
     <main id="main" tabIndex={-1} className="page-shell page">
       <PageTitle
@@ -3229,7 +3232,7 @@ function Account({
             </div>
             <div>
               <dt>작성 콘텐츠</dt>
-              <dd>{mine.length}</dd>
+              <dd>{mine.length + myReviews.length}</dd>
             </div>
           </dl>
         </aside>
@@ -3331,7 +3334,9 @@ function Account({
               {/* 전에는 이 자리에 "ROI 문서 글에 댓글을 작성했습니다."가
                   늘 붙어 있었다. 방금 초기화해도 남아 있어서, 내 활동이
                   아니라 그냥 그려 둔 줄이었다. */}
-              {mine.length === 0 && myScrapped.length === 0 ? (
+              {mine.length === 0 &&
+              myScrapped.length === 0 &&
+              myReviews.length === 0 ? (
                 <p className="list-empty">
                   아직 활동이 없습니다. 글을 올리거나 스크랩하면 여기에
                   쌓입니다.
@@ -3341,6 +3346,17 @@ function Account({
                 <Link href={`/posts/${post.id}`} key={`mine-${post.id}`}>
                   <span>작성</span>
                   <strong>{post.title}</strong>
+                </Link>
+              ))}
+              {/* 이 서비스가 하는 일이 리뷰인데, 내 활동에만 안 잡혔다.
+                  회사 페이지 점수는 바로 움직이는데 여기는 그대로였다. */}
+              {myReviews.map((review) => (
+                <Link
+                  href={`/companies/${review.companySlug}`}
+                  key={`review-${review.id}`}
+                >
+                  <span>리뷰</span>
+                  <strong>{review.title}</strong>
                 </Link>
               ))}
             </div>
@@ -3581,6 +3597,25 @@ function Admin({
     (post) => post.ai === "queued" || post.ai === "thinking",
   ).length;
   const moderationPosts = state.posts.slice(0, 4);
+  /* 지금 화면이 아는 처리 결과. 지어낸 줄 대신 이걸 보여 준다. */
+  const hiddenReviewCount = state.reviews.filter(
+    (review) => review.status === "hidden",
+  ).length;
+  const auditLines = [
+    hiddenReviewCount ? `리뷰 ${hiddenReviewCount}건 비공개 처리` : null,
+    state.hiddenPostIds.length
+      ? `게시글 ${state.hiddenPostIds.length}건 비공개 처리`
+      : null,
+    state.placementsPublished ? "홈 추천 영역 게시 중" : null,
+    state.badgeStatus === "승인"
+      ? "확인 배지 신청 승인"
+      : state.badgeStatus === "반려"
+        ? "확인 배지 신청 반려"
+        : null,
+    state.manualCompanies.length
+      ? `회사 ${state.manualCompanies.length}곳 수기 등록`
+      : null,
+  ].filter((line): line is string => line !== null);
 
   const nav = (
     <nav className="admin-nav">
@@ -4179,15 +4214,20 @@ function Admin({
                 <h2>최근 운영 로그</h2>
               </div>
             </div>
-            {/* 시각을 `index * 7` 로 만들어서 늘 방금 전 / 7분 전 / 14분
-                전이었다. 시각 대신 무슨 일이었는지만 남긴다. */}
-            {[
-              "홈 추천 영역 미리보기 생성",
-              "회사 중복 후보 확인 요청",
-              "리뷰 개인정보 탐지로 자동 보류",
-            ].map((item) => (
-              <p key={item}>{item}</p>
-            ))}
+            {/*
+              세 줄이 지어낸 말이었다. 리뷰를 가리든 홈 배치를 게시하든
+              내용이 그대로라, "처리 기록"이라는 이름이 무색했다.
+
+              화면이 알고 있는 것에서 뽑는다 - 지금 가려 둔 것, 게시 상태,
+              배지 처리. 한 것이 없으면 없다고 한다.
+            */}
+            {auditLines.length ? (
+              auditLines.map((line) => <p key={line}>{line}</p>)
+            ) : (
+              <p className="list-empty">
+                이번 체험에서 처리한 작업이 없습니다.
+              </p>
+            )}
           </section>
         </div>
       </>
