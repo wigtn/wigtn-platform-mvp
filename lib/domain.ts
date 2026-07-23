@@ -23,6 +23,17 @@ export type Review = {
   employment: "재직" | "퇴사";
   verified: boolean;
   flags?: Array<"privacy" | "report">;
+  /*
+    이 방문자가 이번에 쓴 리뷰인지.
+
+    리뷰는 익명이라 작성자를 저장하지 않는다. 그래서 마이페이지가 내가 쓴
+    리뷰를 알아볼 방법이 없었다 - 회사 페이지 점수는 바로 움직이는데
+    "작성 콘텐츠"에는 아무것도 안 잡혔다. 이 서비스가 하는 일이 리뷰인데
+    내 활동에만 안 보였다.
+
+    공개 데이터에는 안 나가고 화면 상태에서만 쓴다.
+  */
+  mine?: boolean;
 };
 
 export type Post = {
