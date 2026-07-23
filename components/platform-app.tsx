@@ -31,7 +31,9 @@ import { supabaseConfigured } from "@/lib/supabase";
 import { useDemoStateContext } from "./demo-state-provider";
 import {
   IconBold,
+  IconBookmark,
   IconChevron,
+  IconLock,
   IconEye,
   IconLink,
   IconList,
@@ -1418,7 +1420,10 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
             </small>
           </div>
           <div className="company-decision-actions">
-            <Link className="button primary" href="/reviews/new">
+            <Link
+              className="button primary"
+              href={`/reviews/new?company=${company.slug}`}
+            >
               익명 리뷰 작성
             </Link>
             <Link className="button secondary" href="/compare">
@@ -1572,7 +1577,19 @@ function ReviewForm({
   // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
   const companies = pickCompanies(state);
   const router = useRouter();
+  /*
+    어느 회사 페이지에서 왔는지를 받는다.
+
+    전에는 무조건 목록 첫 회사가 골라져 있었다. 노스스타 상세에서 "익명
+    리뷰 작성"을 누르면 폼에는 모자이크가 떠 있고, 그대로 등록하면 **리뷰가
+    다른 회사에 달렸다.** 회사 칸을 안 보고 넘어가면 알아챌 방법이 없다.
+  */
   const [companySlug, setCompanySlug] = useState(companies[0].slug);
+  useEffect(() => {
+    const from = new URLSearchParams(window.location.search).get("company");
+    if (from && companies.some((c) => c.slug === from)) setCompanySlug(from);
+    // 목록이 DB 에서 늦게 오므로 도착한 뒤 한 번 더 맞춘다.
+  }, [companies]);
   const [score, setScore] = useState(4.2);
   const [dimensions, setDimensions] = useState<Record<string, number>>(() =>
     Object.fromEntries(reviewDimensions.map((label) => [label, 4.0])),
@@ -1874,7 +1891,11 @@ function Community({
                     {post.ai ? (
                       <span className="ai-label">첫 답변 완료</span>
                     ) : null}
-                    <button onClick={() => toggleSave(post.id)}>
+                    <button
+                      className={post.saved ? "is-on" : undefined}
+                      onClick={() => toggleSave(post.id)}
+                    >
+                      <IconBookmark filled={post.saved} />
                       {post.saved ? "스크랩됨" : "스크랩"}
                     </button>
                   </div>
@@ -3873,7 +3894,7 @@ function LockedRoleFeature({
   return (
     <div className="locked-role-feature">
       <span className="locked-role-icon" aria-hidden="true">
-        ⌁
+        <IconLock />
       </span>
       <div>
         <span className="role-access-badge">{badge}</span>

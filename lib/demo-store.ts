@@ -89,7 +89,31 @@ export async function loadPublicData(): Promise<LoadedDemo | null> {
   const supabase = getSupabase();
   if (!supabase) return null;
 
-  const [companiesRes, reviewsRes, boardsRes, postsRes] = await Promise.all([
+  /*
+    등급 배지는 스키마가 코드보다 늦게 갈 수 있다.
+
+    앱은 Vercel 이 올리고 마이그레이션은 사람이 따로 돌린다. 그 사이에
+    `profiles.badge` 가 아직 없는 순간이 생긴다. PostgREST 는 없는 컬럼
+    하나에 조회 **전체**를 거절한다.
+
+        {"code":"42703","message":"column profiles.badge does not exist"}
+
+    글 목록이 통째로 비어서 커뮤니티가 빈 화면이 된다. 배지 하나 때문에
+    글이 안 보이는 건 바꾸기가 너무 크다. 그 오류일 때만 배지를 빼고 한 번
+    더 부른다.
+  */
+  const loadPosts = async (withBadge: boolean) =>
+    supabase
+      .from("posts")
+      .select(
+        "id, title, body, created_at, boards(slug)," +
+          ` profiles!posts_author_id_fkey(display_name${withBadge ? ", badge" : ""}),` +
+          " comments!comments_post_board_fk(body), reactions(type)",
+      )
+      .eq("status", "published")
+      .order("created_at", { ascending: false });
+
+  const [companiesRes, reviewsRes, boardsRes, postsFirst] = await Promise.all([
     supabase
       .from("companies")
       .select(
@@ -115,16 +139,13 @@ export async function loadPublicData(): Promise<LoadedDemo | null> {
     //
     // profiles 는 anon 이 아니라 authenticated 에만 열려 있다. 그래서 이
     // 조회는 익명 **로그인 뒤**에 불러야 한다(ensureDemoSession 먼저).
-    supabase
-      .from("posts")
-      .select(
-        "id, title, body, created_at, boards(slug)," +
-          " profiles!posts_author_id_fkey(display_name)," +
-          " comments!comments_post_board_fk(body), reactions(type)",
-      )
-      .eq("status", "published")
-      .order("created_at", { ascending: false }),
+    loadPosts(true),
   ]);
+
+  // 42703 = undefined_column. 다른 오류는 그대로 던진다 - 권한이나 관계
+  // 문제까지 조용히 삼키면 원인이 안 드러난다.
+  const postsRes =
+    postsFirst.error?.code === "42703" ? await loadPosts(false) : postsFirst;
 
   const firstError =
     companiesRes.error ?? reviewsRes.error ?? boardsRes.error ?? postsRes.error;
@@ -220,13 +241,16 @@ export async function loadPublicData(): Promise<LoadedDemo | null> {
   // `profiles!posts_author_id_fkey(...)` 처럼 FK 이름을 붙이면 supabase-js 의
   // 타입 추론이 문자열을 못 풀고 GenericStringError 로 떨어진다. 실제 응답은
   // 아래 모양이므로 여기서 명시한다.
+  /** 배지는 사람에 붙는다. 컬럼이 아직 없으면 아예 안 온다. */
+  type Profile = { display_name: string; badge?: string | null };
+
   type PostRow = {
     id: string;
     title: string;
     body: string | null;
     created_at: string;
     boards?: { slug: string } | { slug: string }[];
-    profiles?: { display_name: string } | { display_name: string }[];
+    profiles?: Profile | Profile[];
     comments?: Array<{ body: string }>;
     reactions?: Array<{ type: string }>;
   };
@@ -236,9 +260,8 @@ export async function loadPublicData(): Promise<LoadedDemo | null> {
       const board = row.boards;
       const slug = Array.isArray(board) ? board[0]?.slug : board?.slug;
       const author = row.profiles;
-      const displayName = Array.isArray(author)
-        ? author[0]?.display_name
-        : author?.display_name;
+      const profile = Array.isArray(author) ? author[0] : author;
+      const displayName = profile?.display_name;
       const comments = row.comments ?? [];
       const reactions = row.reactions ?? [];
       return {
@@ -247,6 +270,7 @@ export async function loadPublicData(): Promise<LoadedDemo | null> {
         title: row.title,
         body: row.body ?? "",
         author: displayName ?? "익명",
+        badge: profile?.badge ?? undefined,
         likes: reactions.length,
         saved: false,
         comments: comments.map((c) => c.body),
