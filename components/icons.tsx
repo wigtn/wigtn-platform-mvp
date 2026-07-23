@@ -27,6 +27,7 @@ import {
   Bookmark,
   Lock,
   Check,
+  TriangleAlert,
 } from "lucide-react";
 
 /** 크기는 부모 글자 크기를 따르고 색은 currentColor 를 따른다. */
@@ -73,6 +74,9 @@ export const IconLock = () => <Lock {...base} />;
 
 /** 확인된 항목. 전에는 `✓` 글자였는데 획 굵기가 다른 아이콘들과 안 맞았다. */
 export const IconCheck = () => <Check {...base} />;
+
+/** 주의. 전에는 `!` 글자를 그대로 썼다. */
+export const IconCaution = () => <TriangleAlert {...base} />;
 
 /** 스크랩. 담긴 상태는 채워서 구분한다. */
 export const IconBookmark = ({ filled = false }: { filled?: boolean }) => (

@@ -32,6 +32,7 @@ import { useDemoStateContext } from "./demo-state-provider";
 import {
   IconBold,
   IconBookmark,
+  IconCaution,
   IconCheck,
   IconChevron,
   IconLock,
@@ -71,6 +72,45 @@ function pickCompanies(state: { companies?: Company[] }): Company[] {
  * 뽑히든 같은 값이 나와서, 비교 화면과 대 보면 서로 다른 말을 했다.
  * 순위 목록의 부제도 배열 순서로 골라 회사와 상관이 없었다.
  */
+/**
+ * 점수를 화면에 쓸 글자로 바꾼다.
+ *
+ * 공개 리뷰가 없으면 숫자가 없다. 예전 값이나 회사 레코드의 값을 대신
+ * 보여 주면, 아무 리뷰도 없는데 평점이 있는 상태가 된다.
+ */
+/*
+  브라우저가 띄우는 안내 문구를 한국어로 바꾼다.
+
+  빈 채로 등록을 누르면 크롬이 "Please fill out this field." 를 띄웠다.
+  전부 한국어인 화면에서 폼을 처음 만져 본 사람이 제일 먼저 보는 글이
+  영어였다. 글자 수가 모자랄 때도 마찬가지다.
+
+  form 하나에 걸어 두면 안쪽 입력이 전부 따라온다 - invalid 는 위로
+  올라오지 않지만(버블 안 함) 캡처 단계에서는 잡힌다.
+*/
+type FormField = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+
+function koreanValidity(event: { target: EventTarget | null }) {
+  const field = event.target as FormField | null;
+  if (!field || typeof field.setCustomValidity !== "function") return;
+  field.setCustomValidity("");
+  if (field.validity.valueMissing) {
+    field.setCustomValidity("이 항목을 입력해 주세요.");
+  } else if (field.validity.tooShort && "minLength" in field) {
+    field.setCustomValidity(`${field.minLength}자 이상 적어 주세요.`);
+  }
+}
+
+/** 다시 입력하면 안내를 지운다. 안 지우면 고쳐도 계속 빨갛게 남는다. */
+function clearValidity(event: { target: EventTarget | null }) {
+  const field = event.target as FormField | null;
+  field?.setCustomValidity?.("");
+}
+
+function scoreText(value: number | null): string {
+  return value === null ? "집계 전" : value.toFixed(1);
+}
+
 function topDimension(company: Company): string | null {
   const ranked = Object.entries(company.scores ?? {}).sort(
     ([, a], [, b]) => b - a,
@@ -235,6 +275,38 @@ function overlayTransientState(state: DemoState): DemoState {
     if (!Array.isArray(transient.posts) || !Array.isArray(transient.reviews)) {
       return state;
     }
+    /*
+      스냅샷이 서버 데이터를 통째로 덮지 않게 한다.
+
+      전에는 `...transient` 를 그대로 펼쳐서 posts·reviews 배열이 방금 읽은
+      서버 값을 통째로 밀어냈다. 이 스냅샷은 **탭이 열려 있는 동안 계속**
+      살아 있으므로, 서버에서 바뀐 것이 탭을 닫기 전까지 화면에 안 나온다.
+
+      실제로 이것 때문에 등급 배지가 안 보였다. DB 에 컬럼을 만들고 값을
+      채우고 조회까지 200 으로 잘 받아 왔는데, 화면은 배지가 없던 시절의
+      스냅샷을 계속 그리고 있었다. 오류가 없어서 원인을 찾기 어려웠다.
+
+      스냅샷이 알아야 하는 건 **방문자가 방금 한 일**뿐이다. 서버가 아는
+      글은 서버 값을 쓰고, 내 흔적(좋아요·스크랩·댓글·AI 답변)만 얹는다.
+      서버가 아직 모르는 글은 그대로 앞에 붙인다.
+    */
+    const mine = new Map(transient.posts.map((post) => [post.id, post]));
+    const merged = (state.posts ?? []).map((post) => {
+      const saved = mine.get(post.id);
+      if (!saved) return post;
+      mine.delete(post.id);
+      return {
+        ...post,
+        liked: saved.liked,
+        likes: saved.likes,
+        saved: saved.saved,
+        comments: saved.comments,
+        ai: saved.ai ?? post.ai,
+        aiAnswer: saved.aiAnswer ?? post.aiAnswer,
+        aiModel: saved.aiModel ?? post.aiModel,
+      };
+    });
+
     return {
       ...state,
       ...transient,
@@ -244,6 +316,19 @@ function overlayTransientState(state: DemoState): DemoState {
         : transient.companies,
       boardIds: state.boardIds ?? transient.boardIds,
       companyIds: state.companyIds ?? transient.companyIds,
+      // 서버가 아직 모르는 글(방금 쓴 것)을 앞에, 서버가 아는 글을 뒤에.
+      posts: [...mine.values(), ...merged],
+      /*
+        리뷰도 같은 규칙이다. 서버 값을 정본으로 두되, 원장이 아직 못 따라온
+        내 리뷰는 잃지 않는다. `state.reviews` 를 통째로 쓰면 방금 쓴 리뷰가
+        잠깐 사라졌다가 나타난다.
+      */
+      reviews: [
+        ...transient.reviews.filter(
+          (review) => !(state.reviews ?? []).some((r) => r.id === review.id),
+        ),
+        ...(state.reviews ?? []),
+      ],
     } as DemoState;
   } catch {
     return state;
@@ -922,6 +1007,20 @@ function Header({
     ["/compare", "회사 비교"],
     ["/trust", "검증 정책"],
   ] as const;
+  /*
+    메뉴 밑에 붙지 않는 자식 주소들.
+
+    `path.startsWith(href + "/")` 만으로는 `/posts/p1`, `/questions/new`,
+    `/reviews/new` 에서 아무 메뉴도 안 켜졌다. 커뮤니티 글을 읽는 중인데
+    메뉴는 전부 꺼져 있어서, 지금 어디인지 알 수 없었다.
+  */
+  const navHome: Array<[string, string]> = [
+    ["/posts", "/community"],
+    ["/questions", "/community"],
+    ["/reviews", "/companies"],
+  ];
+  const section =
+    navHome.find(([prefix]) => path.startsWith(prefix))?.[1] ?? path;
   return (
     <header className="site-header">
       <div className="header-inner">
@@ -930,7 +1029,7 @@ function Header({
         </Link>
         <nav aria-label="주요 메뉴">
           {navigation.map(([href, label]) => {
-            const active = path === href || path.startsWith(`${href}/`);
+            const active = section === href || section.startsWith(`${href}/`);
             return (
               <Link
                 className={active ? "active" : undefined}
@@ -971,7 +1070,7 @@ function Home({ state }: { state: DemoState }) {
   const [query, setQuery] = useState("");
   const router = useRouter();
   return (
-    <main>
+    <main id="main">
       <section className="hero">
         <div className="page-shell hero-layout">
           <div className="hero-copy reveal">
@@ -986,6 +1085,8 @@ function Home({ state }: { state: DemoState }) {
               확인하세요.
             </p>
             <form
+              onInvalidCapture={koreanValidity}
+              onInputCapture={clearValidity}
               className="hero-search"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -1021,7 +1122,7 @@ function Home({ state }: { state: DemoState }) {
           <aside className="career-preview" aria-label="추천 회사 미리보기">
             <div className="preview-head">
               <div>
-                <span>이번 주 많이 본 회사</span>
+                <span>지금 보고 있는 회사</span>
                 <strong>최근 조회가 늘어난 회사</strong>
               </div>
               <Link href="/companies">전체 보기</Link>
@@ -1042,18 +1143,28 @@ function Home({ state }: { state: DemoState }) {
                   </small>
                 </span>
                 {/* 점수만 크게 두면 근거가 안 보인다. 표본 수를 붙인다. */}
+                {/* 전에는 회사 레코드의 원값을 그대로 썼다. 바로 아래
+                    순위 목록은 리뷰에서 계산한 값을 써서, 같은 회사가 한
+                    화면에서 4.1 과 4.3 으로 동시에 나왔다. */}
                 <b>
-                  {company.score.toFixed(1)}
+                  {scoreText(
+                    companyScore(state.reviews, company.slug, company.score),
+                  )}
                   <small>리뷰 {company.reviewCount}</small>
                 </b>
               </Link>
             ))}
+            {/* 4,812명 · 1,260건이 박혀 있었다. 회사 6곳짜리 화면에서
+                이 숫자는 바로 들통난다. 실제로 센다. */}
             <div className="preview-proof">
               <span>
-                <b>4,812</b> 재직 확인 회원
+                <b>{companies.length}</b> 등록 회사
               </span>
               <span>
-                <b>1,260</b> 누적 회사 리뷰
+                <b>
+                  {state.reviews.filter((r) => r.status === "published").length}
+                </b>{" "}
+                공개 리뷰
               </span>
             </div>
           </aside>
@@ -1105,11 +1216,9 @@ function Home({ state }: { state: DemoState }) {
               <div>
                 <dt>종합 점수</dt>
                 <dd>
-                  {companyScore(
-                    state.reviews,
-                    top[0].slug,
-                    top[0].score,
-                  ).toFixed(1)}
+                  {scoreText(
+                    companyScore(state.reviews, top[0].slug, top[0].score),
+                  )}
                 </dd>
               </div>
               <div>
@@ -1136,8 +1245,11 @@ function Home({ state }: { state: DemoState }) {
             </div>
           </article>
           <div className="ranked-companies">
+            {/* 목록은 관심도 순인데 열 이름은 "순위"이고 옆에는 평점만
+                보였다. 02→4.3, 03→3.7, 04→4.0 처럼 아래가 위보다 높은
+                줄이 생겨, 평점 순인 줄 읽으면 틀린 화면이 된다. */}
             <div className="ranked-heading">
-              <span>순위</span>
+              <span>조회 순</span>
               <span>회사 / 높은 평가 항목</span>
               <span>평점</span>
             </div>
@@ -1156,11 +1268,9 @@ function Home({ state }: { state: DemoState }) {
                   <small>{topDimension(company) ?? "집계 전"}</small>
                 </span>
                 <span className="ranked-company-score">
-                  {companyScore(
-                    state.reviews,
-                    company.slug,
-                    company.score,
-                  ).toFixed(1)}
+                  {scoreText(
+                    companyScore(state.reviews, company.slug, company.score),
+                  )}
                   <small>
                     {company.trend >= 0
                       ? `+${company.trend}%`
@@ -1172,7 +1282,9 @@ function Home({ state }: { state: DemoState }) {
             <div className="ranked-note">
               <span>평가 기준</span>
               <p>최근 12개월 리뷰와 재직 확인 여부를 반영합니다.</p>
-              <Link href="/trust">산정 방식 확인</Link>
+              <Link className="text-link" href="/trust">
+                산정 방식 확인
+              </Link>
             </div>
           </div>
         </div>
@@ -1189,21 +1301,27 @@ function Home({ state }: { state: DemoState }) {
             </Link>
           </div>
           <div className="story-list">
-            {state.posts.slice(1, 4).map((post) => (
-              <Link href={`/posts/${post.id}`} key={post.id}>
-                <span className="story-board">{post.board}</span>
-                <span className="story-copy">
-                  <h3>{post.title}</h3>
-                  <small>
-                    {post.author}
-                    {post.badge ? ` · ${post.badge}` : ""}
-                  </small>
-                </span>
-                <span className="story-stats">
-                  도움 {post.likes} · 댓글 {post.comments.length}
-                </span>
-              </Link>
-            ))}
+            {/* 전에는 `slice(1, 4)` 라 첫 글을 이유 없이 건너뛰었다.
+                도움이 제일 많은 글이 홈에 영영 안 나오고, 방금 쓴 글도
+                밀려났다. 블라인드된 글도 그대로 남아 있었다. */}
+            {state.posts
+              .filter((post) => !state.hiddenPostIds.includes(post.id))
+              .slice(0, 3)
+              .map((post) => (
+                <Link href={`/posts/${post.id}`} key={post.id}>
+                  <span className="story-board">{post.board}</span>
+                  <span className="story-copy">
+                    <h3>{post.title}</h3>
+                    <small>
+                      {post.author}
+                      {post.badge ? ` · ${post.badge}` : ""}
+                    </small>
+                  </span>
+                  <span className="story-stats">
+                    도움 {post.likes} · 댓글 {post.comments.length}
+                  </span>
+                </Link>
+              ))}
           </div>
         </div>
       </section>
@@ -1250,7 +1368,8 @@ function CompanyCard({
   // 전에는 `(typeof companies)[number]` 였다. 회사 목록이 모듈 상수가
   // 아니라 DB 에서 오므로 타입을 직접 가리킨다.
   company: Company;
-  score: number;
+  /** 공개 리뷰가 없으면 null. 화면에는 "집계 전"으로 나간다. */
+  score: number | null;
   index: number;
 }) {
   return (
@@ -1282,10 +1401,14 @@ function CompanyCard({
       </h3>
       <p>{company.summary}</p>
       <div className="score-line">
-        <span className="star">
-          <IconStar />
-        </span>
-        <strong>{score.toFixed(1)}</strong>
+        {/* 공개 리뷰가 없으면 별도 점수도 안 보여 준다. 별만 남으면 평점이
+            있는데 0 인 것처럼 읽힌다. */}
+        {score !== null ? (
+          <span className="star">
+            <IconStar />
+          </span>
+        ) : null}
+        <strong>{scoreText(score)}</strong>
         <span>리뷰 {company.reviewCount}</span>
         <b className={company.trend >= 0 ? "up" : "down"}>
           관심도 {company.trend >= 0 ? "+" : ""}
@@ -1310,7 +1433,7 @@ function Companies({ state }: { state: DemoState }) {
       `${company.name}${company.industry}${company.type}`.includes(query),
   );
   return (
-    <main className="page-shell page">
+    <main id="main" className="page-shell page">
       <PageTitle
         eyebrow="회사 리뷰"
         title="회사 리뷰 찾기"
@@ -1376,7 +1499,11 @@ function Companies({ state }: { state: DemoState }) {
 function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
   // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
   const companies = pickCompanies(state);
-  const company = companies.find((item) => item.slug === slug) ?? companies[0];
+  /* 없는 slug 면 목록 첫 회사를 보여 줬다. `/companies/does-not-exist` 가
+     노스스타 페이지를 그리고 빵부스러기까지 "노스스타 클라우드"로 떴다.
+     방문자는 자기가 어디에 있는지 알 수 없다. */
+  const company = companies.find((item) => item.slug === slug);
+  if (!company) return <NotFound />;
   const reviews = state.reviews.filter(
     (review) =>
       review.companySlug === company.slug && review.status === "published",
@@ -1399,7 +1526,7 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
   const strongest = rankedDimensions[0];
   const weakest = rankedDimensions[rankedDimensions.length - 1];
   return (
-    <main className="page-shell page company-detail-page">
+    <main id="main" className="page-shell page company-detail-page">
       <nav className="breadcrumb" aria-label="현재 위치">
         <Link href="/companies">회사 탐색</Link>
         <span>/</span>
@@ -1418,9 +1545,15 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
             </p>
             <h1>{company.name}</h1>
             <p>{company.summary}</p>
+            {/*
+              한 화면에서 리뷰 수를 네 가지로 말했다. 여기 "리뷰 18건",
+              탭 "현직자 리뷰 2", 6축 "표본 18", 오른쪽 "현재 공개 2건".
+              18 은 회사 레코드에 적힌 값이고 실제 리뷰는 2건뿐이다.
+
+              "최근 업데이트 3일 전"도 모든 회사에 똑같이 박혀 있었다.
+            */}
             <div className="company-facts">
-              <span>리뷰 {company.reviewCount}건</span>
-              <span>최근 업데이트 3일 전</span>
+              <span>리뷰 {reviews.length}건</span>
               <span>최근 12개월 리뷰 반영</span>
             </div>
           </div>
@@ -1434,7 +1567,7 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
               <i className="score-star" aria-hidden="true">
                 <IconStar />
               </i>
-              {score.toFixed(1)}
+              {scoreText(score)}
             </strong>
             <small>
               재직 확인 리뷰{" "}
@@ -1504,7 +1637,9 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
               </li>
             ))}
           </ul>
-          <Link href="/questions/new">현직자에게 확인 질문하기</Link>
+          <Link className="text-link" href="/questions/new">
+            현직자에게 확인 질문하기
+          </Link>
         </aside>
       </section>
       <section className="section-tight" id="environment">
@@ -1514,7 +1649,7 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
             <h2>영업환경 6축</h2>
           </div>
           <span className="trust-chip">
-            표본 {company.reviewCount} · 최근 12개월
+            표본 {reviews.length} · 최근 12개월
           </span>
         </div>
         <div className="score-bars">
@@ -1544,6 +1679,13 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
         </div>
         <div className="review-layout">
           <div className="review-list">
+            {/* 다른 목록에는 다 있는데 여기만 빈 상태가 없었다. 리뷰를 전부
+                가리면 커다란 빈 자리만 남아 화면이 덜 그려진 것처럼 보였다. */}
+            {reviews.length === 0 ? (
+              <p className="list-empty">
+                공개된 리뷰가 없습니다. 첫 리뷰를 남기면 여기에 표시됩니다.
+              </p>
+            ) : null}
             {reviews.map((review) => (
               <article key={review.id}>
                 <div>
@@ -1657,120 +1799,149 @@ function ReviewForm({
     router.push(`/companies/${companySlug}`);
   };
   return (
-    <main className="page-shell page narrow">
+    <main id="main" className="page-shell page narrow">
       <PageTitle
         eyebrow="회사 리뷰"
         title="익명 리뷰 작성"
         description="개인이나 고객을 특정할 수 있는 정보는 제외해 주세요. 등록 전에 개인정보 포함 여부를 확인합니다."
       />
-      {state.role === "verified" ? (
-        <div className="role-feature-note is-unlocked">
-          <span className="role-access-badge">인증 영업인 전용</span>
-          <div>
-            <strong>
-              이 역할로 작성한 리뷰에는 재직 확인 표시가 붙습니다.
-            </strong>
-            <p>다른 방문자에게 작성자의 확인 수준만 공개됩니다.</p>
-          </div>
-        </div>
-      ) : (
+      {/*
+        비회원은 리뷰를 쓸 수 없다.
+
+        글·질문 폼은 막아 뒀는데 리뷰 폼만 열려 있었다. 비회원으로 그냥
+        등록되고 공개 목록에 published 로 올라갔다. 역할별 권한 차이를
+        보여 주는 데모인데 그 전제가 깨진다.
+      */}
+      {state.role === "guest" ? (
         <LockedRoleFeature
-          badge="인증 영업인 전용"
-          title="재직 확인 표시가 붙은 리뷰 작성"
-          description="인증 영업인 역할로 바꾸면 작성한 리뷰에 재직 확인 표시가 붙습니다."
-          targetRole="verified"
+          badge="회원 전용"
+          title="익명 리뷰 작성"
+          description="일반 영업인 역할부터 리뷰를 올릴 수 있습니다."
+          targetRole="sales"
           onRoleChange={onRoleChange}
         />
-      )}
-      <form className="form-panel" onSubmit={submit}>
-        <label>
-          회사
-          <select
-            value={companySlug}
-            onChange={(event) => setCompanySlug(event.target.value)}
-          >
-            {companies.map((company) => (
-              <option value={company.slug} key={company.slug}>
-                {company.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="field-row">
-          <label>
-            재직 상태
-            <select name="employment">
-              <option>재직</option>
-              <option>퇴사</option>
-            </select>
-          </label>
-          <label>
-            종합 점수 <b>{score.toFixed(1)}</b>
-            <input
-              aria-label="종합 점수"
-              type="range"
-              min="1"
-              max="5"
-              step="0.1"
-              value={score}
-              onChange={(event) => setScore(Number(event.target.value))}
+      ) : (
+        <>
+          {state.role === "verified" ? (
+            <div className="role-feature-note is-unlocked">
+              <span className="role-access-badge">인증 영업인 전용</span>
+              <div>
+                <strong>
+                  이 역할로 작성한 리뷰에는 재직 확인 표시가 붙습니다.
+                </strong>
+                <p>다른 방문자에게 작성자의 확인 수준만 공개됩니다.</p>
+              </div>
+            </div>
+          ) : (
+            <LockedRoleFeature
+              badge="인증 영업인 전용"
+              title="재직 확인 표시가 붙은 리뷰 작성"
+              description="인증 영업인 역할로 바꾸면 작성한 리뷰에 재직 확인 표시가 붙습니다."
+              targetRole="verified"
+              onRoleChange={onRoleChange}
             />
-          </label>
-        </div>
-        <fieldset className="dimension-fields">
-          <legend>영업환경 항목별 평가</legend>
-          {reviewDimensions.map((label) => (
-            <label key={label}>
-              <span>
-                {label} <b>{dimensions[label].toFixed(1)}</b>
-              </span>
+          )}
+          <form
+            onInvalidCapture={koreanValidity}
+            onInputCapture={clearValidity}
+            className="form-panel"
+            onSubmit={submit}
+          >
+            <label>
+              회사
+              <select
+                value={companySlug}
+                onChange={(event) => setCompanySlug(event.target.value)}
+              >
+                {companies.map((company) => (
+                  <option value={company.slug} key={company.slug}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="field-row">
+              <label>
+                재직 상태
+                <select name="employment">
+                  <option>재직</option>
+                  <option>퇴사</option>
+                </select>
+              </label>
+              {/* 아래 6축과 같은 모양으로 맞춘다. 전에는 이름과 값이 한 줄에
+              그냥 흘러서 옆의 select 와 높이가 안 맞았고, 값이 오른쪽 끝에
+              붙는 6축과도 규칙이 달랐다. */}
+              <label className="range-field">
+                <span>
+                  종합 점수 <b>{score.toFixed(1)}</b>
+                </span>
+                <input
+                  aria-label="종합 점수"
+                  type="range"
+                  min="1"
+                  max="5"
+                  step="0.1"
+                  value={score}
+                  onChange={(event) => setScore(Number(event.target.value))}
+                />
+              </label>
+            </div>
+            <fieldset className="dimension-fields">
+              <legend>영업환경 항목별 평가</legend>
+              {reviewDimensions.map((label) => (
+                <label key={label}>
+                  <span>
+                    {label} <b>{dimensions[label].toFixed(1)}</b>
+                  </span>
+                  <input
+                    aria-label={label}
+                    type="range"
+                    min="1"
+                    max="5"
+                    step="0.1"
+                    value={dimensions[label]}
+                    onChange={(event) =>
+                      setDimensions((current) => ({
+                        ...current,
+                        [label]: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </fieldset>
+            <label>
+              한 줄 요약
               <input
-                aria-label={label}
-                type="range"
-                min="1"
-                max="5"
-                step="0.1"
-                value={dimensions[label]}
-                onChange={(event) =>
-                  setDimensions((current) => ({
-                    ...current,
-                    [label]: Number(event.target.value),
-                  }))
-                }
+                name="title"
+                required
+                minLength={5}
+                placeholder="이 회사의 영업환경을 한 문장으로"
               />
             </label>
-          ))}
-        </fieldset>
-        <label>
-          한 줄 요약
-          <input
-            name="title"
-            required
-            minLength={5}
-            placeholder="이 회사의 영업환경을 한 문장으로"
-          />
-        </label>
-        <label>
-          상세 경험
-          <textarea
-            name="body"
-            required
-            minLength={20}
-            rows={7}
-            placeholder="목표, 리드, 보상, 협업과 코칭에서 실제로 경험한 점을 알려주세요."
-          />
-        </label>
-        <div className="privacy-note">
-          <strong>익명성 보호</strong>
-          <p>
-            공개 프로필과 리뷰 작성자 식별키를 분리합니다. 운영자도 승인된 분쟁
-            절차와 감사기록 없이 작성자를 볼 수 없습니다.
-          </p>
-        </div>
-        <button className="button primary" type="submit">
-          리뷰 등록하고 통계 보기
-        </button>
-      </form>
+            <label>
+              상세 경험
+              <textarea
+                name="body"
+                required
+                minLength={20}
+                rows={7}
+                placeholder="목표, 리드, 보상, 협업과 코칭에서 실제로 경험한 점을 알려주세요."
+              />
+            </label>
+            <div className="privacy-note">
+              <strong>익명성 보호</strong>
+              <p>
+                공개 프로필과 리뷰 작성자 식별키를 분리합니다. 운영자도 승인된
+                분쟁 절차와 감사기록 없이 작성자를 볼 수 없습니다.
+              </p>
+            </div>
+            <button className="button primary" type="submit">
+              리뷰 등록하고 통계 보기
+            </button>
+          </form>
+        </>
+      )}
     </main>
   );
 }
@@ -1814,7 +1985,7 @@ function Community({
     notify("스크랩 상태가 변경됐습니다.");
   };
   return (
-    <main className="page community-page">
+    <main id="main" className="page community-page">
       <section className="community-hero">
         <div className="page-shell community-hero-inner">
           <div>
@@ -1834,18 +2005,27 @@ function Community({
               경험 공유
             </Link>
           </div>
+          {/*
+            94% · 18분 · 4,812명이 박혀 있었다. 바로 아래 목록에는 여섯 글
+            중 셋이 "답변 0"으로 떠 있어서, 화면이 스스로를 반박했다.
+
+            셀 수 있는 것만 센다.
+          */}
           <dl className="community-stats">
             <div>
-              <dt>답변 완료율</dt>
-              <dd>94%</dd>
+              <dt>답변이 달린 글</dt>
+              <dd>
+                {posts.filter((post) => post.comments.length).length}/
+                {posts.length}
+              </dd>
             </div>
             <div>
-              <dt>첫 답변까지</dt>
-              <dd>평균 18분</dd>
+              <dt>AI 첫 답변</dt>
+              <dd>{posts.filter((post) => post.ai === "posted").length}건</dd>
             </div>
             <div>
-              <dt>검증 영업인</dt>
-              <dd>4,812명</dd>
+              <dt>게시판</dt>
+              <dd>4개</dd>
             </div>
           </dl>
         </div>
@@ -1871,7 +2051,9 @@ function Community({
               상황, 시도한 방법, 원하는 결과를 함께 적으면 더 구체적인 답을 받을
               수 있습니다.
             </p>
-            <Link href="/questions/new">질문 올리기</Link>
+            <Link className="text-link" href="/questions/new">
+              질문 올리기
+            </Link>
           </div>
         </aside>
         <section className="community-main">
@@ -1917,7 +2099,10 @@ function Community({
                   <div className="post-actions">
                     <span>도움 {post.likes}</span>
                     <span>답변 {post.comments.length}</span>
-                    {post.ai ? (
+                    {/* `post.ai` 는 queued·thinking 일 때도 참이다. 답변이
+                        0건인 글에 "첫 답변 완료"가 붙었고, 관리자 화면은
+                        같은 글을 "AI 첫 답변 대기"로 세고 있었다. */}
+                    {post.ai === "posted" ? (
                       <span className="ai-label">첫 답변 완료</span>
                     ) : null}
                     <button
@@ -1971,7 +2156,9 @@ function Community({
             <span>답변자 확인 정보</span>
             <strong>경력·재직·실적 확인 여부를 표시합니다.</strong>
             <p>답변자 이름 옆의 확인 배지를 참고하세요.</p>
-            <Link href="/trust">검증 정책</Link>
+            <Link className="text-link" href="/trust">
+              검증 정책
+            </Link>
           </section>
         </aside>
       </div>
@@ -2055,7 +2242,7 @@ function PostForm({
       board: data.get("board") as Post["board"],
       title: String(data.get("title")),
       body: String(data.get("body")),
-      author: roleNames[state.role],
+      author: state.profile.name,
       badge: state.role === "verified" ? "검증 영업인 L2" : undefined,
       likes: 0,
       saved: false,
@@ -2078,7 +2265,7 @@ function PostForm({
     router.push(`/posts/${id}`);
   };
   return (
-    <main className="page-shell page narrow">
+    <main id="main" className="page-shell page narrow">
       <PageTitle
         eyebrow="커뮤니티"
         title="게시글 작성"
@@ -2097,7 +2284,12 @@ function PostForm({
           onRoleChange={onRoleChange}
         />
       ) : (
-        <form className="form-panel" onSubmit={submit}>
+        <form
+          onInvalidCapture={koreanValidity}
+          onInputCapture={clearValidity}
+          className="form-panel"
+          onSubmit={submit}
+        >
           <label>
             게시판
             <select name="board" defaultValue="노하우">
@@ -2224,9 +2416,15 @@ function PostDetail({
   notify: (m: string) => void;
   onRoleChange: (role: Role) => void;
 }) {
-  const post = state.posts.find((item) => item.id === id) ?? state.posts[0];
+  /* 없는 id 면 첫 글을 보여 줬다. 블라인드된 글도 그대로 다 보였다. */
+  const post = state.posts.find(
+    (item) => item.id === id && !state.hiddenPostIds.includes(item.id),
+  );
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [reporting, setReporting] = useState(false);
+  /* 훅을 다 부른 뒤에 돌려보낸다. 위에서 빠져나가면 렌더마다 훅 개수가
+     달라져 React 가 상태를 잘못 잇는다. */
+  if (!post) return <NotFound />;
 
   /**
    * 답변과 답글을 함께 처리한다.
@@ -2260,7 +2458,7 @@ function PostDetail({
     );
   };
   return (
-    <main className="page-shell page narrow">
+    <main id="main" className="page-shell page narrow">
       <article className="post-detail">
         <div className="post-meta">
           <span>{post.board}</span>
@@ -2287,13 +2485,12 @@ function PostDetail({
             answer={parseFieldnoteAiAnswer(post.aiAnswer)}
             model={post.aiModel ?? ""}
           />
-        ) : post.ai === "posted" ? (
-          <aside className="ai-answer">
-            <span>AI 초안 · 개인정보 검사 완료</span>
-            <h3>답변을 준비했습니다.</h3>
-            <p>질문 화면에서 전체 내용을 확인할 수 있습니다.</p>
-          </aside>
         ) : null}
+        {/*
+          전에는 답변 내용이 없는데도 "답변을 준비했습니다 / 질문 화면에서
+          전체 내용을 확인할 수 있습니다."가 떴다. 그 질문 화면으로 갈 길이
+          없고 이 글이 바로 그 질문이다. 내용이 있을 때만 보여 준다.
+        */}
         <div className="post-actions">
           {/*
             같은 사람이 여러 번 누르면 계속 올라가던 것을 토글로 바꿨다.
@@ -2381,7 +2578,12 @@ function PostDetail({
                 보이지 않았다.
               */}
               {replyingTo === index ? (
-                <form className="comment-form is-inline" onSubmit={addComment}>
+                <form
+                  onInvalidCapture={koreanValidity}
+                  onInputCapture={clearValidity}
+                  className="comment-form is-inline"
+                  onSubmit={addComment}
+                >
                   <label>
                     답글 쓰기
                     <textarea name="comment" rows={3} required />
@@ -2404,7 +2606,12 @@ function PostDetail({
             onRoleChange={onRoleChange}
           />
         ) : (
-          <form className="comment-form" onSubmit={addComment}>
+          <form
+            onInvalidCapture={koreanValidity}
+            onInputCapture={clearValidity}
+            className="comment-form"
+            onSubmit={addComment}
+          >
             <span className="role-access-badge">회원 전용</span>
             <label>
               답변 작성
@@ -2617,7 +2824,9 @@ function AiAnswerCard({
       ) : null}
 
       <div className="fieldnote-answer-caution">
-        <span aria-hidden="true">!</span>
+        <span aria-hidden="true">
+          <IconCaution />
+        </span>
         <div>
           <b>놓치기 쉬운 점</b>
           <p>{answer.caution}</p>
@@ -2645,6 +2854,12 @@ function QuestionForm({
   notify: (m: string) => void;
   onRoleChange: (role: Role) => void;
 }) {
+  /** 이미 만든 글의 id. 다시 등록할 때 새로 만들지 않고 이 자리를 고친다. */
+  const createdIdRef = useRef<string | null>(null);
+  /** 폼 아래에 걸어 두는 비슷한 질문. 실제 글에서 고른다. */
+  const similar = state.posts.find(
+    (post) => post.board === "Q&A" && !state.hiddenPostIds.includes(post.id),
+  );
   const [status, setStatus] = useState<
     "idle" | "queued" | "thinking" | "posted" | "error"
   >("idle");
@@ -2701,12 +2916,21 @@ function QuestionForm({
       notify(message);
     }
 
+    /*
+      다시 시도해도 글이 하나만 남는다.
+
+      전에는 등록할 때마다 새 글을 앞에 붙였다. AI 답변이 실패해서 "질문
+      다듬기"로 돌아가 다시 등록하면, 커뮤니티에 똑같은 글이 두 개 생겼다.
+      실패한 쪽은 지울 방법도 없었다.
+
+      한 번 만든 글의 id 를 들고 있다가, 다시 등록하면 그 자리를 고친다.
+    */
     const post: Post = {
-      id: `p-${Date.now()}`,
+      id: createdIdRef.current ?? `p-${Date.now()}`,
       board: "Q&A",
       title,
       body: context,
-      author: roleNames[state.role],
+      author: state.profile.name,
       badge: state.role === "verified" ? "검증 영업인 L2" : undefined,
       likes: 0,
       saved: false,
@@ -2715,11 +2939,18 @@ function QuestionForm({
       aiAnswer: rawAnswer ?? undefined,
       aiModel: model || undefined,
     };
+    const isRetry = createdIdRef.current !== null;
+    createdIdRef.current = post.id;
     window.sessionStorage.setItem(PENDING_QUESTION_KEY, JSON.stringify(post));
-    setState((current) => ({ ...current, posts: [post, ...current.posts] }));
+    setState((current) => ({
+      ...current,
+      posts: isRetry
+        ? current.posts.map((item) => (item.id === post.id ? post : item))
+        : [post, ...current.posts],
+    }));
   };
   return (
-    <main className="page-shell page narrow">
+    <main id="main" className="page-shell page narrow">
       <PageTitle
         eyebrow="영업 Q&A"
         title="커뮤니티에 질문하기"
@@ -2736,7 +2967,12 @@ function QuestionForm({
           onRoleChange={onRoleChange}
         />
       ) : status === "idle" ? (
-        <form className="form-panel" onSubmit={ask}>
+        <form
+          onInvalidCapture={koreanValidity}
+          onInputCapture={clearValidity}
+          className="form-panel"
+          onSubmit={ask}
+        >
           <label>
             질문 제목
             <input
@@ -2758,12 +2994,19 @@ function QuestionForm({
               onChange={(event) => setContext(event.target.value)}
             />
           </label>
-          <div className="similar-box">
-            <span>작성 전 유사 질문</span>
-            <Link href="/posts/p1">
-              엔터프라이즈 첫 미팅에서 꼭 확인하는 세 가지는?
-            </Link>
-          </div>
+          {/*
+            제목과 주소를 둘 다 박아 뒀다. DB 를 붙이면 글 id 가 uuid 라
+            `/posts/p1` 은 없는 주소가 된다 - 전에는 없는 id 면 첫 글을
+            대신 보여 줘서 안 드러났고, 그 대체를 없애자 404 가 됐다.
+
+            실제 Q&A 글에서 하나 가져온다.
+          */}
+          {similar ? (
+            <div className="similar-box">
+              <span>작성 전 유사 질문</span>
+              <Link href={`/posts/${similar.id}`}>{similar.title}</Link>
+            </div>
+          ) : null}
           <button className="button primary">질문 등록</button>
         </form>
       ) : (
@@ -2835,11 +3078,23 @@ function Account({
   notify: (m: string) => void;
   onRoleChange: (role: Role) => void;
 }) {
-  const mine = state.posts.filter(
-    (post) => post.author === roleNames[state.role],
+  /* 블라인드된 글은 여기서도 빠져야 한다. 커뮤니티에서는 안 보이는데
+     내 활동에는 그대로 남아 있었다. */
+  const visible = state.posts.filter(
+    (post) => !state.hiddenPostIds.includes(post.id),
   );
+  const mine = visible.filter((post) => post.author === state.profile.name);
+  /*
+    내가 쓴 것에서 센다.
+
+    "내 글이 받은 도움"이 428 로 박혀 있었다. 글을 지워도 새로 써도 428
+    이었다. 아래 "작성 콘텐츠"도 `mine.length + 12` 라, 아무것도 안 썼는데
+    12 였다. 숫자가 화면에 있으면 사람은 그게 자기 기록이라고 읽는다.
+  */
+  const myHelpful = mine.reduce((sum, post) => sum + post.likes, 0);
+  const myScrapped = visible.filter((post) => post.saved);
   return (
-    <main className="page-shell page">
+    <main id="main" className="page-shell page">
       <PageTitle
         eyebrow="마이페이지"
         title="내 활동 관리"
@@ -2861,11 +3116,11 @@ function Account({
           <dl>
             <div>
               <dt>내 글이 받은 도움</dt>
-              <dd>428</dd>
+              <dd>{myHelpful}</dd>
             </div>
             <div>
               <dt>작성 콘텐츠</dt>
-              <dd>{mine.length + 12}</dd>
+              <dd>{mine.length}</dd>
             </div>
           </dl>
         </aside>
@@ -2876,6 +3131,8 @@ function Account({
               <span>공개 정보</span>
             </div>
             <form
+              onInvalidCapture={koreanValidity}
+              onInputCapture={clearValidity}
               className="profile-form"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -2956,18 +3213,27 @@ function Account({
           <section>
             <h2>최근 활동</h2>
             <div className="activity-list">
-              {state.posts
-                .filter((post) => post.saved)
-                .map((post) => (
-                  <Link href={`/posts/${post.id}`} key={post.id}>
-                    <span>스크랩</span>
-                    <strong>{post.title}</strong>
-                  </Link>
-                ))}
-              <Link href="/posts/p2">
-                <span>댓글</span>
-                <strong>ROI 문서 글에 댓글을 작성했습니다.</strong>
-              </Link>
+              {myScrapped.map((post) => (
+                <Link href={`/posts/${post.id}`} key={`saved-${post.id}`}>
+                  <span>스크랩</span>
+                  <strong>{post.title}</strong>
+                </Link>
+              ))}
+              {/* 전에는 이 자리에 "ROI 문서 글에 댓글을 작성했습니다."가
+                  늘 붙어 있었다. 방금 초기화해도 남아 있어서, 내 활동이
+                  아니라 그냥 그려 둔 줄이었다. */}
+              {mine.length === 0 && myScrapped.length === 0 ? (
+                <p className="list-empty">
+                  아직 활동이 없습니다. 글을 올리거나 스크랩하면 여기에
+                  쌓입니다.
+                </p>
+              ) : null}
+              {mine.map((post) => (
+                <Link href={`/posts/${post.id}`} key={`mine-${post.id}`}>
+                  <span>작성</span>
+                  <strong>{post.title}</strong>
+                </Link>
+              ))}
             </div>
           </section>
         </div>
@@ -2998,7 +3264,7 @@ function Compare({ state }: { state: DemoState }) {
     companies.find((c) => c.slug === b)!,
   ];
   return (
-    <main className="page-shell page">
+    <main id="main" className="page-shell page">
       <PageTitle
         eyebrow="회사 비교"
         title="회사 비교"
@@ -3047,16 +3313,24 @@ function Compare({ state }: { state: DemoState }) {
             other.slug,
             other.score,
           );
+          /*
+            두 회사 중 하나라도 공개 리뷰가 없으면 앞선다고 말할 수 없다.
+            숫자가 없는데 "종합 점수 +0.4" 가 뜨면 안 된다.
+          */
           return (
             <article
-              className={score > otherScore ? "comparison-leader" : undefined}
+              className={
+                score !== null && otherScore !== null && score > otherScore
+                  ? "comparison-leader"
+                  : undefined
+              }
               key={company.slug}
             >
               <p>{company.industry}</p>
               <h2>{company.name}</h2>
               <div className="compare-score">
-                <strong>{score.toFixed(1)}</strong>
-                {score > otherScore ? (
+                <strong>{scoreText(score)}</strong>
+                {score !== null && otherScore !== null && score > otherScore ? (
                   <span>종합 점수 +{(score - otherScore).toFixed(1)}</span>
                 ) : null}
               </div>
@@ -3117,12 +3391,25 @@ function Admin({
     "all" | "privacy" | "report"
   >("all");
   const flaggedReviews = state.reviews.filter((review) => review.flags?.length);
+  /*
+    처리한 건 세지 않는다.
+
+    전에는 신고 표시가 붙은 리뷰를 전부 셌다. 표시는 블라인드해도 안
+    없어지므로, 대기열의 세 건을 모두 처리하고 나서도 제목은 "03 처리
+    대기", 필터는 "전체 3", 사이드바 배지도 3 이었다. 할 일을 다 했는데
+    화면은 아무 일도 없었다고 말한다.
+
+    목록 자체는 처리한 것도 계속 보여 준다 - 안 그러면 잘못 가린 리뷰를
+    되돌릴 길이 사라진다.
+  */
+  const openReviews = flaggedReviews.filter(
+    (review) => review.status !== "hidden",
+  );
   const reviewCounts = {
-    all: flaggedReviews.length,
-    privacy: flaggedReviews.filter((review) =>
-      review.flags?.includes("privacy"),
-    ).length,
-    report: flaggedReviews.filter((review) => review.flags?.includes("report"))
+    all: openReviews.length,
+    privacy: openReviews.filter((review) => review.flags?.includes("privacy"))
+      .length,
+    report: openReviews.filter((review) => review.flags?.includes("report"))
       .length,
   };
   const reviewQueue = flaggedReviews.filter((review) => {
@@ -3132,7 +3419,7 @@ function Admin({
   });
   if (state.role !== "admin")
     return (
-      <main className="page-shell page narrow">
+      <main id="main" className="page-shell page narrow">
         <PageTitle
           eyebrow="접근 권한"
           title="운영 관리자 역할이 필요합니다"
@@ -3183,7 +3470,7 @@ function Admin({
       >
         {/* 목록과 같은 데이터를 센다. 숫자를 박아 두면 배지는 3건인데
             목록은 0건인 상태가 생긴다. */}
-        리뷰 운영 <b>{state.reviews.filter((r) => r.flags?.length).length}</b>
+        리뷰 운영 <b>{reviewCounts.all}</b>
       </Link>
       <Link
         className={path === "/admin/members" ? "active" : ""}
@@ -3248,9 +3535,14 @@ function Admin({
               신고 {reviewCounts.report}
             </button>
           </div>
-          <span>목표 처리시간 2시간 · 현재 SLA 정상</span>
+          {/* "목표 처리시간 2시간 · 현재 SLA 정상"은 어디서도 확인할 수
+              없는 값이고, 영어 머리말을 걷어낸 뒤 화면에 남은 유일한
+              로마자 약어였다. */}
         </div>
-        <div className="admin-list-head" aria-hidden="true">
+        {/* aria-hidden 이 붙어 있어서 화면 낭독기에는 열 이름이 통째로
+            없었다. 대신할 표 구조도 없어, 각 줄이 무슨 값인지 알 방법이
+            없었다. 감춤을 뺀다. */}
+        <div className="admin-list-head">
           <span>리뷰</span>
           <span>상태</span>
           <span>처리</span>
@@ -3333,12 +3625,23 @@ function Admin({
           countLabel="등록 회사"
         />
         <form
+          onInvalidCapture={koreanValidity}
+          onInputCapture={clearValidity}
           className="admin-inline-form"
           onSubmit={(event) => {
             event.preventDefault();
             const form = event.currentTarget;
             const name = String(new FormData(form).get("companyName")).trim();
             if (!name) return;
+            /* 같은 이름을 두 번 넣으면 똑같은 줄이 두 개 생겼다. React key
+               까지 같아서 목록이 어긋난다. */
+            if (
+              state.manualCompanies.includes(name) ||
+              companies.some((company) => company.name === name)
+            ) {
+              notify("이미 등록된 회사입니다.");
+              return;
+            }
             setState((current) => ({
               ...current,
               manualCompanies: [name, ...current.manualCompanies],
@@ -3358,6 +3661,22 @@ function Admin({
           </label>
           <button className="button secondary">등록</button>
         </form>
+        {/* 화면 이름이 "회사 데이터 관리"인데 정작 회사 목록이 없었다.
+            등록 폼과 가져오기 상자만 있었다. */}
+        {companies.map((company) => (
+          <div className="admin-row" key={company.slug}>
+            <div>
+              <span>{company.industry}</span>
+              <strong>{company.name}</strong>
+              <small>
+                리뷰 {company.reviewCount}건 · {company.type}
+              </small>
+            </div>
+            <Link className="text-link" href={`/companies/${company.slug}`}>
+              화면에서 보기
+            </Link>
+          </div>
+        ))}
         {state.manualCompanies.map((name) => (
           <div className="admin-row" key={name}>
             <div>
@@ -3365,9 +3684,8 @@ function Admin({
               <strong>{name}</strong>
               <small>검색 인덱스 반영 대기</small>
             </div>
-            <button onClick={() => notify("회사 수정 패널을 열었습니다.")}>
-              수정
-            </button>
+            {/* "회사 수정 패널을 열었습니다." 알림만 뜨고 아무것도 안
+                열렸다. 열 화면이 없으니 버튼을 뺀다. */}
           </div>
         ))}
         <div className="import-box">
@@ -3431,7 +3749,7 @@ function Admin({
   else if (path === "/admin/placements")
     panel = (
       <>
-        <AdminTitle title="홈 콘텐츠 배치" count="08" countLabel="배치 슬롯" />
+        <AdminTitle title="홈 콘텐츠 배치" count="01" countLabel="배치 슬롯" />
         <div className="placement-preview">
           <span>{state.placementsPublished ? "게시 중" : "미리보기"}</span>
           <h2>이번 주 추천 회사 3곳</h2>
@@ -3529,17 +3847,22 @@ function Admin({
   else if (path === "/admin/content")
     panel = (
       <>
+        {/* 앞에서 네 개를 자른 목록일 뿐 신고된 글이 아니었다. 모든 줄이
+            "신고 0"인데 제목은 "04 처리 대기"였다. */}
         <AdminTitle
-          title="게시글·댓글 모니터링"
+          title="최근 게시글"
           count={String(moderationPosts.length).padStart(2, "0")}
+          countLabel="최근 글"
         />
         {moderationPosts.map((post) => (
           <div className="admin-row" key={post.id}>
             <div>
               <span>{post.board}</span>
               <strong>{post.title}</strong>
+              {/* `post.id === "p4"` 는 DB 의 uuid 에는 절대 안 맞는다.
+                  신고 대화창으로 접수한 것도 여기 안 잡혔다. */}
               <small>
-                신고 {post.id === "p4" ? 2 : 0} · 도움 {post.likes}
+                답변 {post.comments.length} · 도움 {post.likes}
               </small>
             </div>
             <button
@@ -3597,8 +3920,20 @@ function Admin({
         <section className="priority-brief">
           <div>
             <span>가장 먼저 처리할 작업</span>
-            <h2>개인정보 탐지로 보류된 리뷰 1건</h2>
-            <p>검토 기한까지 38분 남았습니다. 원문과 탐지 구간을 확인하세요.</p>
+            {/* "1건"과 "38분"이 박혀 있었다. 대기열을 다 처리해도 그대로
+                남고, 정작 그 리뷰는 공개 상태였다. */}
+            <h2>
+              {reviewCounts.privacy
+                ? `개인정보 탐지로 보류된 리뷰 ${reviewCounts.privacy}건`
+                : reviewCounts.report
+                  ? `신고 접수된 리뷰 ${reviewCounts.report}건`
+                  : "지금 처리할 리뷰가 없습니다"}
+            </h2>
+            <p>
+              {reviewCounts.all
+                ? "원문과 탐지 구간을 확인하고 공개 여부를 정하세요."
+                : "새 신고나 탐지가 들어오면 여기에 표시됩니다."}
+            </p>
           </div>
           <Link className="button primary" href="/admin/reviews">
             검토 시작
@@ -3612,7 +3947,11 @@ function Admin({
             </div>
             {/* 사이드바의 "회원" 배지와 같은 대기열인데 숫자가 달랐다. */}
             <strong>{memberApplications.length}</strong>
-            <small>24시간 내 처리율 92% · 가장 오래된 건 3시간</small>
+            <small>
+              {memberApplications.length
+                ? "재직·실적 증빙을 확인하고 승인 여부를 정하세요."
+                : "대기 중인 신청이 없습니다."}
+            </small>
             <Link href="/admin/members">대기열 열기</Link>
           </article>
           <article>
@@ -3621,7 +3960,10 @@ function Admin({
               <b className="urgent">주의</b>
             </div>
             <strong>{reviewCounts.all}</strong>
-            <small>고위험 1건 · 오늘 신규 2건</small>
+            {/* "고위험 1건 · 오늘 신규 2건"은 어디서도 안 나오는 값이었다. */}
+            <small>
+              개인정보 {reviewCounts.privacy}건 · 신고 {reviewCounts.report}건
+            </small>
             <Link href="/admin/reviews">신고 대기열 열기</Link>
           </article>
           <article>
@@ -3649,30 +3991,55 @@ function Admin({
               </div>
               <b>우선순위순</b>
             </div>
+            {/*
+              건수가 박혀 있었다. "재직 증빙 8건"인데 회원 대기열은 2건,
+              "중복 후보 4건"인데 회사 화면은 7건이었다. 각 화면으로
+              넘어가는 줄이라, 눌러 보면 바로 다른 숫자가 나온다.
+
+              할 일이 없는 줄은 아예 안 보여 준다 - 0건짜리 줄이 대기열에
+              남아 있으면 처리한 티가 안 난다.
+            */}
             {[
-              ["P1", "리뷰", "개인정보 탐지 구간 확인", "38분 남음"],
-              ["P2", "회원", "재직 증빙 8건 검토", "오늘 18:00"],
-              ["P3", "회사", "중복 후보 4건 병합", "내일"],
-            ].map(([priority, type, title, due]) => (
-              <Link
-                href={
-                  type === "리뷰"
-                    ? "/admin/reviews"
-                    : type === "회원"
-                      ? "/admin/members"
-                      : "/admin/companies"
-                }
-                className="work-queue-row"
-                key={title}
-              >
-                <span className={`priority priority-${priority.toLowerCase()}`}>
-                  {priority}
-                </span>
-                <span>{type}</span>
-                <strong>{title}</strong>
-                <small>{due}</small>
-              </Link>
-            ))}
+              {
+                priority: "P1",
+                type: "리뷰",
+                count: reviewCounts.all,
+                title: `검토 대기 리뷰 ${reviewCounts.all}건`,
+                href: "/admin/reviews",
+              },
+              {
+                priority: "P2",
+                type: "회원",
+                count: memberApplications.length,
+                title: `재직·실적 증빙 ${memberApplications.length}건 검토`,
+                href: "/admin/members",
+              },
+              {
+                priority: "P3",
+                type: "회사",
+                count: state.manualCompanies.length,
+                title: `수기 등록 회사 ${state.manualCompanies.length}곳 확인`,
+                href: "/admin/companies",
+              },
+            ]
+              .filter((row) => row.count > 0)
+              .map((row) => (
+                <Link className="work-queue-row" href={row.href} key={row.type}>
+                  <span
+                    className={`priority priority-${row.priority.toLowerCase()}`}
+                  >
+                    {row.priority}
+                  </span>
+                  <span>{row.type}</span>
+                  <strong>{row.title}</strong>
+                </Link>
+              ))}
+            {reviewCounts.all +
+              memberApplications.length +
+              state.manualCompanies.length ===
+            0 ? (
+              <p className="list-empty">지금 처리할 작업이 없습니다.</p>
+            ) : null}
           </section>
           <section className="audit-feed">
             <div className="admin-section-head">
@@ -3681,26 +4048,32 @@ function Admin({
                 <h2>최근 운영 로그</h2>
               </div>
             </div>
+            {/* 시각을 `index * 7` 로 만들어서 늘 방금 전 / 7분 전 / 14분
+                전이었다. 시각 대신 무슨 일이었는지만 남긴다. */}
             {[
               "홈 추천 영역 미리보기 생성",
-              "회사 중복 후보 4건 확인 요청",
+              "회사 중복 후보 확인 요청",
               "리뷰 개인정보 탐지로 자동 보류",
-            ].map((item, index) => (
-              <p key={item}>
-                <span>{index === 0 ? "방금 전" : `${index * 7}분 전`}</span>
-                {item}
-              </p>
+            ].map((item) => (
+              <p key={item}>{item}</p>
             ))}
           </section>
         </div>
       </>
     );
   return (
-    <main className="admin-shell">
+    <main id="main" className="admin-shell">
       {nav}
       <section className="admin-panel">
         <div className="admin-contextbar">
-          <span>2026년 7월 21일 · 운영 관리자</span>
+          <span>
+            {new Date().toLocaleDateString("ko-KR", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}{" "}
+            · 운영 관리자
+          </span>
           {/*
             전에는 항상 초록 점에 "실시간 동기화"만 떴다. 연결이 끊겨도
             정상으로 보여서, 화면의 숫자가 낡았는지 알 수 없었다.
@@ -3734,7 +4107,7 @@ function Admin({
 
 function Trust() {
   return (
-    <main className="page-shell page">
+    <main id="main" className="page-shell page">
       <PageTitle
         eyebrow="운영 정책"
         title="리뷰 작성자 보호 및 검증 정책"
@@ -3819,7 +4192,7 @@ function AdminTitle({
 }
 function NotFound() {
   return (
-    <main className="page-shell page narrow">
+    <main id="main" className="page-shell page narrow">
       <PageTitle
         eyebrow="404"
         title="페이지를 찾을 수 없습니다"

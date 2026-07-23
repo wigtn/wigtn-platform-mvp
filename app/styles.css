@@ -927,8 +927,11 @@ input[type="range"]:active::-webkit-slider-thumb {
   align-items: center;
   padding: 5px 9px;
   border-radius: 999px;
-  background: var(--mint-soft);
-  color: #18785f;
+  /* 초록 알약이 화면마다 흩어져 있었다. 이 서비스의 강조색은 빨강
+     하나다. 뜻을 색으로 말할 자리가 아니라 그냥 꼬리표다. */
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-subtle);
   font-size: 10px;
   font-weight: 750;
 }
@@ -1024,6 +1027,12 @@ input[type="range"]:active::-webkit-slider-thumb {
   color: #344054;
   font-weight: 750;
 }
+/* 종합 점수도 6축과 같은 규칙을 쓴다. */
+.range-field > span {
+  display: flex;
+  justify-content: space-between;
+}
+
 .dimension-fields label span {
   display: flex;
   justify-content: space-between;
@@ -1031,8 +1040,8 @@ input[type="range"]:active::-webkit-slider-thumb {
 .privacy-note {
   padding: 18px;
   border-radius: var(--radius-sm);
-  background: var(--mint-soft);
-  color: #256d5b;
+  background: var(--surface);
+  color: var(--text-subtle);
 }
 .privacy-note p {
   margin: 5px 0 0;
@@ -1871,11 +1880,17 @@ input[type="file"]::file-selector-button:hover {
   background: #fff;
   color: #1d1d1a;
 }
+/*
+  대문자 변환을 뺐다.
+
+  `.caption` 은 `{업종} · {영업유형}` 만 담는다. 회사 소개의 "B2B SaaS" 가
+  회사 목록과 상세에서만 "B2B SAAS" 로 나왔다. 같은 값을 홈과 비교 화면은
+  제대로 쓰고 있어서, 한 서비스 안에서 회사 이름이 두 가지로 보였다.
+*/
 .kicker,
 .caption {
   color: var(--primary);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 .home-companies .section-heading {
   padding-bottom: 23px;
@@ -2448,10 +2463,21 @@ input[type="file"]::file-selector-button:hover {
 .community-channels .board-tabs button {
   display: flex;
   justify-content: space-between;
-  padding: 12px 2px;
+  /* 좌우 2px 이 있어서 글자만 위 제목보다 안쪽으로 밀려 있었다. */
+  padding: 12px 0;
   border-radius: 0;
   border-bottom: 1px solid #d2d2cb;
   background: transparent;
+}
+/*
+  마지막 줄의 밑줄을 뺀다.
+
+  목록이 밑줄로 끝나고 28px 아래에서 아래 안내가 또 윗줄로 시작해서, 아무것도
+  없는 자리에 가로선 두 개가 나란히 놓였다. 목록의 끝은 아래 안내의 줄이
+  대신한다.
+*/
+.community-channels .board-tabs button:last-of-type {
+  border-bottom: 0;
 }
 .community-channels .board-tabs button.active {
   background: transparent;
@@ -2633,6 +2659,30 @@ input[type="file"]::file-selector-button:hover {
 }
 .comment-reply-toggle:hover {
   color: var(--primary);
+}
+
+/* 라벨 안의 "(선택)"이 좁은 칸에서 혼자 다음 줄로 떨어졌다. */
+.report-details .muted {
+  display: inline;
+}
+
+/* 본문 바로가기. 탭으로 닿을 때만 나타난다. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 10px 16px;
+  border: 1px solid var(--primary);
+  border-radius: 7px;
+  background: var(--white);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 700;
+  transform: translateY(-200%);
+}
+.skip-link:focus-visible {
+  transform: none;
 }
 
 /* 링크였다가 검색을 거는 버튼이 됐다. 생김새는 그대로 둔다. */
@@ -3012,8 +3062,10 @@ input[type="file"]::file-selector-button:hover {
   font-weight: 700;
 }
 .admin-row-status.published {
-  border-color: #9fc8b6;
-  color: #16724f !important;
+  /* 공개는 기본 상태다. 색으로 강조할 일이 아니다. 가려진 것만
+     눈에 띄면 된다. */
+  border-color: var(--border-strong);
+  color: var(--text-subtle) !important;
 }
 .admin-row-status.hidden {
   border-color: #e5afa4;
@@ -3501,8 +3553,9 @@ select:focus {
     transform 180ms var(--ease-out);
 }
 .community-channels .board-tabs button:hover {
-  background: var(--mint-soft);
-  color: #13795e;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
   transform: translateX(4px);
 }
 .community-main .feed > article:hover {
@@ -3511,8 +3564,9 @@ select:focus {
 }
 .community-main .feed > article:hover .post-index {
   border-color: var(--mint);
-  background: var(--mint-soft);
-  color: #13795e;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
 }
 .post-actions button:hover {
   border-color: var(--blue);
@@ -3581,8 +3635,9 @@ select:focus {
 .compare-row.leading {
   margin-inline: -8px;
   padding-inline: 8px;
-  background: var(--mint-soft);
-  color: #13795e;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
 }
 .compare-row.leading b {
   color: #13795e;
@@ -4156,8 +4211,16 @@ select:focus {
   .channel-guide {
     display: none;
   }
+  /*
+    좁은 화면에서는 게시판이 한 줄로 눕는다.
+
+    전에는 이름과 개수 사이가 8px 인데 버튼 사이는 4px 이었다. "전체 4 Q&A
+    1" 이 한 줄로 늘어서면, 자기 개수보다 다음 이름이 더 가까워서 4가 Q&A
+    것으로 읽혔다. 안쪽은 좁히고 버튼 사이는 넓힌다.
+  */
   .community-channels .board-tabs {
     display: flex;
+    gap: 18px;
     margin: 0;
     border-top: 0;
     border-bottom: 1px solid #c8c8c0;
@@ -4165,7 +4228,9 @@ select:focus {
   }
   .community-channels .board-tabs button {
     flex: 0 0 auto;
-    gap: 8px;
+    justify-content: flex-start;
+    gap: 4px;
+    padding-inline: 0;
     border-bottom: 2px solid transparent;
   }
   .community-channels .board-tabs button.active {
@@ -4800,15 +4865,13 @@ select:focus {
   color: var(--text);
   text-align: left;
 }
-.role-picker-card.role-sales {
-  --role-card-accent: #3157a6;
-}
-.role-picker-card.role-verified {
-  --role-card-accent: #176c53;
-}
-.role-picker-card.role-admin {
-  --role-card-accent: #9b5b0a;
-}
+/*
+  역할마다 강조색을 달리 주던 것을 뺐다.
+
+  파랑·초록·주황·검정이 한 창에 같이 떴다. 이 앱의 강조색은 빨강 하나인데,
+  처음 보는 화면이 색을 넷이나 쓰면 서비스가 그런 색 체계인 줄 읽힌다.
+  역할은 아이콘과 이름으로 이미 구분된다.
+*/
 .role-picker-card:hover,
 .role-picker-card:focus-visible {
   border-color: var(--role-card-accent);
@@ -5075,10 +5138,12 @@ select:focus {
   align-items: center;
   min-height: 22px;
   padding: 3px 8px;
-  border: 1px solid #d7c7a9;
+  /* 주황 알약이었다. 잠긴 기능 표시는 이미 자물쇠 아이콘이 말해 주고,
+     색을 하나 더 들이면 강조색이 셋이 된다. */
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: #fff8e9;
-  color: #8a560e;
+  background: var(--white);
+  color: var(--text-subtle);
   font-size: 10px;
   font-weight: 800;
   line-height: 1;
@@ -5436,18 +5501,17 @@ select:focus {
   gap: 12px;
   margin: 20px;
   padding: 16px 18px;
-  background: #f3f0e7;
+  background: var(--surface);
 }
+/* `!` 글자에 동그라미를 씌워 쓰던 자리다. 아이콘이 되면서 테두리가
+   필요 없어졌다. */
 .fieldnote-answer-caution > span {
   width: 26px;
   height: 26px;
   display: grid;
   place-items: center;
-  border: 1px solid #9a8151;
-  border-radius: 50%;
-  color: #745c31;
-  font-size: 12px;
-  font-weight: 800;
+  color: var(--text-subtle);
+  font-size: 18px;
 }
 .fieldnote-answer-caution b {
   color: #66522f;
@@ -5699,6 +5763,20 @@ select:focus {
 .compare-select {
   align-items: end;
 }
+/*
+  못 채운 칸이 헤더 뒤로 숨었다.
+
+  브라우저가 첫 번째 잘못된 칸으로 스크롤하는데, 위쪽 역할 바와 헤더가
+  화면에 고정이라 그 칸이 정확히 그 뒤로 들어갔다. 안내 풍선만 떠 있고
+  어느 칸을 말하는지 안 보인다.
+*/
+.form-panel label,
+.form-panel input,
+.form-panel textarea,
+.form-panel select {
+  scroll-margin-top: calc(var(--header-h) + 76px);
+}
+
 /* 두 선택 사이를 잇는 선. 전에는 "VS" 글자가 들어가 있었다. */
 /* 두 선택 사이를 잇는 선. 46px 짜리 select 의 한가운데에 오게 둔다.
    전에는 위쪽 테두리 높이에 떠 있어서 선이 아니라 얼룩처럼 보였다. */
@@ -5717,10 +5795,10 @@ select:focus {
  */
 .post-meta b {
   padding: 2px 7px;
-  border: 1px solid #cfe3d8;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: var(--mint-soft, #e8f8f3);
-  color: #16724f;
+  background: var(--surface);
+  color: var(--text-subtle);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: -0.01em;
