@@ -30,10 +30,10 @@ import {
 import { isPlainText, sanitizeRichText, stripTags } from "@/lib/rich-text";
 import { supabaseConfigured } from "@/lib/supabase";
 import { useDemoStateContext } from "./demo-state-provider";
-import { CompanyMark } from "./company-mark";
 import { RichEditor } from "./rich-editor";
 import {
   IconBookmark,
+  IconBuilding,
   IconCaution,
   IconCheck,
   IconChevron,
@@ -41,6 +41,8 @@ import {
   IconEye,
   IconFlag,
   IconThumbsUp,
+  IconTrendUp,
+  IconTrendDown,
   IconLive,
   IconPen,
   IconSearch,
@@ -1194,7 +1196,7 @@ function Home({ state }: { state: DemoState }) {
                 key={company.slug}
               >
                 <span className="company-logo">
-                  <CompanyMark slug={company.slug} name={company.name} />
+                  <IconBuilding />
                 </span>
                 <span>
                   <strong>{company.name}</strong>
@@ -1262,7 +1264,7 @@ function Home({ state }: { state: DemoState }) {
             </div>
             <div className="featured-company-main">
               <span className="company-logo">
-                <CompanyMark slug={top[0].slug} name={top[0].name} />
+                <IconBuilding />
               </span>
               <div>
                 <p>
@@ -1328,7 +1330,7 @@ function Home({ state }: { state: DemoState }) {
               >
                 <strong>0{index + 2}</strong>
                 <span className="company-logo">
-                  <CompanyMark slug={company.slug} name={company.name} />
+                  <IconBuilding />
                 </span>
                 <span className="ranked-company-copy">
                   <b>{company.name}</b>
@@ -1348,7 +1350,8 @@ function Home({ state }: { state: DemoState }) {
                   {scoreText(
                     companyScore(state.reviews, company.slug, company.score),
                   )}
-                  <small>
+                  <small className={company.trend >= 0 ? "up" : "down"}>
+                    {company.trend >= 0 ? <IconTrendUp /> : <IconTrendDown />}
                     {company.trend >= 0
                       ? `+${company.trend}%`
                       : `${company.trend}%`}
@@ -1461,7 +1464,7 @@ function CompanyCard({
     <article className="company-card is-clickable">
       <div className="company-card-head">
         <span className="company-logo">
-          <CompanyMark slug={company.slug} name={company.name} />
+          <IconBuilding />
         </span>
       </div>
       <p className="caption">
@@ -1487,7 +1490,9 @@ function CompanyCard({
         ) : null}
         <strong>{scoreText(score)}</strong>
         <span>리뷰 {reviewCount}</span>
+        {/* 숫자를 읽기 전에 방향부터 보이게 한다. */}
         <b className={company.trend >= 0 ? "up" : "down"}>
+          {company.trend >= 0 ? <IconTrendUp /> : <IconTrendDown />}
           관심도 {company.trend >= 0 ? "+" : ""}
           {company.trend}%
         </b>
@@ -1541,6 +1546,14 @@ function Companies({ state }: { state: DemoState }) {
         <button className="button secondary" type="submit">
           검색
         </button>
+        {/*
+          검색과 업종 사이를 가른다.
+
+          찾는 말을 적어 누르는 일과, 이미 나온 목록을 좁히는 일은 성격이
+          다르다. 한 상자 안에 나란히 두니 "검색 / 검색 / 업종" 이 이어진
+          한 덩어리로 읽혔다.
+        */}
+        <i className="filter-divider" aria-hidden="true" />
         <label>
           업종
           <select
@@ -1555,8 +1568,18 @@ function Companies({ state }: { state: DemoState }) {
             )}
           </select>
         </label>
-        <span>회사 {filtered.length}곳</span>
       </form>
+      {/*
+        결과 수는 목록 위로.
+
+        검색 상자 안 오른쪽 끝에 붙어 있었다. 조건을 고르는 칸들 사이에
+        결과가 섞여 있으니 이것도 고르는 값처럼 보였고, 정작 무엇에 대한
+        결과인지는 목록을 봐야 알았다. 세는 대상 바로 위에 둔다.
+      */}
+      <p className="result-count">
+        {query ? `"${query}" ` : ""}
+        회사 {filtered.length}곳
+      </p>
       {filtered.length ? (
         <div className="company-list">
           {filtered.map((company) => (
@@ -1622,7 +1645,7 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
       <div className="company-hero">
         <div className="company-identity">
           <span className="company-logo company-logo-large">
-            <CompanyMark slug={company.slug} name={company.name} />
+            <IconBuilding />
           </span>
           <div>
             <p className="kicker">
@@ -1718,7 +1741,8 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
             <article>
               <span className="finding-label neutral">변화</span>
               <div>
-                <strong>
+                <strong className="trend-value">
+                  {company.trend >= 0 ? <IconTrendUp /> : <IconTrendDown />}
                   관심도 {company.trend >= 0 ? "+" : ""}
                   {company.trend}%
                 </strong>
