@@ -2461,6 +2461,10 @@ input[type="file"]::file-selector-button:hover {
   font-weight: 800;
   letter-spacing: 0.08em;
 }
+.community-channels .rail-label,
+.community-channels .channel-guide {
+  padding-inline: 10px;
+}
 .community-channels .board-tabs {
   display: grid;
   gap: 0;
@@ -2472,8 +2476,9 @@ input[type="file"]::file-selector-button:hover {
 .community-channels .board-tabs button {
   display: flex;
   justify-content: space-between;
-  /* 좌우 2px 이 있어서 글자만 위 제목보다 안쪽으로 밀려 있었다. */
-  padding: 12px 0;
+  /* 앞서 좌우 여백을 0 으로 뺐더니, 개수가 상자 오른쪽 선에 딱 붙어
+     칸을 뚫고 나온 것처럼 보였다. 숨 쉴 자리를 준다. */
+  padding: 12px 10px;
   border-radius: 0;
   border-bottom: 1px solid #d2d2cb;
   background: transparent;
