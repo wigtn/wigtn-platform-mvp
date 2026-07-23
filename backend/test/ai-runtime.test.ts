@@ -91,7 +91,11 @@ describe("AI runtime mapping", () => {
           strict: true,
         },
       },
-      max_output_tokens: 1_100,
+      // 1,100 에서 올렸다. 성공한 답변의 출력 토큰이 평균 522, 최대 584 라
+      // 여유가 거의 없었고, 조금만 길어지면 응답이 중간에 끊겨 JSON 이
+      // 완성되지 않았다(21건 중 4건). 상한을 지키는지 보는 확인이므로 값은
+      // 그대로 박아 둔다 - 또 올릴 때 여기가 같이 걸리는 게 맞다.
+      max_output_tokens: 2_400,
       safety_identifier: "fieldnote_anonymous-user-id",
     });
     expect(result.tokens.total).toBe(30);
