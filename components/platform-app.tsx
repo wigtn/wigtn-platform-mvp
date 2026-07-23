@@ -2886,7 +2886,11 @@ function AiAnswerCard({
             <small>입력·출력 안전성 검사를 통과한 초안입니다.</small>
           </div>
         </div>
+        {/* 모델 이름이 카드 맨 아래 각주에 있었다. 진짜 모델이 답한 건지
+            통조림인지 화면에서 알 길이 없어, 읽는 사람이 목업으로 의심했다.
+            어디서 온 답인지는 답 옆에 있어야 한다. */}
         <span className="fieldnote-answer-status">
+          {model ? <em>{model}</em> : null}
           <i aria-hidden="true" /> 작성 완료
         </span>
       </header>
@@ -2895,6 +2899,27 @@ function AiAnswerCard({
         <span>핵심 판단</span>
         <p data-testid="ai-answer-text">{answer.summary}</p>
       </div>
+
+      {/*
+        "답변을 더 정확하게 만들 정보"가 행동 3개 아래에 묻혀 있었다.
+
+        내용이 얇은 질문을 넣으면 AI 는 "사실이 없어 판단할 수 없다"고
+        말하는데, 화면은 그 경고를 맨 뒤로 보내고 확인 질문·행동을 먼저
+        자신 있게 늘어놨다. 답이 다 나온 것처럼 보여서, 어떤 질문을 넣어도
+        같은 모양이 나오는 통조림처럼 읽혔다.
+
+        이 답을 얼마나 믿을지 정하는 정보다. 읽는 순서의 앞에 둔다.
+      */}
+      {answer.missingContext.length > 0 ? (
+        <div className="fieldnote-answer-missing">
+          <b>답변을 더 정확하게 만들 정보</b>
+          <ul>
+            {answer.missingContext.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="fieldnote-answer-actions fieldnote-answer-questions">
         <h3>다음 미팅에서 확인할 질문</h3>
@@ -2920,17 +2945,6 @@ function AiAnswerCard({
         </ol>
       </div>
 
-      {answer.missingContext.length > 0 ? (
-        <div className="fieldnote-answer-missing">
-          <b>답변을 더 정확하게 만들 정보</b>
-          <ul>
-            {answer.missingContext.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
       <div className="fieldnote-answer-caution">
         <span aria-hidden="true">
           <IconCaution />
@@ -2942,7 +2956,7 @@ function AiAnswerCard({
       </div>
 
       <footer className="fieldnote-answer-footer">
-        <p>{model} · AI 초안은 실제 고객 상황에 맞게 조정해 사용하세요.</p>
+        <p>AI 초안은 실제 고객 상황에 맞게 조정해 사용하세요.</p>
         <Link className="button primary" href="/community">
           커뮤니티에서 보기
         </Link>
