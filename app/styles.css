@@ -927,8 +927,11 @@ input[type="range"]:active::-webkit-slider-thumb {
   align-items: center;
   padding: 5px 9px;
   border-radius: 999px;
-  background: var(--mint-soft);
-  color: #18785f;
+  /* 초록 알약이 화면마다 흩어져 있었다. 이 서비스의 강조색은 빨강
+     하나다. 뜻을 색으로 말할 자리가 아니라 그냥 꼬리표다. */
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-subtle);
   font-size: 10px;
   font-weight: 750;
 }
@@ -1037,8 +1040,8 @@ input[type="range"]:active::-webkit-slider-thumb {
 .privacy-note {
   padding: 18px;
   border-radius: var(--radius-sm);
-  background: var(--mint-soft);
-  color: #256d5b;
+  background: var(--surface);
+  color: var(--text-subtle);
 }
 .privacy-note p {
   margin: 5px 0 0;
@@ -2658,6 +2661,25 @@ input[type="file"]::file-selector-button:hover {
   color: var(--primary);
 }
 
+/* 본문 바로가기. 탭으로 닿을 때만 나타난다. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 10px 16px;
+  border: 1px solid var(--primary);
+  border-radius: 7px;
+  background: var(--white);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 700;
+  transform: translateY(-200%);
+}
+.skip-link:focus-visible {
+  transform: none;
+}
+
 /* 링크였다가 검색을 거는 버튼이 됐다. 생김새는 그대로 둔다. */
 .rail-topic {
   padding: 0;
@@ -3035,8 +3057,10 @@ input[type="file"]::file-selector-button:hover {
   font-weight: 700;
 }
 .admin-row-status.published {
-  border-color: #9fc8b6;
-  color: #16724f !important;
+  /* 공개는 기본 상태다. 색으로 강조할 일이 아니다. 가려진 것만
+     눈에 띄면 된다. */
+  border-color: var(--border-strong);
+  color: var(--text-subtle) !important;
 }
 .admin-row-status.hidden {
   border-color: #e5afa4;
@@ -3524,8 +3548,9 @@ select:focus {
     transform 180ms var(--ease-out);
 }
 .community-channels .board-tabs button:hover {
-  background: var(--mint-soft);
-  color: #13795e;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
   transform: translateX(4px);
 }
 .community-main .feed > article:hover {
@@ -3534,8 +3559,9 @@ select:focus {
 }
 .community-main .feed > article:hover .post-index {
   border-color: var(--mint);
-  background: var(--mint-soft);
-  color: #13795e;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
 }
 .post-actions button:hover {
   border-color: var(--blue);
@@ -3604,8 +3630,9 @@ select:focus {
 .compare-row.leading {
   margin-inline: -8px;
   padding-inline: 8px;
-  background: var(--mint-soft);
-  color: #13795e;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
 }
 .compare-row.leading b {
   color: #13795e;
@@ -5106,10 +5133,12 @@ select:focus {
   align-items: center;
   min-height: 22px;
   padding: 3px 8px;
-  border: 1px solid #d7c7a9;
+  /* 주황 알약이었다. 잠긴 기능 표시는 이미 자물쇠 아이콘이 말해 주고,
+     색을 하나 더 들이면 강조색이 셋이 된다. */
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: #fff8e9;
-  color: #8a560e;
+  background: var(--white);
+  color: var(--text-subtle);
   font-size: 10px;
   font-weight: 800;
   line-height: 1;
@@ -5762,10 +5791,10 @@ select:focus {
  */
 .post-meta b {
   padding: 2px 7px;
-  border: 1px solid #cfe3d8;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: var(--mint-soft, #e8f8f3);
-  color: #16724f;
+  background: var(--surface);
+  color: var(--text-subtle);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: -0.01em;

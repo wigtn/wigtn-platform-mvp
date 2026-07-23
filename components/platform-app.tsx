@@ -1006,6 +1006,20 @@ function Header({
     ["/compare", "회사 비교"],
     ["/trust", "검증 정책"],
   ] as const;
+  /*
+    메뉴 밑에 붙지 않는 자식 주소들.
+
+    `path.startsWith(href + "/")` 만으로는 `/posts/p1`, `/questions/new`,
+    `/reviews/new` 에서 아무 메뉴도 안 켜졌다. 커뮤니티 글을 읽는 중인데
+    메뉴는 전부 꺼져 있어서, 지금 어디인지 알 수 없었다.
+  */
+  const navHome: Array<[string, string]> = [
+    ["/posts", "/community"],
+    ["/questions", "/community"],
+    ["/reviews", "/companies"],
+  ];
+  const section =
+    navHome.find(([prefix]) => path.startsWith(prefix))?.[1] ?? path;
   return (
     <header className="site-header">
       <div className="header-inner">
@@ -1014,7 +1028,7 @@ function Header({
         </Link>
         <nav aria-label="주요 메뉴">
           {navigation.map(([href, label]) => {
-            const active = path === href || path.startsWith(`${href}/`);
+            const active = section === href || section.startsWith(`${href}/`);
             return (
               <Link
                 className={active ? "active" : undefined}
@@ -1055,7 +1069,7 @@ function Home({ state }: { state: DemoState }) {
   const [query, setQuery] = useState("");
   const router = useRouter();
   return (
-    <main>
+    <main id="main">
       <section className="hero">
         <div className="page-shell hero-layout">
           <div className="hero-copy reveal">
@@ -1107,7 +1121,7 @@ function Home({ state }: { state: DemoState }) {
           <aside className="career-preview" aria-label="추천 회사 미리보기">
             <div className="preview-head">
               <div>
-                <span>이번 주 많이 본 회사</span>
+                <span>지금 보고 있는 회사</span>
                 <strong>최근 조회가 늘어난 회사</strong>
               </div>
               <Link href="/companies">전체 보기</Link>
@@ -1139,12 +1153,17 @@ function Home({ state }: { state: DemoState }) {
                 </b>
               </Link>
             ))}
+            {/* 4,812명 · 1,260건이 박혀 있었다. 회사 6곳짜리 화면에서
+                이 숫자는 바로 들통난다. 실제로 센다. */}
             <div className="preview-proof">
               <span>
-                <b>4,812</b> 재직 확인 회원
+                <b>{companies.length}</b> 등록 회사
               </span>
               <span>
-                <b>1,260</b> 누적 회사 리뷰
+                <b>
+                  {state.reviews.filter((r) => r.status === "published").length}
+                </b>{" "}
+                공개 리뷰
               </span>
             </div>
           </aside>
@@ -1225,8 +1244,11 @@ function Home({ state }: { state: DemoState }) {
             </div>
           </article>
           <div className="ranked-companies">
+            {/* 목록은 관심도 순인데 열 이름은 "순위"이고 옆에는 평점만
+                보였다. 02→4.3, 03→3.7, 04→4.0 처럼 아래가 위보다 높은
+                줄이 생겨, 평점 순인 줄 읽으면 틀린 화면이 된다. */}
             <div className="ranked-heading">
-              <span>순위</span>
+              <span>조회 순</span>
               <span>회사 / 높은 평가 항목</span>
               <span>평점</span>
             </div>
@@ -1259,7 +1281,9 @@ function Home({ state }: { state: DemoState }) {
             <div className="ranked-note">
               <span>평가 기준</span>
               <p>최근 12개월 리뷰와 재직 확인 여부를 반영합니다.</p>
-              <Link href="/trust">산정 방식 확인</Link>
+              <Link className="text-link" href="/trust">
+                산정 방식 확인
+              </Link>
             </div>
           </div>
         </div>
@@ -1408,7 +1432,7 @@ function Companies({ state }: { state: DemoState }) {
       `${company.name}${company.industry}${company.type}`.includes(query),
   );
   return (
-    <main className="page-shell page">
+    <main id="main" className="page-shell page">
       <PageTitle
         eyebrow="회사 리뷰"
         title="회사 리뷰 찾기"
@@ -1501,7 +1525,7 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
   const strongest = rankedDimensions[0];
   const weakest = rankedDimensions[rankedDimensions.length - 1];
   return (
-    <main className="page-shell page company-detail-page">
+    <main id="main" className="page-shell page company-detail-page">
       <nav className="breadcrumb" aria-label="현재 위치">
         <Link href="/companies">회사 탐색</Link>
         <span>/</span>
@@ -1612,7 +1636,9 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
               </li>
             ))}
           </ul>
-          <Link href="/questions/new">현직자에게 확인 질문하기</Link>
+          <Link className="text-link" href="/questions/new">
+            현직자에게 확인 질문하기
+          </Link>
         </aside>
       </section>
       <section className="section-tight" id="environment">
@@ -1772,7 +1798,7 @@ function ReviewForm({
     router.push(`/companies/${companySlug}`);
   };
   return (
-    <main className="page-shell page narrow">
+    <main id="main" className="page-shell page narrow">
       <PageTitle
         eyebrow="회사 리뷰"
         title="익명 리뷰 작성"
@@ -1958,7 +1984,7 @@ function Community({
     notify("스크랩 상태가 변경됐습니다.");
   };
   return (
-    <main className="page community-page">
+    <main id="main" className="page community-page">
       <section className="community-hero">
         <div className="page-shell community-hero-inner">
           <div>
@@ -1978,18 +2004,27 @@ function Community({
               경험 공유
             </Link>
           </div>
+          {/*
+            94% · 18분 · 4,812명이 박혀 있었다. 바로 아래 목록에는 여섯 글
+            중 셋이 "답변 0"으로 떠 있어서, 화면이 스스로를 반박했다.
+
+            셀 수 있는 것만 센다.
+          */}
           <dl className="community-stats">
             <div>
-              <dt>답변 완료율</dt>
-              <dd>94%</dd>
+              <dt>답변이 달린 글</dt>
+              <dd>
+                {posts.filter((post) => post.comments.length).length}/
+                {posts.length}
+              </dd>
             </div>
             <div>
-              <dt>첫 답변까지</dt>
-              <dd>평균 18분</dd>
+              <dt>AI 첫 답변</dt>
+              <dd>{posts.filter((post) => post.ai === "posted").length}건</dd>
             </div>
             <div>
-              <dt>검증 영업인</dt>
-              <dd>4,812명</dd>
+              <dt>게시판</dt>
+              <dd>4개</dd>
             </div>
           </dl>
         </div>
@@ -2015,7 +2050,9 @@ function Community({
               상황, 시도한 방법, 원하는 결과를 함께 적으면 더 구체적인 답을 받을
               수 있습니다.
             </p>
-            <Link href="/questions/new">질문 올리기</Link>
+            <Link className="text-link" href="/questions/new">
+              질문 올리기
+            </Link>
           </div>
         </aside>
         <section className="community-main">
@@ -2118,7 +2155,9 @@ function Community({
             <span>답변자 확인 정보</span>
             <strong>경력·재직·실적 확인 여부를 표시합니다.</strong>
             <p>답변자 이름 옆의 확인 배지를 참고하세요.</p>
-            <Link href="/trust">검증 정책</Link>
+            <Link className="text-link" href="/trust">
+              검증 정책
+            </Link>
           </section>
         </aside>
       </div>
@@ -2225,7 +2264,7 @@ function PostForm({
     router.push(`/posts/${id}`);
   };
   return (
-    <main className="page-shell page narrow">
+    <main id="main" className="page-shell page narrow">
       <PageTitle
         eyebrow="커뮤니티"
         title="게시글 작성"
@@ -2418,7 +2457,7 @@ function PostDetail({
     );
   };
   return (
-    <main className="page-shell page narrow">
+    <main id="main" className="page-shell page narrow">
       <article className="post-detail">
         <div className="post-meta">
           <span>{post.board}</span>
@@ -2905,7 +2944,7 @@ function QuestionForm({
     }));
   };
   return (
-    <main className="page-shell page narrow">
+    <main id="main" className="page-shell page narrow">
       <PageTitle
         eyebrow="영업 Q&A"
         title="커뮤니티에 질문하기"
@@ -3042,7 +3081,7 @@ function Account({
   const myHelpful = mine.reduce((sum, post) => sum + post.likes, 0);
   const myScrapped = visible.filter((post) => post.saved);
   return (
-    <main className="page-shell page">
+    <main id="main" className="page-shell page">
       <PageTitle
         eyebrow="마이페이지"
         title="내 활동 관리"
@@ -3212,7 +3251,7 @@ function Compare({ state }: { state: DemoState }) {
     companies.find((c) => c.slug === b)!,
   ];
   return (
-    <main className="page-shell page">
+    <main id="main" className="page-shell page">
       <PageTitle
         eyebrow="회사 비교"
         title="회사 비교"
@@ -3367,7 +3406,7 @@ function Admin({
   });
   if (state.role !== "admin")
     return (
-      <main className="page-shell page narrow">
+      <main id="main" className="page-shell page narrow">
         <PageTitle
           eyebrow="접근 권한"
           title="운영 관리자 역할이 필요합니다"
@@ -3576,6 +3615,15 @@ function Admin({
             const form = event.currentTarget;
             const name = String(new FormData(form).get("companyName")).trim();
             if (!name) return;
+            /* 같은 이름을 두 번 넣으면 똑같은 줄이 두 개 생겼다. React key
+               까지 같아서 목록이 어긋난다. */
+            if (
+              state.manualCompanies.includes(name) ||
+              companies.some((company) => company.name === name)
+            ) {
+              notify("이미 등록된 회사입니다.");
+              return;
+            }
             setState((current) => ({
               ...current,
               manualCompanies: [name, ...current.manualCompanies],
@@ -3595,6 +3643,22 @@ function Admin({
           </label>
           <button className="button secondary">등록</button>
         </form>
+        {/* 화면 이름이 "회사 데이터 관리"인데 정작 회사 목록이 없었다.
+            등록 폼과 가져오기 상자만 있었다. */}
+        {companies.map((company) => (
+          <div className="admin-row" key={company.slug}>
+            <div>
+              <span>{company.industry}</span>
+              <strong>{company.name}</strong>
+              <small>
+                리뷰 {company.reviewCount}건 · {company.type}
+              </small>
+            </div>
+            <Link className="text-link" href={`/companies/${company.slug}`}>
+              화면에서 보기
+            </Link>
+          </div>
+        ))}
         {state.manualCompanies.map((name) => (
           <div className="admin-row" key={name}>
             <div>
@@ -3602,9 +3666,8 @@ function Admin({
               <strong>{name}</strong>
               <small>검색 인덱스 반영 대기</small>
             </div>
-            <button onClick={() => notify("회사 수정 패널을 열었습니다.")}>
-              수정
-            </button>
+            {/* "회사 수정 패널을 열었습니다." 알림만 뜨고 아무것도 안
+                열렸다. 열 화면이 없으니 버튼을 뺀다. */}
           </div>
         ))}
         <div className="import-box">
@@ -3668,7 +3731,7 @@ function Admin({
   else if (path === "/admin/placements")
     panel = (
       <>
-        <AdminTitle title="홈 콘텐츠 배치" count="08" countLabel="배치 슬롯" />
+        <AdminTitle title="홈 콘텐츠 배치" count="01" countLabel="배치 슬롯" />
         <div className="placement-preview">
           <span>{state.placementsPublished ? "게시 중" : "미리보기"}</span>
           <h2>이번 주 추천 회사 3곳</h2>
@@ -3834,8 +3897,20 @@ function Admin({
         <section className="priority-brief">
           <div>
             <span>가장 먼저 처리할 작업</span>
-            <h2>개인정보 탐지로 보류된 리뷰 1건</h2>
-            <p>검토 기한까지 38분 남았습니다. 원문과 탐지 구간을 확인하세요.</p>
+            {/* "1건"과 "38분"이 박혀 있었다. 대기열을 다 처리해도 그대로
+                남고, 정작 그 리뷰는 공개 상태였다. */}
+            <h2>
+              {reviewCounts.privacy
+                ? `개인정보 탐지로 보류된 리뷰 ${reviewCounts.privacy}건`
+                : reviewCounts.report
+                  ? `신고 접수된 리뷰 ${reviewCounts.report}건`
+                  : "지금 처리할 리뷰가 없습니다"}
+            </h2>
+            <p>
+              {reviewCounts.all
+                ? "원문과 탐지 구간을 확인하고 공개 여부를 정하세요."
+                : "새 신고나 탐지가 들어오면 여기에 표시됩니다."}
+            </p>
           </div>
           <Link className="button primary" href="/admin/reviews">
             검토 시작
@@ -3849,7 +3924,11 @@ function Admin({
             </div>
             {/* 사이드바의 "회원" 배지와 같은 대기열인데 숫자가 달랐다. */}
             <strong>{memberApplications.length}</strong>
-            <small>24시간 내 처리율 92% · 가장 오래된 건 3시간</small>
+            <small>
+              {memberApplications.length
+                ? "재직·실적 증빙을 확인하고 승인 여부를 정하세요."
+                : "대기 중인 신청이 없습니다."}
+            </small>
             <Link href="/admin/members">대기열 열기</Link>
           </article>
           <article>
@@ -3858,7 +3937,10 @@ function Admin({
               <b className="urgent">주의</b>
             </div>
             <strong>{reviewCounts.all}</strong>
-            <small>고위험 1건 · 오늘 신규 2건</small>
+            {/* "고위험 1건 · 오늘 신규 2건"은 어디서도 안 나오는 값이었다. */}
+            <small>
+              개인정보 {reviewCounts.privacy}건 · 신고 {reviewCounts.report}건
+            </small>
             <Link href="/admin/reviews">신고 대기열 열기</Link>
           </article>
           <article>
@@ -3886,30 +3968,55 @@ function Admin({
               </div>
               <b>우선순위순</b>
             </div>
+            {/*
+              건수가 박혀 있었다. "재직 증빙 8건"인데 회원 대기열은 2건,
+              "중복 후보 4건"인데 회사 화면은 7건이었다. 각 화면으로
+              넘어가는 줄이라, 눌러 보면 바로 다른 숫자가 나온다.
+
+              할 일이 없는 줄은 아예 안 보여 준다 - 0건짜리 줄이 대기열에
+              남아 있으면 처리한 티가 안 난다.
+            */}
             {[
-              ["P1", "리뷰", "개인정보 탐지 구간 확인", "38분 남음"],
-              ["P2", "회원", "재직 증빙 8건 검토", "오늘 18:00"],
-              ["P3", "회사", "중복 후보 4건 병합", "내일"],
-            ].map(([priority, type, title, due]) => (
-              <Link
-                href={
-                  type === "리뷰"
-                    ? "/admin/reviews"
-                    : type === "회원"
-                      ? "/admin/members"
-                      : "/admin/companies"
-                }
-                className="work-queue-row"
-                key={title}
-              >
-                <span className={`priority priority-${priority.toLowerCase()}`}>
-                  {priority}
-                </span>
-                <span>{type}</span>
-                <strong>{title}</strong>
-                <small>{due}</small>
-              </Link>
-            ))}
+              {
+                priority: "P1",
+                type: "리뷰",
+                count: reviewCounts.all,
+                title: `검토 대기 리뷰 ${reviewCounts.all}건`,
+                href: "/admin/reviews",
+              },
+              {
+                priority: "P2",
+                type: "회원",
+                count: memberApplications.length,
+                title: `재직·실적 증빙 ${memberApplications.length}건 검토`,
+                href: "/admin/members",
+              },
+              {
+                priority: "P3",
+                type: "회사",
+                count: state.manualCompanies.length,
+                title: `수기 등록 회사 ${state.manualCompanies.length}곳 확인`,
+                href: "/admin/companies",
+              },
+            ]
+              .filter((row) => row.count > 0)
+              .map((row) => (
+                <Link className="work-queue-row" href={row.href} key={row.type}>
+                  <span
+                    className={`priority priority-${row.priority.toLowerCase()}`}
+                  >
+                    {row.priority}
+                  </span>
+                  <span>{row.type}</span>
+                  <strong>{row.title}</strong>
+                </Link>
+              ))}
+            {reviewCounts.all +
+              memberApplications.length +
+              state.manualCompanies.length ===
+            0 ? (
+              <p className="list-empty">지금 처리할 작업이 없습니다.</p>
+            ) : null}
           </section>
           <section className="audit-feed">
             <div className="admin-section-head">
@@ -3918,22 +4025,21 @@ function Admin({
                 <h2>최근 운영 로그</h2>
               </div>
             </div>
+            {/* 시각을 `index * 7` 로 만들어서 늘 방금 전 / 7분 전 / 14분
+                전이었다. 시각 대신 무슨 일이었는지만 남긴다. */}
             {[
               "홈 추천 영역 미리보기 생성",
-              "회사 중복 후보 4건 확인 요청",
+              "회사 중복 후보 확인 요청",
               "리뷰 개인정보 탐지로 자동 보류",
-            ].map((item, index) => (
-              <p key={item}>
-                <span>{index === 0 ? "방금 전" : `${index * 7}분 전`}</span>
-                {item}
-              </p>
+            ].map((item) => (
+              <p key={item}>{item}</p>
             ))}
           </section>
         </div>
       </>
     );
   return (
-    <main className="admin-shell">
+    <main id="main" className="admin-shell">
       {nav}
       <section className="admin-panel">
         <div className="admin-contextbar">
@@ -3978,7 +4084,7 @@ function Admin({
 
 function Trust() {
   return (
-    <main className="page-shell page">
+    <main id="main" className="page-shell page">
       <PageTitle
         eyebrow="운영 정책"
         title="리뷰 작성자 보호 및 검증 정책"
@@ -4063,7 +4169,7 @@ function AdminTitle({
 }
 function NotFound() {
   return (
-    <main className="page-shell page narrow">
+    <main id="main" className="page-shell page narrow">
       <PageTitle
         eyebrow="404"
         title="페이지를 찾을 수 없습니다"

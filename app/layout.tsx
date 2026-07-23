@@ -68,6 +68,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         {/*
+          본문으로 바로 가는 링크.
+
+          탭으로 이동하면 역할 버튼 4개 → 초기화 → 로고 → 메뉴 4개 →
+          리뷰 작성 → 계정까지 열두 번을 지나야 본문에 닿는다. 그것도
+          화면을 옮길 때마다 처음부터 다시다.
+
+          평소에는 안 보이고 탭으로 닿으면 나타난다.
+        */}
+        <a className="skip-link" href="#main">
+          본문으로 건너뛰기
+        </a>
+        {/*
           데모 상태를 레이아웃에서 만든다.
 
           이 앱은 catch-all 라우트 하나로 모든 화면을 그려서, 주소가 바뀌면
