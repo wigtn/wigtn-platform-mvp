@@ -2883,15 +2883,23 @@ function AiAnswerCard({
   model: string;
 }) {
   return (
-    <section className="fieldnote-answer" aria-label="AI 실무 답변">
+    <section className="fieldnote-answer" aria-label="AI 초안">
       <header className="fieldnote-answer-header">
         <div>
           <span className="fieldnote-answer-mark" aria-hidden="true">
             F
           </span>
           <div>
-            <b>FIELDNOTE 실무 답변</b>
-            <small>입력·출력 안전성 검사를 통과한 초안입니다.</small>
+            {/*
+              "실무 답변" 이라고만 적혀 있었다. 아래에는 "회원 답변" 이
+              따로 있어서, 둘 다 답변인데 뭐가 다른지 이름만으로는 알 수
+              없었다. 정작 이 카드가 AI 가 쓴 것인데 화면의 다른 곳은 전부
+              "AI 초안" 이라고 부르고 여기만 아니었다.
+            */}
+            <b>FIELDNOTE AI 초안</b>
+            <small>
+              질문을 올리면 바로 붙는 초안입니다. 회원 답변은 아래에 쌓입니다.
+            </small>
           </div>
         </div>
         {/* 모델 이름이 카드 맨 아래 각주에 있었다. 진짜 모델이 답한 건지
