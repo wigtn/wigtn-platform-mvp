@@ -32,6 +32,7 @@ import { useDemoStateContext } from "./demo-state-provider";
 import {
   IconBold,
   IconBookmark,
+  IconCheck,
   IconChevron,
   IconLock,
   IconEye,
@@ -61,6 +62,21 @@ import {
 */
 function pickCompanies(state: { companies?: Company[] }): Company[] {
   return state.companies?.length ? state.companies : seedCompanies;
+}
+
+/**
+ * 6축 중 가장 높은 항목.
+ *
+ * 홈에서 "가장 높은 항목"이 `세일즈 툴 4.7` 로 박혀 있었다. 어느 회사가
+ * 뽑히든 같은 값이 나와서, 비교 화면과 대 보면 서로 다른 말을 했다.
+ * 순위 목록의 부제도 배열 순서로 골라 회사와 상관이 없었다.
+ */
+function topDimension(company: Company): string | null {
+  const ranked = Object.entries(company.scores ?? {}).sort(
+    ([, a], [, b]) => b - a,
+  );
+  if (!ranked.length) return null;
+  return `${ranked[0][0]} ${ranked[0][1].toFixed(1)}`;
 }
 
 type DemoState = {
@@ -928,8 +944,11 @@ function Header({
           })}
         </nav>
         <div className="header-actions">
-          <Link className="header-write" href="/reviews/new">
-            리뷰 작성
+          {/* 좁은 화면에서 통째로 숨겼더니 리뷰를 쓰러 갈 길이 화면
+              어디에도 없었다. 글자만 접고 아이콘은 남긴다. */}
+          <Link className="header-write" href="/reviews/new" title="리뷰 작성">
+            <IconPen />
+            <span>리뷰 작성</span>
           </Link>
           <button
             type="button"
@@ -1095,7 +1114,7 @@ function Home({ state }: { state: DemoState }) {
               </div>
               <div>
                 <dt>가장 높은 항목</dt>
-                <dd>세일즈 툴 4.7</dd>
+                <dd>{topDimension(top[0]) ?? "집계 전"}</dd>
               </div>
               <div>
                 <dt>재직 확인 리뷰</dt>
@@ -1109,8 +1128,10 @@ function Home({ state }: { state: DemoState }) {
               >
                 회사 리포트 보기
               </Link>
-              <Link className="text-link" href="/compare">
-                비교 목록에 담기
+              {/* "담기"라고 했지만 아무것도 안 담겼다. 비교 화면은 늘 앞의
+                  두 회사로 시작해서, 방금 담은 회사가 안 골라져 있었다. */}
+              <Link className="text-link" href={`/compare?a=${top[0].slug}`}>
+                이 회사로 비교하기
               </Link>
             </div>
           </article>
@@ -1132,13 +1153,7 @@ function Home({ state }: { state: DemoState }) {
                 </span>
                 <span className="ranked-company-copy">
                   <b>{company.name}</b>
-                  <small>
-                    {index === 0
-                      ? "매니저 코칭 4.5"
-                      : index === 1
-                        ? "세일즈 툴 4.4"
-                        : "계정 배분 4.3"}
-                  </small>
+                  <small>{topDimension(company) ?? "집계 전"}</small>
                 </span>
                 <span className="ranked-company-score">
                   {companyScore(
@@ -1413,7 +1428,14 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
         <div className="company-decision-box">
           <div className="score-monument">
             <span>영업환경 종합</span>
-            <strong>{score.toFixed(1)}</strong>
+            <strong>
+              {/* 전에는 `★` 글자를 CSS content 로 붙였다. 굵기가 옆의 다른
+                  아이콘들과 안 맞았고, 좁은 화면에서는 숫자 위로 떠올랐다. */}
+              <i className="score-star" aria-hidden="true">
+                <IconStar />
+              </i>
+              {score.toFixed(1)}
+            </strong>
             <small>
               재직 확인 리뷰{" "}
               {reviews.filter((review) => review.verified).length}건 포함
@@ -1476,7 +1498,10 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
           <span>리뷰에서 언급된 팀 운영 방식</span>
           <ul>
             {(companySignals[company.slug] ?? []).map((signal) => (
-              <li key={signal}>{signal}</li>
+              <li key={signal}>
+                <IconCheck />
+                {signal}
+              </li>
             ))}
           </ul>
           <Link href="/questions/new">현직자에게 확인 질문하기</Link>
@@ -1628,7 +1653,7 @@ function ReviewForm({
         ),
       });
     }
-    notify("익명 리뷰가 반영되고 회사 통계가 갱신됐습니다.");
+    notify("리뷰를 등록했습니다. 회사 점수에 반영됐어요.");
     router.push(`/companies/${companySlug}`);
   };
   return (
@@ -1761,12 +1786,23 @@ function Community({
 }) {
   const [board, setBoard] = useState("전체");
   const [search, setSearch] = useState("");
+  const matches = (post: Post) =>
+    !state.hiddenPostIds.includes(post.id) &&
+    `${post.title}${post.body}${post.author}`.includes(search);
   const posts = state.posts.filter(
-    (post) =>
-      !state.hiddenPostIds.includes(post.id) &&
-      (board === "전체" || post.board === board) &&
-      `${post.title}${post.body}${post.author}`.includes(search),
+    (post) => matches(post) && (board === "전체" || post.board === board),
   );
+  /*
+    게시판별 개수도 검색을 따라간다.
+
+    전에는 검색과 무관하게 전체를 셌다. 찾는 말이 없어서 목록이 "0개 결과"
+    인데 왼쪽에는 "전체 4" 가 그대로 떠 있었다. 어느 쪽이 맞는 말인지
+    알 수 없다.
+  */
+  const boardCount = (value: string) =>
+    state.posts.filter(
+      (post) => matches(post) && (value === "전체" || post.board === value),
+    ).length;
   const toggleSave = (id: string) => {
     setState((current) => ({
       ...current,
@@ -1825,11 +1861,7 @@ function Community({
                 key={value}
               >
                 <span>{value}</span>
-                <b>
-                  {value === "전체"
-                    ? state.posts.length
-                    : state.posts.filter((post) => post.board === value).length}
-                </b>
+                <b>{boardCount(value)}</b>
               </button>
             ))}
           </nav>
@@ -1839,7 +1871,7 @@ function Community({
               상황, 시도한 방법, 원하는 결과를 함께 적으면 더 구체적인 답을 받을
               수 있습니다.
             </p>
-            <Link href="/questions/new">질문 가이드 보기</Link>
+            <Link href="/questions/new">질문 올리기</Link>
           </div>
         </aside>
         <section className="community-main">
@@ -1852,7 +1884,7 @@ function Community({
                 placeholder="질문과 노하우 검색"
               />
             </label>
-            <span className="feed-count">{posts.length}개 결과 · 최신순</span>
+            <span className="feed-count">{posts.length}개 결과</span>
           </div>
           <div className="feed">
             {posts.length === 0 ? (
@@ -1866,14 +1898,11 @@ function Community({
                 key={post.id}
                 className={post.board === "Q&A" ? "question-post" : ""}
               >
+                {/* 전에는 노하우→N, 실적→R, 자유→F 로 로마자를 붙였다.
+                    무슨 기준인지 안 읽히고, 회사 카드의 머리글자는 전부
+                    한글 첫 글자라 여기만 따로 놀았다. */}
                 <div className="post-index">
-                  {post.board === "Q&A"
-                    ? "Q"
-                    : post.board === "노하우"
-                      ? "N"
-                      : post.board === "실적"
-                        ? "R"
-                        : "F"}
+                  {post.board === "Q&A" ? "Q" : post.board.slice(0, 1)}
                 </div>
                 <div className="post-content">
                   <div className="post-meta">
@@ -1907,23 +1936,35 @@ function Community({
         <aside className="community-rail">
           <section>
             <span className="rail-label">지금 많이 찾는 주제</span>
+            {/*
+              전부 `/community` 로 갔다. 지금 보고 있는 그 페이지라, 눌러도
+              화면만 다시 그려졌다. 옆의 숫자(42·31·28·19)는 걸러진 결과가
+              있다는 뜻으로 읽히는데 실제 글 수와 아무 상관이 없었다.
+
+              누르면 검색어로 넣고, 숫자는 진짜 걸리는 글 수를 센다.
+            */}
             <ol>
-              <li>
-                <Link href="/community">엔터프라이즈 첫 미팅</Link>
-                <span>42</span>
-              </li>
-              <li>
-                <Link href="/community">인센티브 협상</Link>
-                <span>31</span>
-              </li>
-              <li>
-                <Link href="/community">영업 리더 이직</Link>
-                <span>28</span>
-              </li>
-              <li>
-                <Link href="/community">ROI 제안서</Link>
-                <span>19</span>
-              </li>
+              {POPULAR_TOPICS.map((topic) => (
+                <li key={topic}>
+                  <button
+                    type="button"
+                    className="rail-topic"
+                    onClick={() => {
+                      setSearch(topic);
+                      setBoard("전체");
+                    }}
+                  >
+                    {topic}
+                  </button>
+                  <span>
+                    {
+                      state.posts.filter((post) =>
+                        `${post.title}${post.body}`.includes(topic),
+                      ).length
+                    }
+                  </span>
+                </li>
+              ))}
             </ol>
           </section>
           <section className="answer-standard">
@@ -1939,12 +1980,53 @@ function Community({
 }
 
 /** 서식 도구. 아이콘과 이름을 같이 둔다 - 아이콘만으로는 뜻이 안 통한다. */
+/*
+  서식 도구.
+
+  전에는 누르면 "굵게 서식 도구를 선택했습니다." 라는 알림만 떴다. 본문은
+  건드리지 않았으니 네 개 다 아무 일도 안 하는 버튼이었다. 눌러 보면 바로
+  들통나는 자리라, 없느니만 못했다.
+
+  고른 부분을 표시로 감싼다. 줄 단위 도구(목록·인용)는 각 줄 앞에 붙인다.
+*/
 const EDITOR_TOOLS = [
-  { label: "굵게", Icon: IconBold },
-  { label: "링크", Icon: IconLink },
-  { label: "목록", Icon: IconList },
-  { label: "인용", Icon: IconQuote },
+  { label: "굵게", Icon: IconBold, wrap: "**" },
+  { label: "링크", Icon: IconLink, link: true },
+  { label: "목록", Icon: IconList, prefix: "- " },
+  { label: "인용", Icon: IconQuote, prefix: "> " },
 ] as const;
+
+type EditorTool = (typeof EDITOR_TOOLS)[number];
+
+/** 고른 글자에 표시를 입힌다. 고른 게 없으면 자리만 만들고 커서를 넣는다. */
+function applyEditorTool(area: HTMLTextAreaElement, tool: EditorTool) {
+  const { selectionStart: from, selectionEnd: to } = area;
+  const picked = area.value.slice(from, to);
+
+  if ("prefix" in tool) {
+    const lines = (picked || "").split("\n");
+    area.setRangeText(
+      lines.map((line) => `${tool.prefix}${line}`).join("\n"),
+      from,
+      to,
+      "end",
+    );
+  } else if ("link" in tool) {
+    area.setRangeText(`[${picked || "링크 글자"}](https://)`, from, to, "end");
+  } else {
+    area.setRangeText(
+      `${tool.wrap}${picked || "굵게"}${tool.wrap}`,
+      from,
+      to,
+      "end",
+    );
+  }
+  // setRangeText 는 input 이벤트를 안 쏜다. React 가 모르면 안 되는 값은
+  // 아니지만(제어하지 않는 textarea 다), 글자 수 확인 같은 게 붙으면
+  // 필요하다.
+  area.dispatchEvent(new Event("input", { bubbles: true }));
+  area.focus();
+}
 
 function PostForm({
   state,
@@ -1958,6 +2040,8 @@ function PostForm({
   onRoleChange: (role: Role) => void;
 }) {
   const router = useRouter();
+  /** 고른 파일 이름. 입력을 숨겼으므로 화면에 직접 보여 준다. */
+  const [imageNames, setImageNames] = useState<string[]>([]);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -1990,7 +2074,7 @@ function PostForm({
         body: post.body,
       });
     }
-    notify("게시글과 이미지 메타데이터가 등록됐습니다.");
+    notify("게시글을 올렸습니다.");
     router.push(`/posts/${id}`);
   };
   return (
@@ -2029,16 +2113,20 @@ function PostForm({
           <div className="editor-field">
             <label htmlFor="post-body">내용</label>
             <span className="editor-toolbar" aria-label="웹 에디터 도구">
-              {EDITOR_TOOLS.map(({ label, Icon }) => (
+              {EDITOR_TOOLS.map((tool) => (
                 <button
                   type="button"
-                  key={label}
-                  title={label}
-                  aria-label={label}
-                  onClick={() => notify(`${label} 서식 도구를 선택했습니다.`)}
+                  key={tool.label}
+                  title={tool.label}
+                  aria-label={tool.label}
+                  onClick={() => {
+                    const area =
+                      document.querySelector<HTMLTextAreaElement>("#post-body");
+                    if (area) applyEditorTool(area, tool);
+                  }}
                 >
-                  <Icon />
-                  <span>{label}</span>
+                  <tool.Icon />
+                  <span>{tool.label}</span>
                 </button>
               ))}
             </span>
@@ -2050,13 +2138,37 @@ function PostForm({
               minLength={20}
             />
           </div>
-          <label>
-            이미지 첨부
+          <div className="field">
+            <span className="field-label">이미지 첨부</span>
+            {/*
+              브라우저가 그리는 파일 선택 칸을 그대로 뒀더니 "Choose Files /
+              No file chosen" 이 떴다. 화면에서 유일한 영어이자 유일하게
+              꾸미지 않은 칸이었다. 입력은 숨기고 label 을 버튼으로 쓴다.
+            */}
             <div className="upload-field">
-              <input name="images" type="file" accept="image/*" multiple />
-              <small>JPG·PNG·WebP · 데모에서는 파일 이름만 저장합니다.</small>
+              <label className="button secondary upload-pick">
+                이미지 선택
+                <input
+                  name="images"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) =>
+                    setImageNames(
+                      Array.from(event.target.files ?? []).map(
+                        (file) => file.name,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <small>
+                {imageNames.length
+                  ? imageNames.join(", ")
+                  : "JPG·PNG·WebP · 데모에서는 파일 이름만 저장합니다."}
+              </small>
             </div>
-          </label>
+          </div>
           <button className="button primary">게시글 등록</button>
         </form>
       )}
@@ -2081,6 +2193,14 @@ function insertComment(
   while (at < comments.length && comments[at].startsWith(REPLY_MARK)) at += 1;
   return [...comments.slice(0, at), body, ...comments.slice(at)];
 }
+
+/**
+ * 커뮤니티 오른쪽에 거는 주제.
+ *
+ * 눌러서 검색어로 들어가는 값이라, 실제로 글에 나오는 말로 둔다. 보기 좋은
+ * 말을 적어 두면 눌렀을 때 결과가 0건이 된다.
+ */
+const POPULAR_TOPICS = ["엔터프라이즈", "ROI", "파이프라인", "영업 리더"];
 
 /** 신고 사유. 값은 서버의 reason_code 로 그대로 나간다. */
 const REPORT_REASONS = [
@@ -2532,9 +2652,9 @@ function QuestionForm({
   const [aiAnswer, setAiAnswer] = useState<FieldnoteAiAnswer | null>(null);
   const [aiModel, setAiModel] = useState("");
   const [aiError, setAiError] = useState("");
-  const [context, setContext] = useState(
-    "고객이 제품 필요성은 인정하지만 예산 이야기는 계속 미룹니다. 첫 미팅에서 어떤 순서로 물어봐야 할까요?",
-  );
+  /* 예시 문장이 값으로 들어가 있었다. 회색 안내가 아니라 검은 글씨라
+     진짜 입력으로 보였고, 써 보려면 전체 선택 후 지워야 했다. */
+  const [context, setContext] = useState("");
   /**
    * 질문을 올리고 AI 초안을 받는다.
    *
@@ -2633,6 +2753,7 @@ function QuestionForm({
             <textarea
               rows={7}
               required
+              placeholder="고객이 제품 필요성은 인정하지만 예산 이야기는 계속 미룹니다. 첫 미팅에서 어떤 순서로 물어봐야 할까요?"
               value={context}
               onChange={(event) => setContext(event.target.value)}
             />
@@ -2726,7 +2847,14 @@ function Account({
       />
       <div className="account-grid">
         <aside className="profile-panel">
-          <div className="avatar">YS</div>
+          {/* 이름을 바꿔도 "YS" 로 남아 있었고, 다른 곳의 머리글자는 전부
+              한글 첫 글자인데 여기만 로마자였다. */}
+          <div className="avatar">
+            {(state.role === "guest"
+              ? "체험 방문자"
+              : state.profile.name
+            ).slice(0, 1)}
+          </div>
           <h2>{state.role === "guest" ? "체험 방문자" : state.profile.name}</h2>
           <p>{state.profile.headline}</p>
           <span className="trust-chip">현재 역할 {roleNames[state.role]}</span>
@@ -2820,7 +2948,7 @@ function Account({
                     notify("샘플 확인 자료를 제출했습니다.");
                   }}
                 >
-                  샘플 자료로 신청
+                  샘플 자료 제출
                 </button>
               </div>
             )}
@@ -2853,6 +2981,18 @@ function Compare({ state }: { state: DemoState }) {
   const companies = pickCompanies(state);
   const [a, setA] = useState(companies[0].slug);
   const [b, setB] = useState(companies[1].slug);
+  /* 회사 페이지에서 "이 회사로 비교하기"로 왔으면 그 회사를 왼쪽에 둔다.
+     안 그러면 방금 고른 회사가 아니라 늘 목록 앞 두 곳이 떠 있다. */
+  useEffect(() => {
+    const from = new URLSearchParams(window.location.search).get("a");
+    if (!from || !companies.some((c) => c.slug === from)) return;
+    setA(from);
+    setB((current) =>
+      current === from
+        ? (companies.find((c) => c.slug !== from)?.slug ?? current)
+        : current,
+    );
+  }, [companies]);
   const selected = [
     companies.find((c) => c.slug === a)!,
     companies.find((c) => c.slug === b)!,
@@ -2956,7 +3096,23 @@ function Admin({
   // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
   const companies = pickCompanies(state);
   const [, , demoMeta] = useDemoStateContext();
-  const [confirmPublish, setConfirmPublish] = useState(false);
+  /*
+    확인 창.
+
+    추천 영역 게시에만 확인 창이 붙어 있었다. 정작 되돌리기 어려운 쪽 -
+    회원 신청 반려, 리뷰·글 블라인드 - 은 한 번 누르면 바로 나갔다.
+    승인과 반려 버튼은 생김새까지 같아서, 8px 옆의 버튼을 잘못 누르면
+    되돌릴 틈이 없었다.
+
+    창 하나를 여러 곳이 나눠 쓴다. 창마다 다르게 만들면 같은 성격의 일인지
+    안 읽힌다.
+  */
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    run: () => void;
+  } | null>(null);
   const [reviewFilter, setReviewFilter] = useState<
     "all" | "privacy" | "report"
   >("all");
@@ -2980,7 +3136,7 @@ function Admin({
         <PageTitle
           eyebrow="접근 권한"
           title="운영 관리자 역할이 필요합니다"
-          description="운영 화면은 역할 차이를 보여주는 데모 기능입니다."
+          description="운영 관리자 역할로 바꾸면 검토 대기열과 대시보드를 볼 수 있습니다."
         />
         <LockedRoleFeature
           badge="운영 관리자 전용"
@@ -2991,6 +3147,25 @@ function Admin({
         />
       </main>
     );
+  /*
+    한 화면에 같은 대기열이 세 번 나온다 - 왼쪽 배지, 머리말 숫자, 목록.
+    전에는 셋이 따로 적혀 있어서 "회원 8", "20 처리 대기", 실제 목록 2건
+    이 한 화면에 같이 떴다. 어느 것이 맞는지 알 방법이 없다. 한 배열에서
+    전부 센다.
+  */
+  const memberApplications = ["윤서진 · L2 신청", "한도윤 · 실적 인증"];
+  /*
+    AI 첫 답변을 아직 못 받은 글.
+
+    전에는 "AI 답변 오류 0" 이 박혀 있었다. 실패는 화면 상태에 남지 않아서
+    셀 수가 없다 - 없는 값을 0 이라고 적으면, 실제로 깨져도 정상으로 보인다.
+    셀 수 있는 것(답변을 기다리는 글)으로 바꾸고 이름도 그렇게 단다.
+  */
+  const aiPending = state.posts.filter(
+    (post) => post.ai === "queued" || post.ai === "thinking",
+  ).length;
+  const moderationPosts = state.posts.slice(0, 4);
+
   const nav = (
     <nav className="admin-nav">
       <div className="admin-nav-brand">
@@ -3014,13 +3189,13 @@ function Admin({
         className={path === "/admin/members" ? "active" : ""}
         href="/admin/members"
       >
-        회원 <b>8</b>
+        회원 <b>{memberApplications.length}</b>
       </Link>
       <Link
         className={path === "/admin/content" ? "active" : ""}
         href="/admin/content"
       >
-        콘텐츠 <b>4</b>
+        콘텐츠 <b>{moderationPosts.length}</b>
       </Link>
       <span className="admin-nav-label">데이터 관리</span>
       <Link
@@ -3037,7 +3212,7 @@ function Admin({
       </Link>
       <div className="admin-nav-status">
         <i />
-        <span>모든 시스템 정상</span>
+        <span>시스템 정상</span>
       </div>
     </nav>
   );
@@ -3102,26 +3277,39 @@ function Admin({
             <span className={`admin-row-status ${review.status}`}>
               {review.status === "hidden" ? "비공개" : "공개"}
             </span>
+            {/* 남의 글을 안 보이게 만드는 동작이라 한 번 묻는다. */}
             <button
+              className={review.status === "hidden" ? undefined : "is-destructive"}
               onClick={() => {
-                setState((current) => ({
-                  ...current,
-                  reviews: current.reviews.map((item) =>
-                    item.id === review.id
-                      ? {
-                          ...item,
-                          status:
-                            item.status === "hidden" ? "published" : "hidden",
-                        }
-                      : item,
-                  ),
-                }));
-                persist("admin.content.moderate", {
-                  targetType: "company_review",
-                  targetId: review.id,
-                  action: review.status === "hidden" ? "restore" : "hide",
+                const hiding = review.status !== "hidden";
+                setConfirm({
+                  title: hiding
+                    ? "이 리뷰를 블라인드할까요?"
+                    : "이 리뷰를 다시 공개할까요?",
+                  description: hiding
+                    ? `"${review.title}" 이 목록과 회사 통계에서 빠집니다.`
+                    : `"${review.title}" 이 다시 목록과 회사 통계에 들어갑니다.`,
+                  confirmLabel: hiding ? "블라인드" : "공개하기",
+                  run: () => {
+                    setState((current) => ({
+                      ...current,
+                      reviews: current.reviews.map((item) =>
+                        item.id === review.id
+                          ? {
+                              ...item,
+                              status: hiding ? "hidden" : "published",
+                            }
+                          : item,
+                      ),
+                    }));
+                    persist("admin.content.moderate", {
+                      targetType: "company_review",
+                      targetId: review.id,
+                      action: hiding ? "hide" : "restore",
+                    });
+                    notify("리뷰 공개 상태를 변경했습니다.");
+                  },
                 });
-                notify("리뷰 공개 상태를 변경했습니다.");
               }}
             >
               {review.status === "hidden" ? "복구" : "블라인드"}
@@ -3138,6 +3326,9 @@ function Admin({
           count={String(
             companies.length + state.manualCompanies.length,
           ).padStart(2, "0")}
+          // 등록된 회사 수다. 기본값("처리 대기")을 그냥 두면 6곳이 전부
+          // 처리할 일로 읽힌다.
+          countLabel="등록 회사"
         />
         <form
           className="admin-inline-form"
@@ -3238,7 +3429,7 @@ function Admin({
   else if (path === "/admin/placements")
     panel = (
       <>
-        <AdminTitle title="홈 콘텐츠 배치" count="08" />
+        <AdminTitle title="홈 콘텐츠 배치" count="08" countLabel="배치 슬롯" />
         <div className="placement-preview">
           <span>{state.placementsPublished ? "게시 중" : "미리보기"}</span>
           <h2>이번 주 추천 회사 3곳</h2>
@@ -3249,7 +3440,31 @@ function Admin({
           */}
           <button
             className="button primary"
-            onClick={() => setConfirmPublish(true)}
+            onClick={() =>
+              setConfirm({
+                title: state.placementsPublished
+                  ? "추천 영역을 내릴까요?"
+                  : "추천 영역을 홈에 올릴까요?",
+                description: state.placementsPublished
+                  ? "홈 첫 화면에서 추천 회사 영역이 사라집니다."
+                  : "홈 첫 화면 상단에 추천 회사 3곳이 바로 노출됩니다.",
+                confirmLabel: state.placementsPublished ? "내리기" : "게시하기",
+                run: () => {
+                  setState((current) => ({
+                    ...current,
+                    placementsPublished: !current.placementsPublished,
+                  }));
+                  persist("admin.placement.publish", {
+                    published: !state.placementsPublished,
+                  });
+                  notify(
+                    state.placementsPublished
+                      ? "추천 영역을 미리보기 상태로 되돌렸습니다."
+                      : "추천 영역을 홈에 게시했습니다.",
+                  );
+                },
+              })
+            }
           >
             {state.placementsPublished ? "게시 취소" : "지금 게시"}
           </button>
@@ -3259,8 +3474,11 @@ function Admin({
   else if (path === "/admin/members")
     panel = (
       <>
-        <AdminTitle title="회원·검증 신청" count="20" />
-        {["윤서진 · L2 신청", "한도윤 · 실적 인증"].map((name) => (
+        <AdminTitle
+          title="회원·검증 신청"
+          count={String(memberApplications.length).padStart(2, "0")}
+        />
+        {memberApplications.map((name) => (
           <div className="admin-row" key={name}>
             <div>
               <strong>{name}</strong>
@@ -3279,15 +3497,25 @@ function Admin({
               >
                 승인
               </button>
+              {/* 신청을 되돌리는 쪽이라 한 번 묻는다. 승인 버튼과 생김새가
+                  같고 8px 옆이라 잘못 누르기 쉬웠다. */}
               <button
-                onClick={() => {
-                  setState((current) => ({
-                    ...current,
-                    badgeStatus: "반려",
-                  }));
-                  persist("admin.member.review", { decision: "reject" });
-                  notify("확인 배지 신청을 반려했습니다.");
-                }}
+                className="is-destructive"
+                onClick={() =>
+                  setConfirm({
+                    title: "확인 배지 신청을 반려할까요?",
+                    description: `${name} 님의 신청이 반려 처리되고 신청자에게 결과가 전달됩니다.`,
+                    confirmLabel: "반려하기",
+                    run: () => {
+                      setState((current) => ({
+                        ...current,
+                        badgeStatus: "반려",
+                      }));
+                      persist("admin.member.review", { decision: "reject" });
+                      notify("확인 배지 신청을 반려했습니다.");
+                    },
+                  })
+                }
               >
                 반려
               </button>
@@ -3299,8 +3527,11 @@ function Admin({
   else if (path === "/admin/content")
     panel = (
       <>
-        <AdminTitle title="게시글·댓글 모니터링" count="04" />
-        {state.posts.slice(0, 4).map((post) => (
+        <AdminTitle
+          title="게시글·댓글 모니터링"
+          count={String(moderationPosts.length).padStart(2, "0")}
+        />
+        {moderationPosts.map((post) => (
           <div className="admin-row" key={post.id}>
             <div>
               <span>{post.board}</span>
@@ -3310,21 +3541,36 @@ function Admin({
               </small>
             </div>
             <button
+              className={
+                state.hiddenPostIds.includes(post.id)
+                  ? undefined
+                  : "is-destructive"
+              }
               onClick={() => {
-                setState((current) => ({
-                  ...current,
-                  hiddenPostIds: current.hiddenPostIds.includes(post.id)
-                    ? current.hiddenPostIds.filter((id) => id !== post.id)
-                    : [...current.hiddenPostIds, post.id],
-                }));
-                persist("admin.content.moderate", {
-                  targetType: "post",
-                  targetId: post.id,
-                  action: state.hiddenPostIds.includes(post.id)
-                    ? "restore"
-                    : "hide",
+                const hiding = !state.hiddenPostIds.includes(post.id);
+                setConfirm({
+                  title: hiding
+                    ? "이 글을 블라인드할까요?"
+                    : "이 글을 다시 공개할까요?",
+                  description: hiding
+                    ? `"${post.title}" 이 커뮤니티 목록에서 빠집니다.`
+                    : `"${post.title}" 이 다시 커뮤니티 목록에 나옵니다.`,
+                  confirmLabel: hiding ? "블라인드" : "공개하기",
+                  run: () => {
+                    setState((current) => ({
+                      ...current,
+                      hiddenPostIds: hiding
+                        ? [...current.hiddenPostIds, post.id]
+                        : current.hiddenPostIds.filter((id) => id !== post.id),
+                    }));
+                    persist("admin.content.moderate", {
+                      targetType: "post",
+                      targetId: post.id,
+                      action: hiding ? "hide" : "restore",
+                    });
+                    notify("게시글 공개 상태를 변경했습니다.");
+                  },
                 });
-                notify("게시글 공개 상태를 변경했습니다.");
               }}
             >
               {state.hiddenPostIds.includes(post.id) ? "복구" : "블라인드"}
@@ -3336,7 +3582,16 @@ function Admin({
   else
     panel = (
       <>
-        <AdminTitle title="오늘의 운영 우선순위" count="07" />
+        {/*
+          07 로 박혀 있었다. 아래 세 지표의 합도, 대기열 3건도 아니어서
+          어디서 온 숫자인지 알 수 없었다. 지표에서 센다.
+        */}
+        <AdminTitle
+          title="오늘의 운영 우선순위"
+          count={String(
+            memberApplications.length + reviewCounts.all + aiPending,
+          ).padStart(2, "0")}
+        />
         <section className="priority-brief">
           <div>
             <span>가장 먼저 처리할 작업</span>
@@ -3353,7 +3608,8 @@ function Admin({
               <span>검증 대기</span>
               <b>정상</b>
             </div>
-            <strong>8</strong>
+            {/* 사이드바의 "회원" 배지와 같은 대기열인데 숫자가 달랐다. */}
+            <strong>{memberApplications.length}</strong>
             <small>24시간 내 처리율 92% · 가장 오래된 건 3시간</small>
             <Link href="/admin/members">대기열 열기</Link>
           </article>
@@ -3362,17 +3618,23 @@ function Admin({
               <span>신고 리뷰</span>
               <b className="urgent">주의</b>
             </div>
-            <strong>3</strong>
+            <strong>{reviewCounts.all}</strong>
             <small>고위험 1건 · 오늘 신규 2건</small>
             <Link href="/admin/reviews">신고 대기열 열기</Link>
           </article>
           <article>
             <div>
-              <span>AI 답변 오류</span>
-              <b>정상</b>
+              <span>AI 첫 답변 대기</span>
+              <b className={aiPending ? "urgent" : undefined}>
+                {aiPending ? "대기" : "정상"}
+              </b>
             </div>
-            <strong>0</strong>
-            <small>재시도 대기 없음 · 마지막 점검 2분 전</small>
+            <strong>{aiPending}</strong>
+            <small>
+              {aiPending
+                ? `${aiPending}건이 첫 답변을 기다리는 중입니다.`
+                : "기다리는 글 없음"}
+            </small>
             <Link href="/admin/content">상태 확인</Link>
           </article>
         </div>
@@ -3425,7 +3687,6 @@ function Admin({
               <p key={item}>
                 <span>{index === 0 ? "방금 전" : `${index * 7}분 전`}</span>
                 {item}
-                <b>기록 보기</b>
               </p>
             ))}
           </section>
@@ -3453,34 +3714,15 @@ function Admin({
         </div>
         {panel}
       </section>
-      {confirmPublish ? (
+      {confirm ? (
         <ConfirmDialog
-          title={
-            state.placementsPublished
-              ? "추천 영역을 내릴까요?"
-              : "추천 영역을 홈에 올릴까요?"
-          }
-          description={
-            state.placementsPublished
-              ? "홈 첫 화면에서 추천 회사 영역이 사라집니다."
-              : "홈 첫 화면 상단에 추천 회사 3곳이 바로 노출됩니다."
-          }
-          confirmLabel={state.placementsPublished ? "내리기" : "게시하기"}
-          onClose={() => setConfirmPublish(false)}
+          title={confirm.title}
+          description={confirm.description}
+          confirmLabel={confirm.confirmLabel}
+          onClose={() => setConfirm(null)}
           onConfirm={() => {
-            setState((current) => ({
-              ...current,
-              placementsPublished: !current.placementsPublished,
-            }));
-            persist("admin.placement.publish", {
-              published: !state.placementsPublished,
-            });
-            notify(
-              state.placementsPublished
-                ? "추천 영역을 미리보기 상태로 되돌렸습니다."
-                : "추천 영역을 홈에 게시했습니다.",
-            );
-            setConfirmPublish(false);
+            confirm.run();
+            setConfirm(null);
           }}
         />
       ) : null}
@@ -3712,7 +3954,7 @@ function RolePickerModal({
         aria-describedby="role-picker-description"
       >
         <div className="role-picker-heading">
-          <span>FIELDNOTE ROLE PREVIEW</span>
+          <span>역할 미리보기</span>
           <h2 id="role-picker-title">어떤 역할로 둘러보시겠어요?</h2>
           <p id="role-picker-description">
             역할에 따라 작성 기능과 운영 화면이 달라집니다.
@@ -3773,7 +4015,7 @@ function AccountLoginModal({
       >
         <div className="account-login-heading">
           <div>
-            <span>DEMO ACCOUNT</span>
+            <span>데모 계정</span>
             <h2 id="account-login-title">어떤 계정으로 로그인할까요?</h2>
             <p id="account-login-description">
               비밀번호 없이 권한별 화면과 기능을 바로 체험할 수 있습니다.
