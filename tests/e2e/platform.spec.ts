@@ -299,7 +299,10 @@ test("헤더 메뉴만으로 주요 화면을 오갈 수 있다", async ({ page 
 });
 
 test("잠긴 답변 기능에서 역할을 바로 전환할 수 있다", async ({ page }) => {
-  await page.goto("/posts/p1");
+  /* 시드 id(`p1`)로 바로 들어가면 안 된다. DB 를 붙이면 글 id 가 uuid 라
+     없는 주소가 된다. 목록에서 첫 글을 눌러 들어간다. */
+  await page.goto("/community");
+  await page.locator(".feed > article h2 a").first().click();
   await expect(page.getByText("현직자 답변 작성")).toBeVisible();
   await page
     .getByRole("button", {

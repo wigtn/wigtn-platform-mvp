@@ -16,7 +16,7 @@ const PAGES = [
   ["company", "/companies/northstar-cloud"],
   ["compare", "/compare"],
   ["community", "/community"],
-  ["post", "/posts/p1"],
+  ["post", "/community"],
   ["trust", "/trust"],
   ["account", "/account"],
   ["admin", "/admin"],

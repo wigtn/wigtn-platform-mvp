@@ -2856,6 +2856,10 @@ function QuestionForm({
 }) {
   /** 이미 만든 글의 id. 다시 등록할 때 새로 만들지 않고 이 자리를 고친다. */
   const createdIdRef = useRef<string | null>(null);
+  /** 폼 아래에 걸어 두는 비슷한 질문. 실제 글에서 고른다. */
+  const similar = state.posts.find(
+    (post) => post.board === "Q&A" && !state.hiddenPostIds.includes(post.id),
+  );
   const [status, setStatus] = useState<
     "idle" | "queued" | "thinking" | "posted" | "error"
   >("idle");
@@ -2990,12 +2994,19 @@ function QuestionForm({
               onChange={(event) => setContext(event.target.value)}
             />
           </label>
-          <div className="similar-box">
-            <span>작성 전 유사 질문</span>
-            <Link href="/posts/p1">
-              엔터프라이즈 첫 미팅에서 꼭 확인하는 세 가지는?
-            </Link>
-          </div>
+          {/*
+            제목과 주소를 둘 다 박아 뒀다. DB 를 붙이면 글 id 가 uuid 라
+            `/posts/p1` 은 없는 주소가 된다 - 전에는 없는 id 면 첫 글을
+            대신 보여 줘서 안 드러났고, 그 대체를 없애자 404 가 됐다.
+
+            실제 Q&A 글에서 하나 가져온다.
+          */}
+          {similar ? (
+            <div className="similar-box">
+              <span>작성 전 유사 질문</span>
+              <Link href={`/posts/${similar.id}`}>{similar.title}</Link>
+            </div>
+          ) : null}
           <button className="button primary">질문 등록</button>
         </form>
       ) : (
