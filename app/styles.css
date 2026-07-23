@@ -1024,6 +1024,12 @@ input[type="range"]:active::-webkit-slider-thumb {
   color: #344054;
   font-weight: 750;
 }
+/* 종합 점수도 6축과 같은 규칙을 쓴다. */
+.range-field > span {
+  display: flex;
+  justify-content: space-between;
+}
+
 .dimension-fields label span {
   display: flex;
   justify-content: space-between;
@@ -4156,8 +4162,16 @@ select:focus {
   .channel-guide {
     display: none;
   }
+  /*
+    좁은 화면에서는 게시판이 한 줄로 눕는다.
+
+    전에는 이름과 개수 사이가 8px 인데 버튼 사이는 4px 이었다. "전체 4 Q&A
+    1" 이 한 줄로 늘어서면, 자기 개수보다 다음 이름이 더 가까워서 4가 Q&A
+    것으로 읽혔다. 안쪽은 좁히고 버튼 사이는 넓힌다.
+  */
   .community-channels .board-tabs {
     display: flex;
+    gap: 18px;
     margin: 0;
     border-top: 0;
     border-bottom: 1px solid #c8c8c0;
@@ -4165,7 +4179,9 @@ select:focus {
   }
   .community-channels .board-tabs button {
     flex: 0 0 auto;
-    gap: 8px;
+    justify-content: flex-start;
+    gap: 4px;
+    padding-inline: 0;
     border-bottom: 2px solid transparent;
   }
   .community-channels .board-tabs button.active {
@@ -4800,15 +4816,13 @@ select:focus {
   color: var(--text);
   text-align: left;
 }
-.role-picker-card.role-sales {
-  --role-card-accent: #3157a6;
-}
-.role-picker-card.role-verified {
-  --role-card-accent: #176c53;
-}
-.role-picker-card.role-admin {
-  --role-card-accent: #9b5b0a;
-}
+/*
+  역할마다 강조색을 달리 주던 것을 뺐다.
+
+  파랑·초록·주황·검정이 한 창에 같이 떴다. 이 앱의 강조색은 빨강 하나인데,
+  처음 보는 화면이 색을 넷이나 쓰면 서비스가 그런 색 체계인 줄 읽힌다.
+  역할은 아이콘과 이름으로 이미 구분된다.
+*/
 .role-picker-card:hover,
 .role-picker-card:focus-visible {
   border-color: var(--role-card-accent);

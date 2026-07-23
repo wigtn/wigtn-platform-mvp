@@ -1704,8 +1704,13 @@ function ReviewForm({
               <option>퇴사</option>
             </select>
           </label>
-          <label>
-            종합 점수 <b>{score.toFixed(1)}</b>
+          {/* 아래 6축과 같은 모양으로 맞춘다. 전에는 이름과 값이 한 줄에
+              그냥 흘러서 옆의 select 와 높이가 안 맞았고, 값이 오른쪽 끝에
+              붙는 6축과도 규칙이 달랐다. */}
+          <label className="range-field">
+            <span>
+              종합 점수 <b>{score.toFixed(1)}</b>
+            </span>
             <input
               aria-label="종합 점수"
               type="range"
@@ -2838,6 +2843,15 @@ function Account({
   const mine = state.posts.filter(
     (post) => post.author === roleNames[state.role],
   );
+  /*
+    내가 쓴 것에서 센다.
+
+    "내 글이 받은 도움"이 428 로 박혀 있었다. 글을 지워도 새로 써도 428
+    이었다. 아래 "작성 콘텐츠"도 `mine.length + 12` 라, 아무것도 안 썼는데
+    12 였다. 숫자가 화면에 있으면 사람은 그게 자기 기록이라고 읽는다.
+  */
+  const myHelpful = mine.reduce((sum, post) => sum + post.likes, 0);
+  const myScrapped = state.posts.filter((post) => post.saved);
   return (
     <main className="page-shell page">
       <PageTitle
@@ -2861,11 +2875,11 @@ function Account({
           <dl>
             <div>
               <dt>내 글이 받은 도움</dt>
-              <dd>428</dd>
+              <dd>{myHelpful}</dd>
             </div>
             <div>
               <dt>작성 콘텐츠</dt>
-              <dd>{mine.length + 12}</dd>
+              <dd>{mine.length}</dd>
             </div>
           </dl>
         </aside>
@@ -2956,18 +2970,27 @@ function Account({
           <section>
             <h2>최근 활동</h2>
             <div className="activity-list">
-              {state.posts
-                .filter((post) => post.saved)
-                .map((post) => (
-                  <Link href={`/posts/${post.id}`} key={post.id}>
-                    <span>스크랩</span>
-                    <strong>{post.title}</strong>
-                  </Link>
-                ))}
-              <Link href="/posts/p2">
-                <span>댓글</span>
-                <strong>ROI 문서 글에 댓글을 작성했습니다.</strong>
-              </Link>
+              {myScrapped.map((post) => (
+                <Link href={`/posts/${post.id}`} key={`saved-${post.id}`}>
+                  <span>스크랩</span>
+                  <strong>{post.title}</strong>
+                </Link>
+              ))}
+              {/* 전에는 이 자리에 "ROI 문서 글에 댓글을 작성했습니다."가
+                  늘 붙어 있었다. 방금 초기화해도 남아 있어서, 내 활동이
+                  아니라 그냥 그려 둔 줄이었다. */}
+              {mine.length === 0 && myScrapped.length === 0 ? (
+                <p className="list-empty">
+                  아직 활동이 없습니다. 글을 올리거나 스크랩하면 여기에
+                  쌓입니다.
+                </p>
+              ) : null}
+              {mine.map((post) => (
+                <Link href={`/posts/${post.id}`} key={`mine-${post.id}`}>
+                  <span>작성</span>
+                  <strong>{post.title}</strong>
+                </Link>
+              ))}
             </div>
           </section>
         </div>

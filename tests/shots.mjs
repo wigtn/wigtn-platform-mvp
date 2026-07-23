@@ -17,7 +17,7 @@ const PAGES = [
   ["compare", "/compare"],
   ["community", "/community"],
   ["post", "/posts/p1"],
-  ["policy", "/policy"],
+  ["trust", "/trust"],
   ["account", "/account"],
   ["admin", "/admin"],
 ];
