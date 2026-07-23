@@ -1520,16 +1520,27 @@ function Companies({ state }: { state: DemoState }) {
         title="회사 리뷰 찾기"
         description="회사명이나 업종을 검색하고 영업환경 점수를 비교하세요."
       />
-      <div className="filter-bar">
+      {/* 커뮤니티와 같은 규칙. 타자를 칠 때마다 걸러지지 않고, 눌러야
+          찾는다. 업종은 고르는 즉시 걸러도 되는 값이라 그대로 둔다. */}
+      <form
+        className="filter-bar"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setQuery(draft.trim());
+        }}
+      >
         <label>
           회사 검색
           <input
             data-testid="company-search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
             placeholder="회사명, 업종, 영업유형"
           />
         </label>
+        <button className="button secondary" type="submit">
+          검색
+        </button>
         <label>
           업종
           <select
@@ -1545,7 +1556,7 @@ function Companies({ state }: { state: DemoState }) {
           </select>
         </label>
         <span>회사 {filtered.length}곳</span>
-      </div>
+      </form>
       {filtered.length ? (
         <div className="company-list">
           {filtered.map((company) => (
