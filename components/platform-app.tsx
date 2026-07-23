@@ -44,6 +44,7 @@ import {
   IconLive,
   IconPen,
   IconSearch,
+  IconSparkles,
   IconSliders,
   IconStar,
   IconVerified,
@@ -3003,8 +3004,10 @@ function AiAnswerCard({
     <section className="fieldnote-answer" aria-label="AI 초안">
       <header className="fieldnote-answer-header">
         <div>
+          {/* 전에는 "F" 머리글자였다. 회사 로고처럼 읽혀서, 이 글을 기계가
+              썼다는 신호가 화면 어디에도 없었다. */}
           <span className="fieldnote-answer-mark" aria-hidden="true">
-            F
+            <IconSparkles />
           </span>
           <div>
             {/*
@@ -3013,10 +3016,8 @@ function AiAnswerCard({
               없었다. 정작 이 카드가 AI 가 쓴 것인데 화면의 다른 곳은 전부
               "AI 초안" 이라고 부르고 여기만 아니었다.
             */}
-            <b>FIELDNOTE AI 초안</b>
-            <small>
-              질문을 올리면 바로 붙는 초안입니다. 회원 답변은 아래에 쌓입니다.
-            </small>
+            <b>AI가 쓴 초안</b>
+            <small>사람이 검토하지 않은 자동 생성 글입니다.</small>
           </div>
         </div>
         {/* 모델 이름이 카드 맨 아래 각주에 있었다. 진짜 모델이 답한 건지
