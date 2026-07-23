@@ -1349,14 +1349,25 @@ input[type="file"]::file-selector-button:hover {
   display: grid;
   gap: 8px;
 }
+/*
+  끝난 단계에 표시를 준다.
+
+  전에는 `done` 이 흐림만 걷어냈다. 끝난 01·02 와 아직 안 온 단계가 글자만
+  놓고 보면 똑같아서, 지금 어디까지 됐는지 진행 중인 칸의 색 하나로만
+  알 수 있었다.
+*/
 .progress-step {
   display: grid;
-  grid-template-columns: 62px 1fr;
+  grid-template-columns: 62px 1fr auto;
   align-items: center;
   padding: 19px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   opacity: 0.42;
+}
+.progress-step > svg {
+  color: var(--text-faint);
+  font-size: 16px;
 }
 .progress-step b {
   color: var(--text-subtle);
@@ -1367,7 +1378,7 @@ input[type="file"]::file-selector-button:hover {
   opacity: 1;
 }
 .progress-step.active {
-  border-color: #cfcfff;
+  border-color: var(--primary);
   background: var(--primary-soft);
 }
 .ai-result {
