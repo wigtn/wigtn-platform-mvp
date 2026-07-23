@@ -1309,11 +1309,50 @@ input[type="file"]::file-selector-button:hover {
   padding: 20px;
   border-bottom: 1px solid #e4e4dd;
 }
+/* 왼쪽 칸: 머리글자 + 누구인지. 이름만 있으면 칸이 휑했다. */
 .comments article > strong {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  align-items: center;
+  gap: 8px;
+  align-self: start;
   color: var(--text-subtle);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
+}
+.answer-avatar {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--text);
+  font-size: 11px;
+}
+
+/*
+  답글 버튼.
+
+  본문 바로 아래에 글자처럼 흘러서 문장 끝인지 누르는 자리인지 안 읽혔다.
+  글 상세의 "도움됐어요 / 신고" 와 같은 모양으로 맞춘다.
+*/
+.answer-actions {
+  margin-top: 12px;
+}
+.answer-actions .comment-reply-toggle {
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--white);
+  font-size: 12px;
+}
+.answer-actions .comment-reply-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--primary);
 }
 .comments article p {
   margin: 0;
