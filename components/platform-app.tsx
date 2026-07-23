@@ -2631,12 +2631,26 @@ function PostDetail({
   return (
     <main id="main" tabIndex={-1} className="page-shell page narrow">
       <article className="post-detail">
-        <div className="post-meta">
-          <span>{post.board}</span>
-          <strong>{post.author}</strong>
-          {post.badge ? <b>{post.badge}</b> : null}
-        </div>
+        {/* 게시판만 위에 두고, 글쓴이는 제목 아래 한 줄로 모은다. 전에는
+            게시판·이름·배지가 한 줄에 붙어 누가 썼는지가 분류처럼 읽혔다. */}
+        <div className="post-board">{post.board}</div>
         <h1>{post.title}</h1>
+        {/*
+          글쓴이 줄.
+
+          이름만 덩그러니 있었다. 답변 쪽에는 머리글자 표시를 뒀는데 정작
+          글을 쓴 사람에게는 없어서, 같은 화면 안에서 사람을 나타내는 방식이
+          둘이었다.
+        */}
+        <div className="post-byline">
+          <span className="answer-avatar" aria-hidden="true">
+            {post.author.slice(0, 1)}
+          </span>
+          <div>
+            <strong>{post.author}</strong>
+            {post.badge ? <b>{post.badge}</b> : null}
+          </div>
+        </div>
         {/*
           본문은 편집기가 만든 HTML 이다. 남의 글은 DB 를 거쳐 오므로 그릴
           때 한 번 더 거른다 - 허용한 여덟 태그만 남기고, 링크는 http(s)
@@ -3006,15 +3020,16 @@ function AiAnswerCard({
       <header className="fieldnote-answer-header">
         <div>
           {/*
-            표시를 아예 뺐다.
+            누가 썼는지를 글자로 붙인다.
 
-            "F" 머리글자는 회사 로고처럼 읽혔고, 반짝임 아이콘으로 바꿨더니
-            AI 붙은 제품이면 다 쓰는 그림이라 오히려 티가 났다. 무엇으로
-            바꾸든 장식이 하나 더 붙는 것이다.
+            "F" 머리글자는 회사 로고처럼 읽혔고, 반짝임 아이콘은 AI 붙은
+            제품이면 다 쓰는 그림이라 오히려 티가 났다. 그림을 고르는 문제가
+            아니었다.
 
-            제목이 "AI가 쓴 초안" 이고 오른쪽에 모델 이름이 있다. 이미 다
-            말했다.
+            신문이 기사 위에 "사설" 을 붙이듯 무엇인지 적는다. 그림이 아니라
+            글자라 다르게 읽힐 여지가 없다.
           */}
+          <span className="fieldnote-answer-tag">AI</span>
           <div>
             {/*
               "실무 답변" 이라고만 적혀 있었다. 아래에는 "회원 답변" 이
@@ -3028,10 +3043,11 @@ function AiAnswerCard({
         {/* 모델 이름이 카드 맨 아래 각주에 있었다. 진짜 모델이 답한 건지
             통조림인지 화면에서 알 길이 없어, 읽는 사람이 목업으로 의심했다.
             어디서 온 답인지는 답 옆에 있어야 한다. */}
-        <span className="fieldnote-answer-status">
-          {model ? <em>{model}</em> : null}
-          <i aria-hidden="true" /> 작성 완료
-        </span>
+        {/* "작성 완료" 는 카드가 떠 있다는 사실을 한 번 더 말할 뿐이다.
+            안 끝났으면 이 카드 자체가 없다. 어느 모델이 썼는지만 남긴다. */}
+        {model ? (
+          <span className="fieldnote-answer-status">{model}</span>
+        ) : null}
       </header>
 
       <div className="fieldnote-answer-summary">
