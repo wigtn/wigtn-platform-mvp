@@ -251,15 +251,23 @@ export const initialPosts: Post[] = [
   },
 ];
 
+/**
+ * 공개된 리뷰의 평균 점수. 공개 리뷰가 없으면 null.
+ *
+ * 전에는 공개 리뷰가 0건이면 회사 레코드의 `fallback` 을 돌려줬다. 관리자가
+ * 리뷰를 전부 블라인드하면 **점수가 4.3 에서 4.4 로 오르고** 바로 아래에는
+ * "재직 확인 리뷰 0건 포함" 이 찍혔다. 아무 리뷰도 없는데 평점이 있는
+ * 상태가 된다. 없으면 없다고 말한다.
+ */
 export function companyScore(
   reviews: Review[],
   slug: string,
   fallback: number,
-) {
+): number | null {
   const visible = reviews.filter(
     (review) => review.companySlug === slug && review.status === "published",
   );
-  if (!visible.length) return fallback;
+  if (!visible.length) return null;
   return Number(
     (
       visible.reduce((sum, review) => sum + review.score, 0) / visible.length

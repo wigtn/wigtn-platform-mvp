@@ -1877,11 +1877,17 @@ input[type="file"]::file-selector-button:hover {
   background: #fff;
   color: #1d1d1a;
 }
+/*
+  대문자 변환을 뺐다.
+
+  `.caption` 은 `{업종} · {영업유형}` 만 담는다. 회사 소개의 "B2B SaaS" 가
+  회사 목록과 상세에서만 "B2B SAAS" 로 나왔다. 같은 값을 홈과 비교 화면은
+  제대로 쓰고 있어서, 한 서비스 안에서 회사 이름이 두 가지로 보였다.
+*/
 .kicker,
 .caption {
   color: var(--primary);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 .home-companies .section-heading {
   padding-bottom: 23px;
@@ -5724,6 +5730,20 @@ select:focus {
 .compare-select {
   align-items: end;
 }
+/*
+  못 채운 칸이 헤더 뒤로 숨었다.
+
+  브라우저가 첫 번째 잘못된 칸으로 스크롤하는데, 위쪽 역할 바와 헤더가
+  화면에 고정이라 그 칸이 정확히 그 뒤로 들어갔다. 안내 풍선만 떠 있고
+  어느 칸을 말하는지 안 보인다.
+*/
+.form-panel label,
+.form-panel input,
+.form-panel textarea,
+.form-panel select {
+  scroll-margin-top: calc(var(--header-h) + 76px);
+}
+
 /* 두 선택 사이를 잇는 선. 전에는 "VS" 글자가 들어가 있었다. */
 /* 두 선택 사이를 잇는 선. 46px 짜리 select 의 한가운데에 오게 둔다.
    전에는 위쪽 테두리 높이에 떠 있어서 선이 아니라 얼룩처럼 보였다. */

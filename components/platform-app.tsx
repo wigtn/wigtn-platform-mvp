@@ -71,6 +71,45 @@ function pickCompanies(state: { companies?: Company[] }): Company[] {
  * 뽑히든 같은 값이 나와서, 비교 화면과 대 보면 서로 다른 말을 했다.
  * 순위 목록의 부제도 배열 순서로 골라 회사와 상관이 없었다.
  */
+/**
+ * 점수를 화면에 쓸 글자로 바꾼다.
+ *
+ * 공개 리뷰가 없으면 숫자가 없다. 예전 값이나 회사 레코드의 값을 대신
+ * 보여 주면, 아무 리뷰도 없는데 평점이 있는 상태가 된다.
+ */
+/*
+  브라우저가 띄우는 안내 문구를 한국어로 바꾼다.
+
+  빈 채로 등록을 누르면 크롬이 "Please fill out this field." 를 띄웠다.
+  전부 한국어인 화면에서 폼을 처음 만져 본 사람이 제일 먼저 보는 글이
+  영어였다. 글자 수가 모자랄 때도 마찬가지다.
+
+  form 하나에 걸어 두면 안쪽 입력이 전부 따라온다 - invalid 는 위로
+  올라오지 않지만(버블 안 함) 캡처 단계에서는 잡힌다.
+*/
+type FormField = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+
+function koreanValidity(event: { target: EventTarget | null }) {
+  const field = event.target as FormField | null;
+  if (!field || typeof field.setCustomValidity !== "function") return;
+  field.setCustomValidity("");
+  if (field.validity.valueMissing) {
+    field.setCustomValidity("이 항목을 입력해 주세요.");
+  } else if (field.validity.tooShort && "minLength" in field) {
+    field.setCustomValidity(`${field.minLength}자 이상 적어 주세요.`);
+  }
+}
+
+/** 다시 입력하면 안내를 지운다. 안 지우면 고쳐도 계속 빨갛게 남는다. */
+function clearValidity(event: { target: EventTarget | null }) {
+  const field = event.target as FormField | null;
+  field?.setCustomValidity?.("");
+}
+
+function scoreText(value: number | null): string {
+  return value === null ? "집계 전" : value.toFixed(1);
+}
+
 function topDimension(company: Company): string | null {
   const ranked = Object.entries(company.scores ?? {}).sort(
     ([, a], [, b]) => b - a,
@@ -1031,6 +1070,8 @@ function Home({ state }: { state: DemoState }) {
               확인하세요.
             </p>
             <form
+              onInvalidCapture={koreanValidity}
+              onInputCapture={clearValidity}
               className="hero-search"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -1087,8 +1128,13 @@ function Home({ state }: { state: DemoState }) {
                   </small>
                 </span>
                 {/* 점수만 크게 두면 근거가 안 보인다. 표본 수를 붙인다. */}
+                {/* 전에는 회사 레코드의 원값을 그대로 썼다. 바로 아래
+                    순위 목록은 리뷰에서 계산한 값을 써서, 같은 회사가 한
+                    화면에서 4.1 과 4.3 으로 동시에 나왔다. */}
                 <b>
-                  {company.score.toFixed(1)}
+                  {scoreText(
+                    companyScore(state.reviews, company.slug, company.score),
+                  )}
                   <small>리뷰 {company.reviewCount}</small>
                 </b>
               </Link>
@@ -1150,11 +1196,9 @@ function Home({ state }: { state: DemoState }) {
               <div>
                 <dt>종합 점수</dt>
                 <dd>
-                  {companyScore(
-                    state.reviews,
-                    top[0].slug,
-                    top[0].score,
-                  ).toFixed(1)}
+                  {scoreText(
+                    companyScore(state.reviews, top[0].slug, top[0].score),
+                  )}
                 </dd>
               </div>
               <div>
@@ -1201,11 +1245,9 @@ function Home({ state }: { state: DemoState }) {
                   <small>{topDimension(company) ?? "집계 전"}</small>
                 </span>
                 <span className="ranked-company-score">
-                  {companyScore(
-                    state.reviews,
-                    company.slug,
-                    company.score,
-                  ).toFixed(1)}
+                  {scoreText(
+                    companyScore(state.reviews, company.slug, company.score),
+                  )}
                   <small>
                     {company.trend >= 0
                       ? `+${company.trend}%`
@@ -1234,21 +1276,27 @@ function Home({ state }: { state: DemoState }) {
             </Link>
           </div>
           <div className="story-list">
-            {state.posts.slice(1, 4).map((post) => (
-              <Link href={`/posts/${post.id}`} key={post.id}>
-                <span className="story-board">{post.board}</span>
-                <span className="story-copy">
-                  <h3>{post.title}</h3>
-                  <small>
-                    {post.author}
-                    {post.badge ? ` · ${post.badge}` : ""}
-                  </small>
-                </span>
-                <span className="story-stats">
-                  도움 {post.likes} · 댓글 {post.comments.length}
-                </span>
-              </Link>
-            ))}
+            {/* 전에는 `slice(1, 4)` 라 첫 글을 이유 없이 건너뛰었다.
+                도움이 제일 많은 글이 홈에 영영 안 나오고, 방금 쓴 글도
+                밀려났다. 블라인드된 글도 그대로 남아 있었다. */}
+            {state.posts
+              .filter((post) => !state.hiddenPostIds.includes(post.id))
+              .slice(0, 3)
+              .map((post) => (
+                <Link href={`/posts/${post.id}`} key={post.id}>
+                  <span className="story-board">{post.board}</span>
+                  <span className="story-copy">
+                    <h3>{post.title}</h3>
+                    <small>
+                      {post.author}
+                      {post.badge ? ` · ${post.badge}` : ""}
+                    </small>
+                  </span>
+                  <span className="story-stats">
+                    도움 {post.likes} · 댓글 {post.comments.length}
+                  </span>
+                </Link>
+              ))}
           </div>
         </div>
       </section>
@@ -1295,7 +1343,8 @@ function CompanyCard({
   // 전에는 `(typeof companies)[number]` 였다. 회사 목록이 모듈 상수가
   // 아니라 DB 에서 오므로 타입을 직접 가리킨다.
   company: Company;
-  score: number;
+  /** 공개 리뷰가 없으면 null. 화면에는 "집계 전"으로 나간다. */
+  score: number | null;
   index: number;
 }) {
   return (
@@ -1327,10 +1376,14 @@ function CompanyCard({
       </h3>
       <p>{company.summary}</p>
       <div className="score-line">
-        <span className="star">
-          <IconStar />
-        </span>
-        <strong>{score.toFixed(1)}</strong>
+        {/* 공개 리뷰가 없으면 별도 점수도 안 보여 준다. 별만 남으면 평점이
+            있는데 0 인 것처럼 읽힌다. */}
+        {score !== null ? (
+          <span className="star">
+            <IconStar />
+          </span>
+        ) : null}
+        <strong>{scoreText(score)}</strong>
         <span>리뷰 {company.reviewCount}</span>
         <b className={company.trend >= 0 ? "up" : "down"}>
           관심도 {company.trend >= 0 ? "+" : ""}
@@ -1421,7 +1474,11 @@ function Companies({ state }: { state: DemoState }) {
 function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
   // 회사 목록은 DB 에서 온다. 이름을 가려 아래 코드를 그대로 둔다.
   const companies = pickCompanies(state);
-  const company = companies.find((item) => item.slug === slug) ?? companies[0];
+  /* 없는 slug 면 목록 첫 회사를 보여 줬다. `/companies/does-not-exist` 가
+     노스스타 페이지를 그리고 빵부스러기까지 "노스스타 클라우드"로 떴다.
+     방문자는 자기가 어디에 있는지 알 수 없다. */
+  const company = companies.find((item) => item.slug === slug);
+  if (!company) return <NotFound />;
   const reviews = state.reviews.filter(
     (review) =>
       review.companySlug === company.slug && review.status === "published",
@@ -1479,7 +1536,7 @@ function CompanyDetail({ slug, state }: { slug: string; state: DemoState }) {
               <i className="score-star" aria-hidden="true">
                 <IconStar />
               </i>
-              {score.toFixed(1)}
+              {scoreText(score)}
             </strong>
             <small>
               재직 확인 리뷰{" "}
@@ -1708,119 +1765,143 @@ function ReviewForm({
         title="익명 리뷰 작성"
         description="개인이나 고객을 특정할 수 있는 정보는 제외해 주세요. 등록 전에 개인정보 포함 여부를 확인합니다."
       />
-      {state.role === "verified" ? (
-        <div className="role-feature-note is-unlocked">
-          <span className="role-access-badge">인증 영업인 전용</span>
-          <div>
-            <strong>
-              이 역할로 작성한 리뷰에는 재직 확인 표시가 붙습니다.
-            </strong>
-            <p>다른 방문자에게 작성자의 확인 수준만 공개됩니다.</p>
-          </div>
-        </div>
-      ) : (
+      {/*
+        비회원은 리뷰를 쓸 수 없다.
+
+        글·질문 폼은 막아 뒀는데 리뷰 폼만 열려 있었다. 비회원으로 그냥
+        등록되고 공개 목록에 published 로 올라갔다. 역할별 권한 차이를
+        보여 주는 데모인데 그 전제가 깨진다.
+      */}
+      {state.role === "guest" ? (
         <LockedRoleFeature
-          badge="인증 영업인 전용"
-          title="재직 확인 표시가 붙은 리뷰 작성"
-          description="인증 영업인 역할로 바꾸면 작성한 리뷰에 재직 확인 표시가 붙습니다."
-          targetRole="verified"
+          badge="회원 전용"
+          title="익명 리뷰 작성"
+          description="일반 영업인 역할부터 리뷰를 올릴 수 있습니다."
+          targetRole="sales"
           onRoleChange={onRoleChange}
         />
-      )}
-      <form className="form-panel" onSubmit={submit}>
-        <label>
-          회사
-          <select
-            value={companySlug}
-            onChange={(event) => setCompanySlug(event.target.value)}
+      ) : (
+        <>
+          {state.role === "verified" ? (
+            <div className="role-feature-note is-unlocked">
+              <span className="role-access-badge">인증 영업인 전용</span>
+              <div>
+                <strong>
+                  이 역할로 작성한 리뷰에는 재직 확인 표시가 붙습니다.
+                </strong>
+                <p>다른 방문자에게 작성자의 확인 수준만 공개됩니다.</p>
+              </div>
+            </div>
+          ) : (
+            <LockedRoleFeature
+              badge="인증 영업인 전용"
+              title="재직 확인 표시가 붙은 리뷰 작성"
+              description="인증 영업인 역할로 바꾸면 작성한 리뷰에 재직 확인 표시가 붙습니다."
+              targetRole="verified"
+              onRoleChange={onRoleChange}
+            />
+          )}
+          <form
+            onInvalidCapture={koreanValidity}
+            onInputCapture={clearValidity}
+            className="form-panel"
+            onSubmit={submit}
           >
-            {companies.map((company) => (
-              <option value={company.slug} key={company.slug}>
-                {company.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="field-row">
-          <label>
-            재직 상태
-            <select name="employment">
-              <option>재직</option>
-              <option>퇴사</option>
-            </select>
-          </label>
-          {/* 아래 6축과 같은 모양으로 맞춘다. 전에는 이름과 값이 한 줄에
+            <label>
+              회사
+              <select
+                value={companySlug}
+                onChange={(event) => setCompanySlug(event.target.value)}
+              >
+                {companies.map((company) => (
+                  <option value={company.slug} key={company.slug}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="field-row">
+              <label>
+                재직 상태
+                <select name="employment">
+                  <option>재직</option>
+                  <option>퇴사</option>
+                </select>
+              </label>
+              {/* 아래 6축과 같은 모양으로 맞춘다. 전에는 이름과 값이 한 줄에
               그냥 흘러서 옆의 select 와 높이가 안 맞았고, 값이 오른쪽 끝에
               붙는 6축과도 규칙이 달랐다. */}
-          <label className="range-field">
-            <span>
-              종합 점수 <b>{score.toFixed(1)}</b>
-            </span>
-            <input
-              aria-label="종합 점수"
-              type="range"
-              min="1"
-              max="5"
-              step="0.1"
-              value={score}
-              onChange={(event) => setScore(Number(event.target.value))}
-            />
-          </label>
-        </div>
-        <fieldset className="dimension-fields">
-          <legend>영업환경 항목별 평가</legend>
-          {reviewDimensions.map((label) => (
-            <label key={label}>
-              <span>
-                {label} <b>{dimensions[label].toFixed(1)}</b>
-              </span>
+              <label className="range-field">
+                <span>
+                  종합 점수 <b>{score.toFixed(1)}</b>
+                </span>
+                <input
+                  aria-label="종합 점수"
+                  type="range"
+                  min="1"
+                  max="5"
+                  step="0.1"
+                  value={score}
+                  onChange={(event) => setScore(Number(event.target.value))}
+                />
+              </label>
+            </div>
+            <fieldset className="dimension-fields">
+              <legend>영업환경 항목별 평가</legend>
+              {reviewDimensions.map((label) => (
+                <label key={label}>
+                  <span>
+                    {label} <b>{dimensions[label].toFixed(1)}</b>
+                  </span>
+                  <input
+                    aria-label={label}
+                    type="range"
+                    min="1"
+                    max="5"
+                    step="0.1"
+                    value={dimensions[label]}
+                    onChange={(event) =>
+                      setDimensions((current) => ({
+                        ...current,
+                        [label]: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </fieldset>
+            <label>
+              한 줄 요약
               <input
-                aria-label={label}
-                type="range"
-                min="1"
-                max="5"
-                step="0.1"
-                value={dimensions[label]}
-                onChange={(event) =>
-                  setDimensions((current) => ({
-                    ...current,
-                    [label]: Number(event.target.value),
-                  }))
-                }
+                name="title"
+                required
+                minLength={5}
+                placeholder="이 회사의 영업환경을 한 문장으로"
               />
             </label>
-          ))}
-        </fieldset>
-        <label>
-          한 줄 요약
-          <input
-            name="title"
-            required
-            minLength={5}
-            placeholder="이 회사의 영업환경을 한 문장으로"
-          />
-        </label>
-        <label>
-          상세 경험
-          <textarea
-            name="body"
-            required
-            minLength={20}
-            rows={7}
-            placeholder="목표, 리드, 보상, 협업과 코칭에서 실제로 경험한 점을 알려주세요."
-          />
-        </label>
-        <div className="privacy-note">
-          <strong>익명성 보호</strong>
-          <p>
-            공개 프로필과 리뷰 작성자 식별키를 분리합니다. 운영자도 승인된 분쟁
-            절차와 감사기록 없이 작성자를 볼 수 없습니다.
-          </p>
-        </div>
-        <button className="button primary" type="submit">
-          리뷰 등록하고 통계 보기
-        </button>
-      </form>
+            <label>
+              상세 경험
+              <textarea
+                name="body"
+                required
+                minLength={20}
+                rows={7}
+                placeholder="목표, 리드, 보상, 협업과 코칭에서 실제로 경험한 점을 알려주세요."
+              />
+            </label>
+            <div className="privacy-note">
+              <strong>익명성 보호</strong>
+              <p>
+                공개 프로필과 리뷰 작성자 식별키를 분리합니다. 운영자도 승인된
+                분쟁 절차와 감사기록 없이 작성자를 볼 수 없습니다.
+              </p>
+            </div>
+            <button className="button primary" type="submit">
+              리뷰 등록하고 통계 보기
+            </button>
+          </form>
+        </>
+      )}
     </main>
   );
 }
@@ -1967,7 +2048,10 @@ function Community({
                   <div className="post-actions">
                     <span>도움 {post.likes}</span>
                     <span>답변 {post.comments.length}</span>
-                    {post.ai ? (
+                    {/* `post.ai` 는 queued·thinking 일 때도 참이다. 답변이
+                        0건인 글에 "첫 답변 완료"가 붙었고, 관리자 화면은
+                        같은 글을 "AI 첫 답변 대기"로 세고 있었다. */}
+                    {post.ai === "posted" ? (
                       <span className="ai-label">첫 답변 완료</span>
                     ) : null}
                     <button
@@ -2147,7 +2231,12 @@ function PostForm({
           onRoleChange={onRoleChange}
         />
       ) : (
-        <form className="form-panel" onSubmit={submit}>
+        <form
+          onInvalidCapture={koreanValidity}
+          onInputCapture={clearValidity}
+          className="form-panel"
+          onSubmit={submit}
+        >
           <label>
             게시판
             <select name="board" defaultValue="노하우">
@@ -2274,9 +2363,15 @@ function PostDetail({
   notify: (m: string) => void;
   onRoleChange: (role: Role) => void;
 }) {
-  const post = state.posts.find((item) => item.id === id) ?? state.posts[0];
+  /* 없는 id 면 첫 글을 보여 줬다. 블라인드된 글도 그대로 다 보였다. */
+  const post = state.posts.find(
+    (item) => item.id === id && !state.hiddenPostIds.includes(item.id),
+  );
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [reporting, setReporting] = useState(false);
+  /* 훅을 다 부른 뒤에 돌려보낸다. 위에서 빠져나가면 렌더마다 훅 개수가
+     달라져 React 가 상태를 잘못 잇는다. */
+  if (!post) return <NotFound />;
 
   /**
    * 답변과 답글을 함께 처리한다.
@@ -2431,7 +2526,12 @@ function PostDetail({
                 보이지 않았다.
               */}
               {replyingTo === index ? (
-                <form className="comment-form is-inline" onSubmit={addComment}>
+                <form
+                  onInvalidCapture={koreanValidity}
+                  onInputCapture={clearValidity}
+                  className="comment-form is-inline"
+                  onSubmit={addComment}
+                >
                   <label>
                     답글 쓰기
                     <textarea name="comment" rows={3} required />
@@ -2454,7 +2554,12 @@ function PostDetail({
             onRoleChange={onRoleChange}
           />
         ) : (
-          <form className="comment-form" onSubmit={addComment}>
+          <form
+            onInvalidCapture={koreanValidity}
+            onInputCapture={clearValidity}
+            className="comment-form"
+            onSubmit={addComment}
+          >
             <span className="role-access-badge">회원 전용</span>
             <label>
               답변 작성
@@ -2786,7 +2891,12 @@ function QuestionForm({
           onRoleChange={onRoleChange}
         />
       ) : status === "idle" ? (
-        <form className="form-panel" onSubmit={ask}>
+        <form
+          onInvalidCapture={koreanValidity}
+          onInputCapture={clearValidity}
+          className="form-panel"
+          onSubmit={ask}
+        >
           <label>
             질문 제목
             <input
@@ -2885,9 +2995,12 @@ function Account({
   notify: (m: string) => void;
   onRoleChange: (role: Role) => void;
 }) {
-  const mine = state.posts.filter(
-    (post) => post.author === roleNames[state.role],
+  /* 블라인드된 글은 여기서도 빠져야 한다. 커뮤니티에서는 안 보이는데
+     내 활동에는 그대로 남아 있었다. */
+  const visible = state.posts.filter(
+    (post) => !state.hiddenPostIds.includes(post.id),
   );
+  const mine = visible.filter((post) => post.author === state.profile.name);
   /*
     내가 쓴 것에서 센다.
 
@@ -2896,7 +3009,7 @@ function Account({
     12 였다. 숫자가 화면에 있으면 사람은 그게 자기 기록이라고 읽는다.
   */
   const myHelpful = mine.reduce((sum, post) => sum + post.likes, 0);
-  const myScrapped = state.posts.filter((post) => post.saved);
+  const myScrapped = visible.filter((post) => post.saved);
   return (
     <main className="page-shell page">
       <PageTitle
@@ -2935,6 +3048,8 @@ function Account({
               <span>공개 정보</span>
             </div>
             <form
+              onInvalidCapture={koreanValidity}
+              onInputCapture={clearValidity}
               className="profile-form"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -3115,16 +3230,24 @@ function Compare({ state }: { state: DemoState }) {
             other.slug,
             other.score,
           );
+          /*
+            두 회사 중 하나라도 공개 리뷰가 없으면 앞선다고 말할 수 없다.
+            숫자가 없는데 "종합 점수 +0.4" 가 뜨면 안 된다.
+          */
           return (
             <article
-              className={score > otherScore ? "comparison-leader" : undefined}
+              className={
+                score !== null && otherScore !== null && score > otherScore
+                  ? "comparison-leader"
+                  : undefined
+              }
               key={company.slug}
             >
               <p>{company.industry}</p>
               <h2>{company.name}</h2>
               <div className="compare-score">
-                <strong>{score.toFixed(1)}</strong>
-                {score > otherScore ? (
+                <strong>{scoreText(score)}</strong>
+                {score !== null && otherScore !== null && score > otherScore ? (
                   <span>종합 점수 +{(score - otherScore).toFixed(1)}</span>
                 ) : null}
               </div>
@@ -3401,6 +3524,8 @@ function Admin({
           countLabel="등록 회사"
         />
         <form
+          onInvalidCapture={koreanValidity}
+          onInputCapture={clearValidity}
           className="admin-inline-form"
           onSubmit={(event) => {
             event.preventDefault();
@@ -3768,7 +3893,14 @@ function Admin({
       {nav}
       <section className="admin-panel">
         <div className="admin-contextbar">
-          <span>2026년 7월 21일 · 운영 관리자</span>
+          <span>
+            {new Date().toLocaleDateString("ko-KR", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}{" "}
+            · 운영 관리자
+          </span>
           {/*
             전에는 항상 초록 점에 "실시간 동기화"만 떴다. 연결이 끊겨도
             정상으로 보여서, 화면의 숫자가 낡았는지 알 수 없었다.
