@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
+import { shrinkImage } from "@/lib/attach-image";
 import {
   companies as seedCompanies,
   companyScore,
@@ -311,6 +312,16 @@ const PENDING_QUESTION_KEY = "fieldnote-pending-question-v1";
 const TRANSIENT_STATE_KEY = "fieldnote-transient-state-v1";
 
 /**
+ * 제목과 본문이 같으면 같은 글로 본다.
+ *
+ * 글 하나가 id 를 두 번 받는다 - 화면이 먼저 만든 임시 id(`p-<시각>`),
+ * 원장이 따라와 다시 만든 서버 uuid. 두 세계를 잇는 기준이 이것 하나라,
+ * 오버레이 병합과 글 상세가 같은 함수를 쓴다.
+ */
+const sameStory = (a: Post, b: Post) =>
+  a.title === b.title && a.body === b.body;
+
+/**
  * 서버 액션이 원장에 반영되기 전에 라우트를 이동하는 짧은 구간을 메운다.
  * localStorage 가 아니라 현재 탭의 sessionStorage 만 써서, 새 방문까지 낡은
  * 공개 데이터를 붙잡지 않는다.
@@ -349,8 +360,6 @@ function overlayTransientState(state: DemoState): DemoState {
       제목과 본문이 같으면 같은 글로 본다. 아래 pending 질문 합치기가 이미
       쓰는 기준이다.
     */
-    const sameStory = (a: Post, b: Post) =>
-      a.title === b.title && a.body === b.body;
     const mine = new Map(transient.posts.map((post) => [post.id, post]));
     const merged = (state.posts ?? []).map((post) => {
       const saved =
@@ -367,6 +376,10 @@ function overlayTransientState(state: DemoState): DemoState {
         ai: saved.ai ?? post.ai,
         aiAnswer: saved.aiAnswer ?? post.aiAnswer,
         aiModel: saved.aiModel ?? post.aiModel,
+        // 원장은 제목·본문만 기억한다. 첨부 이미지는 이 브라우저에만
+        // 있으므로, 서버본으로 갈아탈 때 같이 옮겨야 사라지지 않는다.
+        images: saved.images ?? post.images,
+        imageData: saved.imageData ?? post.imageData,
       };
     });
 
@@ -556,11 +569,21 @@ export function useDemoState() {
       const next = update(current);
       // 역할은 화면 설정이라 브라우저에 남긴다. 새로고침해도 유지된다.
       window.localStorage.setItem("fieldnote-role", next.role);
-      window.sessionStorage.setItem(TRANSIENT_STATE_KEY, JSON.stringify(next));
-      // DB 가 없을 때는 상태 전체를 남긴다. 붙어 있으면 서버 원장이 정본이라
-      // 두 곳에 두면 어느 쪽이 맞는지 알 수 없게 된다.
-      if (!supabaseConfigured) {
-        window.localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(next));
+      // 첨부 이미지(데이터 URL)가 실리면서 보관함 한도(약 5MB)에 닿을 수
+      // 있게 됐다. 넘치면 저장만 포기한다 - 여기서 던지면 글 등록 자체가
+      // 죽는다. 화면 상태는 이미 바뀐 뒤라 이번 탭에서는 다 보인다.
+      try {
+        window.sessionStorage.setItem(
+          TRANSIENT_STATE_KEY,
+          JSON.stringify(next),
+        );
+        // DB 가 없을 때는 상태 전체를 남긴다. 붙어 있으면 서버 원장이 정본이라
+        // 두 곳에 두면 어느 쪽이 맞는지 알 수 없게 된다.
+        if (!supabaseConfigured) {
+          window.localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(next));
+        }
+      } catch (error) {
+        console.warn("[fieldnote] 상태 저장 실패(보관함 한도)", error);
       }
       return next;
     });
@@ -969,6 +992,7 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
     content = (
       <PostDetail
         id={initialPath.split("/")[2]}
+        pending={!demoMeta.ready}
         state={state}
         setState={setState}
         notify={notify}
@@ -2524,19 +2548,35 @@ function PostForm({
   onRoleChange: (role: Role) => void;
 }) {
   const router = useRouter();
-  /** 고른 파일 이름. 입력을 숨겼으므로 화면에 직접 보여 준다. */
-  const [imageNames, setImageNames] = useState<string[]>([]);
+  /** 고른 이미지. 이름은 표시용, dataUrl 은 화면에 그릴 축소본이다. */
+  const [attachments, setAttachments] = useState<
+    Array<{ name: string; dataUrl: string }>
+  >([]);
   /** 편집기가 만든 HTML 과, 글자 수를 세기 위한 순수 글자. */
   const [body, setBody] = useState("");
   const bodyText = stripTags(body);
+  const pickImages = async (files: File[]) => {
+    /* 세션 보관함이 5MB 남짓이라 장수를 막아 둔다. 세 장이면 체험에 충분하다. */
+    const picked = files.slice(0, 3);
+    if (files.length > picked.length)
+      notify("이미지는 3장까지 첨부할 수 있습니다.");
+    try {
+      setAttachments(
+        await Promise.all(
+          picked.map(async (file) => ({
+            name: file.name,
+            dataUrl: await shrinkImage(file),
+          })),
+        ),
+      );
+    } catch {
+      notify("이미지를 읽지 못했습니다. 다른 파일로 시도해 주세요.");
+    }
+  };
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const id = `p-${Date.now()}`;
-    const images = data
-      .getAll("images")
-      .filter((value): value is File => value instanceof File && value.size > 0)
-      .map((file) => file.name);
     const post: Post = {
       id,
       board: data.get("board") as Post["board"],
@@ -2547,7 +2587,8 @@ function PostForm({
       likes: 0,
       saved: false,
       comments: [],
-      images,
+      images: attachments.map((item) => item.name),
+      imageData: attachments.map((item) => item.dataUrl),
     };
     setState((current) => ({
       ...current,
@@ -2569,7 +2610,7 @@ function PostForm({
       <PageTitle
         eyebrow="커뮤니티"
         title="게시글 작성"
-        description="영업 경험이나 업무 자료를 공유할 수 있습니다. 데모에서는 첨부 파일의 이름만 저장합니다."
+        description="영업 경험이나 업무 자료를 공유할 수 있습니다. 데모에서는 첨부 이미지가 이 브라우저에만 저장됩니다."
       />
       {/*
         비회원은 글을 쓸 수 없다. 전에는 폼이 그대로 열려서 비회원도
@@ -2639,20 +2680,26 @@ function PostForm({
                   accept="image/*"
                   multiple
                   onChange={(event) =>
-                    setImageNames(
-                      Array.from(event.target.files ?? []).map(
-                        (file) => file.name,
-                      ),
-                    )
+                    pickImages(Array.from(event.target.files ?? []))
                   }
                 />
               </label>
               <small>
-                {imageNames.length
-                  ? imageNames.join(", ")
-                  : "JPG·PNG·WebP · 데모에서는 파일 이름만 저장합니다."}
+                {attachments.length
+                  ? attachments.map((item) => item.name).join(", ")
+                  : "JPG·PNG·WebP · 최대 3장 · 이미지는 이 브라우저에만 저장됩니다."}
               </small>
             </div>
+            {/* 고른 것이 실제로 어떻게 나올지 등록 전에 보여 준다. */}
+            {attachments.length ? (
+              <div className="upload-preview">
+                {attachments.map((item) => (
+                  // 미리보기는 방금 고른 파일 그 자체라 대체 글이 더 해 줄
+                  // 말이 없다. 이름은 바로 위 목록에 이미 있다.
+                  <img key={item.name} src={item.dataUrl} alt="" />
+                ))}
+              </div>
+            ) : null}
           </div>
           <button className="button primary">게시글 등록</button>
         </form>
@@ -2698,25 +2745,64 @@ const REPORT_REASONS = [
 
 function PostDetail({
   id,
+  pending,
   state,
   setState,
   notify,
   onRoleChange,
 }: {
   id: string;
+  pending: boolean;
   state: DemoState;
   setState: (fn: (s: DemoState) => DemoState) => void;
   notify: (m: string) => void;
   onRoleChange: (role: Role) => void;
 }) {
   /* 없는 id 면 첫 글을 보여 줬다. 블라인드된 글도 그대로 다 보였다. */
-  const post = state.posts.find(
-    (item) => item.id === id && !state.hiddenPostIds.includes(item.id),
-  );
+  const visible = (item: Post) => !state.hiddenPostIds.includes(item.id);
+  /*
+    id 가 두 세계에 걸쳐 있다. 데이터가 오기 전 목록은 시드 id(p1)로
+    링크를 걸고, 데이터가 오면 글은 DB id 로 바뀐다. 그 사이에 누른
+    링크는 제 글을 못 찾는다. 방금 쓴 글도 같다 - 화면은 임시 id
+    (`p-<시각>`) 주소로 보내는데, 새로고침하면 원장이 서버 uuid 로 같은
+    글을 다시 만든다.
+
+    id 로 못 찾으면 쌍둥이(시드, 또는 세션에 남은 내 글)의 제목·본문으로
+    잇는다.
+  */
+  const twin =
+    initialPosts.find((item) => item.id === id) ??
+    (typeof window === "undefined"
+      ? undefined
+      : (() => {
+          try {
+            const raw = window.sessionStorage.getItem(TRANSIENT_STATE_KEY);
+            const saved = raw
+              ? (JSON.parse(raw) as Partial<DemoState>).posts
+              : undefined;
+            return saved?.find((item) => item.id === id);
+          } catch {
+            return undefined;
+          }
+        })());
+  const post =
+    state.posts.find((item) => item.id === id && visible(item)) ??
+    (twin && state.posts.find((item) => sameStory(item, twin) && visible(item)));
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [reporting, setReporting] = useState(false);
   /* 훅을 다 부른 뒤에 돌려보낸다. 위에서 빠져나가면 렌더마다 훅 개수가
      달라져 React 가 상태를 잘못 잇는다. */
+  /*
+    서버 글은 첫 화면 상태(시드)에는 없다. 주소로 바로 들어오면 데이터가
+    오기 전 잠깐 "없는 글"이 되는데, 그때 404 를 내면 링크를 받은 사람이
+    멀쩡한 글을 못 보게 된다. 다 불러온 뒤에도 없을 때만 404 다.
+  */
+  if (!post && pending)
+    return (
+      <main id="main" tabIndex={-1} className="page-shell page narrow">
+        <p className="list-empty">글을 불러오는 중입니다.</p>
+      </main>
+    );
   if (!post) return <NotFound />;
 
   /**
@@ -2789,7 +2875,20 @@ function PostDetail({
             dangerouslySetInnerHTML={{ __html: sanitizeRichText(post.body) }}
           />
         )}
-        {post.images?.length ? (
+        {post.imageData?.length ? (
+          /* 줄인 이미지를 그대로 그린다. 버킷이 없어도 첨부는 보여야 한다. */
+          <div className="post-images">
+            {post.imageData.map((dataUrl, index) => (
+              <img
+                key={post.images?.[index] ?? index}
+                src={dataUrl}
+                alt={`첨부 이미지 ${post.images?.[index] ?? index + 1}`}
+              />
+            ))}
+          </div>
+        ) : post.images?.length ? (
+          /* 원장 재생으로 돌아온 글은 이름만 남는다(이미지는 이 브라우저
+             세션에만 있다). 그때는 있었다는 사실만 표시한다. */
           <div className="attachment-list">
             {post.images.map((image) => (
               <span key={image}>첨부 이미지 · {image}</span>
