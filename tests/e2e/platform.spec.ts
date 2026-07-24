@@ -309,7 +309,9 @@ test("모바일 핵심 화면에 수평 오버플로가 없다", async ({ page }
   );
   expect(overflow).toBe(false);
   // 데모 상태 표시줄이 좁은 화면에서도 살아 있어야 한다.
-  await expect(page.getByRole("button", { name: "초기화" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "체험 초기화" }),
+  ).toBeVisible();
 });
 
 /**
