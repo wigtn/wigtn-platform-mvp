@@ -4527,16 +4527,21 @@ select:focus {
 }
 
 @media (max-width: 980px) {
+  /*
+    두 카드를 한 몸처럼 이어 붙이던 연출(추천 카드 오른쪽 패딩 0, 순위
+    카드 왼쪽 패딩 0)이 남아 있었다. 카드가 각자 테두리와 면을 가진
+    지금은, 한 열로 쌓이는 순간 관심도 수치와 통계 값이 오른쪽 테두리에
+    닿고 순위 숫자가 왼쪽 모서리에 붙었다. 각자 상자를 지킨다.
+  */
   .recommendation-layout {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
   .featured-company {
-    padding-right: 0;
-    border-right: 0;
-    border-bottom: 1px solid #bdbdb6;
+    padding: 24px 22px;
   }
   .ranked-companies {
-    padding-left: 0;
+    padding: 10px 22px;
   }
   .company-list {
     grid-template-columns: 1fr;
@@ -4677,6 +4682,12 @@ select:focus {
   }
   .ranked-company {
     grid-template-columns: 28px 40px 1fr 45px;
+    gap: 9px;
+  }
+  /* 머리글의 "회사" 라벨이 실제 회사 이름 열 위에 오도록 첫 칸을
+     순위+로고 폭(28+9+40)에 맞춘다. */
+  .ranked-heading {
+    grid-template-columns: 77px 1fr 45px;
     gap: 9px;
   }
   .company-list .company-card {
@@ -5689,6 +5700,22 @@ select:focus {
   .demo-reset {
     padding-inline: 4px;
     font-size: 12px;
+  }
+  /* 버튼 글자가 두 줄로 접히면 알약이 세로로 부푼다. */
+  .demo-switch-account,
+  .demo-reset {
+    white-space: nowrap;
+  }
+}
+
+/* 320px 급에서는 상태 문구까지 한 줄에 못 선다. 문구를 접고 버튼만
+   남긴다 - 무엇으로 로그인했는지는 헤더의 계정 칩이 말해 준다. */
+@media (max-width: 379px) {
+  .demo-status-copy {
+    display: none;
+  }
+  .demo-role-bar-inner {
+    justify-content: flex-end;
   }
   .site-header {
     top: var(--demo-bar-height);
