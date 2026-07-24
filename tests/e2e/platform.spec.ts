@@ -1,20 +1,22 @@
 import { expect, type Page, test } from "@playwright/test";
 
+/*
+  역할 바꾸기는 권한별 계정 모달 한 곳으로 모였다. 비회원은 헤더의
+  "데모 계정 로그인", 로그인 상태는 상단 표시줄의 "다른 계정으로 로그인"
+  이 그 모달을 연다.
+*/
 async function switchRole(page: Page, roleName: string) {
-  const control = page.getByTestId("role-switch");
-  const desktopButton = control.getByRole("button", {
-    name: roleName,
-    exact: true,
+  const opener = page.getByRole("button", { name: "다른 계정으로 로그인" });
+  if (await opener.isVisible()) await opener.click();
+  else await page.getByRole("button", { name: "데모 계정 로그인" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "어떤 계정으로 로그인할까요?",
   });
-  if (await desktopButton.isVisible()) {
-    await desktopButton.click();
+  if (roleName === "비회원") {
+    await dialog.getByRole("button", { name: "로그인 없이 둘러보기" }).click();
     return;
   }
-  await control.getByRole("button").click();
-  await page
-    .getByRole("dialog", { name: "다른 관점으로 둘러보기" })
-    .getByRole("button", { name: roleName, exact: true })
-    .click();
+  await dialog.getByRole("button", { name: new RegExp(roleName) }).click();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -306,7 +308,8 @@ test("모바일 핵심 화면에 수평 오버플로가 없다", async ({ page }
       document.documentElement.clientWidth,
   );
   expect(overflow).toBe(false);
-  await expect(page.getByTestId("role-switch")).toBeVisible();
+  // 데모 상태 표시줄이 좁은 화면에서도 살아 있어야 한다.
+  await expect(page.getByRole("button", { name: "초기화" })).toBeVisible();
 });
 
 /**
