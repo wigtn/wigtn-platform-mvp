@@ -872,7 +872,6 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
   const [toast, setToast] = useState("");
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
   const [accountLoginOpen, setAccountLoginOpen] = useState(false);
-  const [mobileRoleSheetOpen, setMobileRoleSheetOpen] = useState(false);
   const [pulseRoleControl, setPulseRoleControl] = useState(false);
   const pulseTimerRef = useRef<number | null>(null);
   const router = useRouter();
@@ -935,7 +934,6 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
     // 않도록 React 상태 갱신보다 먼저 저장한다.
     window.localStorage.setItem("fieldnote-role", role);
     setState((current) => ({ ...current, role }));
-    setMobileRoleSheetOpen(false);
     const nextPath =
       destination ??
       (role === "admin"
@@ -1035,10 +1033,8 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
     <>
       <DemoRoleBar
         role={state.role}
-        setRole={switchRole}
         reset={reset}
-        openMobileSheet={() => setMobileRoleSheetOpen(true)}
-        mobileSheetOpen={mobileRoleSheetOpen}
+        openAccountLogin={() => setAccountLoginOpen(true)}
         pulse={pulseRoleControl}
       />
       <Header
@@ -1062,13 +1058,6 @@ export function PlatformApp({ initialPath }: { initialPath: string }) {
           switchRole("guest");
         }}
         close={() => setAccountLoginOpen(false)}
-      />
-      <MobileRoleSheet
-        open={mobileRoleSheetOpen}
-        role={state.role}
-        setRole={switchRole}
-        reset={reset}
-        close={() => setMobileRoleSheetOpen(false)}
       />
       {toast ? (
         <div className="toast" role="status">
@@ -1146,7 +1135,7 @@ function Header({
               데모 계정 로그인
             </button>
           ) : (
-            <AccountMenu role={role} openAccountLogin={openAccountLogin} />
+            <AccountMenu role={role} />
           )}
         </div>
       </div>
@@ -1165,13 +1154,7 @@ function Header({
  * 계정 칩을 누르면 작은 메뉴가 열린다 - 내 정보, (관리자면) 관리 콘솔,
  * 그리고 계정 전환. 바깥을 누르거나 Esc 로 닫는다.
  */
-function AccountMenu({
-  role,
-  openAccountLogin,
-}: {
-  role: Exclude<Role, "guest">;
-  openAccountLogin: () => void;
-}) {
+function AccountMenu({ role }: { role: Exclude<Role, "guest"> }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const account = demoAccounts[role];
@@ -1230,17 +1213,6 @@ function AccountMenu({
               관리 콘솔
             </Link>
           ) : null}
-          <button
-            type="button"
-            className="account-menu-item"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              openAccountLogin();
-            }}
-          >
-            다른 계정으로 로그인
-          </button>
         </div>
       ) : null}
     </div>
@@ -4809,44 +4781,23 @@ function Footer() {
   );
 }
 
-function RoleSegments({
-  role,
-  setRole,
-}: {
-  role: Role;
-  setRole: (role: Role) => void;
-}) {
-  return (
-    <div className="role-segments" role="group" aria-label="체험 역할 선택">
-      {roles.map((key) => (
-        <button
-          type="button"
-          className={role === key ? "active" : undefined}
-          aria-pressed={role === key}
-          onClick={() => setRole(key)}
-          key={key}
-        >
-          <span aria-hidden="true">{roleExperience[key].icon}</span>
-          <b>{roleNames[key]}</b>
-        </button>
-      ))}
-    </div>
-  );
-}
-
+/**
+ * 데모 상태 표시줄.
+ *
+ * 전에는 역할 버튼 네 개가 여기 통째로 있었다. 헤더의 계정 버튼과 하는
+ * 일이 겹쳐서, 화면 상단에 "지금 누구인가"를 말하는 장치가 두 벌이었다.
+ * 역할 바꾸기는 권한별 계정 모달 한 곳으로 모으고, 여기는 상태 문구와
+ * 모달 여는 버튼만 남긴다.
+ */
 function DemoRoleBar({
   role,
-  setRole,
   reset,
-  openMobileSheet,
-  mobileSheetOpen,
+  openAccountLogin,
   pulse,
 }: {
   role: Role;
-  setRole: (role: Role) => void;
   reset: () => void;
-  openMobileSheet: () => void;
-  mobileSheetOpen: boolean;
+  openAccountLogin: () => void;
   pulse: boolean;
 }) {
   return (
@@ -4864,21 +4815,17 @@ function DemoRoleBar({
             </span>
           </p>
         </div>
-        <div className="demo-role-controls" data-testid="role-switch">
-          <div className="desktop-role-switch">
-            <RoleSegments role={role} setRole={setRole} />
-          </div>
-          <button
-            type="button"
-            className="mobile-role-trigger"
-            aria-haspopup="dialog"
-            aria-expanded={mobileSheetOpen}
-            onClick={openMobileSheet}
-          >
-            <span aria-hidden="true">{roleExperience[role].icon}</span>
-            <b>{roleNames[role]}</b>
-            <small>역할 변경</small>
-          </button>
+        <div className="demo-role-controls">
+          {role !== "guest" ? (
+            <button
+              type="button"
+              className="demo-switch-account"
+              aria-haspopup="dialog"
+              onClick={openAccountLogin}
+            >
+              다른 계정으로 로그인
+            </button>
+          ) : null}
           <button type="button" className="demo-reset" onClick={reset}>
             초기화
           </button>
@@ -5013,58 +4960,6 @@ function AccountLoginModal({
             로그인 없이 둘러보기
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function MobileRoleSheet({
-  open,
-  role,
-  setRole,
-  reset,
-  close,
-}: {
-  open: boolean;
-  role: Role;
-  setRole: (role: Role) => void;
-  reset: () => void;
-  close: () => void;
-}) {
-  const dialogRef = useDialogFocus(open, close);
-  if (!open) return null;
-  return (
-    <div className="role-dialog-backdrop mobile-role-backdrop">
-      <div
-        className="mobile-role-sheet"
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="mobile-role-sheet-title"
-      >
-        <div className="mobile-role-sheet-head">
-          <div>
-            <span>데모 역할</span>
-            <h2 id="mobile-role-sheet-title">다른 관점으로 둘러보기</h2>
-          </div>
-          <button type="button" aria-label="역할 전환 닫기" onClick={close}>
-            닫기
-          </button>
-        </div>
-        <RoleSegments role={role} setRole={setRole} />
-        <p>
-          역할을 바꾸면 사용할 수 있는 기능과 이동 가능한 화면이 달라집니다.
-        </p>
-        <button
-          type="button"
-          className="mobile-demo-reset"
-          onClick={() => {
-            reset();
-            close();
-          }}
-        >
-          데모 데이터 초기화
-        </button>
       </div>
     </div>
   );
