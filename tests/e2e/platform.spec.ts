@@ -83,6 +83,32 @@ test("헤더에서 권한별 데모 계정으로 로그인한다", async ({ page
   ).toBeVisible();
 });
 
+test("로그인하면 헤더 계정 메뉴로 마이페이지에 간다", async ({ page }) => {
+  // 로그인한 뒤 홈으로 나와도 마이페이지로 돌아갈 길이 있어야 한다.
+  await switchRole(page, "일반 영업인");
+  await page.goto("/");
+  await page.getByRole("button", { name: /계정 메뉴/ }).click();
+  await page
+    .getByRole("menu")
+    .getByRole("menuitem", { name: "내 정보" })
+    .click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(
+    page.getByRole("heading", { name: "내 활동 관리" }),
+  ).toBeVisible();
+});
+
+test("운영 관리자는 계정 메뉴로 관리 콘솔에 돌아온다", async ({ page }) => {
+  await switchRole(page, "운영 관리자");
+  await page.goto("/");
+  await page.getByRole("button", { name: /계정 메뉴/ }).click();
+  await page
+    .getByRole("menu")
+    .getByRole("menuitem", { name: "관리 콘솔" })
+    .click();
+  await expect(page).toHaveURL(/\/admin$/);
+});
+
 test("회사 탐색부터 익명 리뷰 통계 반영까지 연결된다", async ({ page }) => {
   // 비회원은 리뷰를 쓸 수 없다. 글·질문 폼과 같은 규칙이다.
   await switchRole(page, "일반 영업인");

@@ -24,6 +24,7 @@ import {
   List,
   Quote,
   ChevronRight,
+  ChevronDown,
   Bookmark,
   Lock,
   Check,
@@ -70,6 +71,9 @@ export const IconQuote = () => <Quote {...base} />;
 
 /** 목록에서 "눌러서 들어간다"를 알리는 표시. */
 export const IconChevron = () => <ChevronRight {...base} />;
+
+/** 아래로 펼쳐지는 메뉴를 알리는 표시. 헤더 계정 칩에 쓴다. */
+export const IconChevronDown = () => <ChevronDown {...base} />;
 
 /** 지금 역할로는 못 쓰는 기능. 전에는 `⌁` 글자를 그대로 썼는데, 뜻도 안
  *  읽히고 글꼴에 따라 모양이 달라졌다. */
