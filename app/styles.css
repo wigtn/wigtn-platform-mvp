@@ -1267,6 +1267,33 @@ input[type="file"]::file-selector-button:hover {
   color: var(--text-subtle);
   font-size: 11px;
 }
+/* 글에 붙은 이미지. 본문 폭을 넘지 않고, 세로로 쌓인다. */
+.post-images {
+  display: grid;
+  gap: 12px;
+  margin: 22px 0;
+}
+.post-images img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+/* 등록 전 미리보기. 같은 줄에 작게 늘어놓는다. */
+.upload-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+.upload-preview img {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
 
 .board-tabs {
   display: flex;
@@ -1514,13 +1541,12 @@ input[type="file"]::file-selector-button:hover {
   border: 0;
   border-bottom: 1px solid #e4e4dd;
 }
-.comments article button {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--primary);
-  font-size: 12px;
-}
+/*
+  전에는 `.comments article button` 으로 안의 모든 버튼을 글자만 남겼다.
+  옛 답글 토글용 규칙이었는데, 답글 입력창의 "답글 등록" 버튼까지 덮쳐
+  까만 사각형 안에서 글자가 두 줄로 부서졌다. 토글은 아래 제 규칙이
+  있으니 광역 규칙은 지웠다.
+*/
 /*
   답변 작성 폼.
 
@@ -6125,6 +6151,13 @@ select:focus {
   .fieldnote-answer-actions {
     grid-template-columns: 1fr;
     gap: 13px;
+  }
+  /* 회원 답변도 AI 카드와 같이 라벨을 위로 올린다. 390px 에서 본문이
+     166px 열에 갇혀 한 줄에 예닐곱 자씩 부서졌고, 답글 입력창과 등록
+     버튼까지 그 열에 끼어 잘렸다. */
+  .comments article {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
   .fieldnote-answer-summary p {
     font-size: 18px;

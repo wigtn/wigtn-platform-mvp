@@ -49,6 +49,12 @@ export type Post = {
   saved: boolean;
   comments: string[];
   images?: string[];
+  /**
+   * 첨부 이미지의 데이터 URL. 데모라 버킷에는 안 올리고, 화면에서 줄인
+   * JPEG 을 그대로 들고 다닌다. 세션 보관함에 상태와 같이 저장되므로
+   * 새로고침해도 이 탭에서는 보인다. 서버 원장에는 이름만 남는다.
+   */
+  imageData?: string[];
   ai?: "queued" | "thinking" | "posted";
   aiAnswer?: string;
   aiModel?: string;

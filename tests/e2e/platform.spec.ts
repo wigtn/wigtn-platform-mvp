@@ -173,18 +173,29 @@ test("일반 게시글과 이미지 첨부 메타데이터를 등록한다", asy
     );
   // 브라우저 기본 칸을 숨기고 label 을 버튼으로 쓴다. 숨긴 입력은 라벨로
   // 못 찾으므로 직접 가리킨다.
+  //
+  // 가짜 바이트는 안 된다 - 첨부는 이제 화면이 실제로 줄여서 그린다.
+  // 진짜 1×1 PNG 를 올린다.
   await page.locator('input[type="file"]').setInputFiles({
     name: "achievement.png",
     mimeType: "image/png",
-    buffer: Buffer.from("synthetic-image"),
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    ),
   });
+  // 등록 전 미리보기가 먼저 떠야 한다.
+  await expect(page.locator(".upload-preview img")).toBeVisible();
   await page.getByRole("button", { name: "게시글 등록" }).click();
   await expect(
     page.getByRole("heading", {
       name: "분기 목표를 초과한 파이프라인 운영 기록",
     }),
   ).toBeVisible();
-  await expect(page.getByText("첨부 이미지 · achievement.png")).toBeVisible();
+  // 이름 표시가 아니라 이미지가 실제로 그려진다.
+  await expect(
+    page.getByRole("img", { name: "첨부 이미지 achievement.png" }),
+  ).toBeVisible();
 });
 
 test("질문 등록 후 AI 첫 답변 상태 전이가 완료된다", async ({ page }) => {
@@ -215,7 +226,8 @@ test("질문 등록 후 AI 첫 답변 상태 전이가 완료된다", async ({ p
   expect(
     await page.getByTestId("ai-answer-action").count(),
   ).toBeGreaterThanOrEqual(2);
-  await page.getByRole("link", { name: "커뮤니티에서 보기" }).click();
+  // 완료 화면의 버튼은 목록이 아니라 방금 올린 글 상세로 간다.
+  await page.getByRole("link", { name: "올린 질문 보기" }).click();
   await expect(page.getByText(context)).toBeVisible();
 });
 
