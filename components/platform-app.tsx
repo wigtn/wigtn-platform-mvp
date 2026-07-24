@@ -37,6 +37,7 @@ import {
   IconCaution,
   IconCheck,
   IconChevron,
+  IconChevronDown,
   IconLock,
   IconEye,
   IconFlag,
@@ -1111,17 +1112,114 @@ function Header({
             <IconPen />
             <span>리뷰 작성</span>
           </Link>
-          <button
-            type="button"
-            className="header-role"
-            aria-haspopup="dialog"
-            onClick={openAccountLogin}
-          >
-            {role === "guest" ? "데모 계정 로그인" : `${roleNames[role]} 계정`}
-          </button>
+          {role === "guest" ? (
+            <button
+              type="button"
+              className="header-role"
+              aria-haspopup="dialog"
+              onClick={openAccountLogin}
+            >
+              데모 계정 로그인
+            </button>
+          ) : (
+            <AccountMenu role={role} openAccountLogin={openAccountLogin} />
+          )}
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * 헤더 계정 메뉴.
+ *
+ * 로그인한 다음 마이페이지(`/account`)로 갈 길이 화면 어디에도 없었다.
+ * 계정 버튼은 로그인 팝업만 다시 열어, `내 정보`는 팝업의 "현재 계정 열기"
+ * 를 눌러야만 닿는 숨은 경로였다. 관리자도 `/admin` 을 벗어나면 돌아올
+ * 진입점이 헤더에 없었다.
+ *
+ * 계정 칩을 누르면 작은 메뉴가 열린다 - 내 정보, (관리자면) 관리 콘솔,
+ * 그리고 계정 전환. 바깥을 누르거나 Esc 로 닫는다.
+ */
+function AccountMenu({
+  role,
+  openAccountLogin,
+}: {
+  role: Exclude<Role, "guest">;
+  openAccountLogin: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const account = demoAccounts[role];
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: MouseEvent) => {
+      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return (
+    <div className="account-menu" ref={wrapRef}>
+      <button
+        type="button"
+        className="header-role account-chip"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`계정 메뉴 · ${account.name}`}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="account-chip-avatar" aria-hidden="true">
+          {account.name.slice(0, 1)}
+        </span>
+        <span className="account-chip-name">{roleNames[role]}</span>
+        <IconChevronDown />
+      </button>
+      {open ? (
+        <div className="account-menu-pop" role="menu">
+          <div className="account-menu-head">
+            <strong>{account.name}</strong>
+            <span>{roleNames[role]}</span>
+          </div>
+          <Link
+            className="account-menu-item"
+            role="menuitem"
+            href="/account"
+            onClick={() => setOpen(false)}
+          >
+            내 정보
+          </Link>
+          {role === "admin" ? (
+            <Link
+              className="account-menu-item"
+              role="menuitem"
+              href="/admin"
+              onClick={() => setOpen(false)}
+            >
+              관리 콘솔
+            </Link>
+          ) : null}
+          <button
+            type="button"
+            className="account-menu-item"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              openAccountLogin();
+            }}
+          >
+            다른 계정으로 로그인
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
