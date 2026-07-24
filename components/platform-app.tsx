@@ -4800,6 +4800,12 @@ function DemoRoleBar({
   openAccountLogin: () => void;
   pulse: boolean;
 }) {
+  /*
+    "초기화"는 이름만 봐서는 무엇이 지워지는지 알 수 없었고, 누르는
+    순간 확인 없이 내 글·리뷰·역할이 다 날아갔다. 되돌릴 수도 없다.
+    무엇의 초기화인지 이름에 적고, 지우기 전에 한 번 묻는다.
+  */
+  const [confirming, setConfirming] = useState(false);
   return (
     <aside
       className={`demo-role-bar role-${role}${pulse ? " is-intro-pulse" : ""}`}
@@ -4826,11 +4832,28 @@ function DemoRoleBar({
               다른 계정으로 로그인
             </button>
           ) : null}
-          <button type="button" className="demo-reset" onClick={reset}>
-            초기화
+          <button
+            type="button"
+            className="demo-reset"
+            aria-haspopup="dialog"
+            onClick={() => setConfirming(true)}
+          >
+            체험 초기화
           </button>
         </div>
       </div>
+      {confirming ? (
+        <ConfirmDialog
+          title="체험 데이터를 초기화할까요?"
+          description="내가 쓴 글·리뷰와 역할 선택이 지워지고 처음 화면으로 돌아갑니다. 공용 샘플 데이터는 그대로 남습니다."
+          confirmLabel="초기화"
+          onClose={() => setConfirming(false)}
+          onConfirm={() => {
+            setConfirming(false);
+            reset();
+          }}
+        />
+      ) : null}
     </aside>
   );
 }
