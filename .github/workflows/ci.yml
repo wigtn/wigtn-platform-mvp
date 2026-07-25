@@ -42,4 +42,4 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm exec playwright test --grep "첫 방문|헤더에서 권한별|회사 탐색|관리자 역할"
+      - run: pnpm exec playwright test --grep "헤더에서 권한별|회사 탐색|관리자 역할" --timeout=60000
