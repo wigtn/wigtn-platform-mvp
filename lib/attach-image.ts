@@ -12,7 +12,8 @@ export async function shrinkImage(file: File, maxEdge = 1280): Promise<string> {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
       el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error(`이미지를 읽지 못했습니다: ${file.name}`));
+      el.onerror = () =>
+        reject(new Error(`이미지를 읽지 못했습니다: ${file.name}`));
       el.src = url;
     });
     const scale = Math.min(1, maxEdge / Math.max(image.width, image.height));

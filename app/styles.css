@@ -1,33 +1,38 @@
 :root {
-  --background: #fdfdfb;
-  --surface: #f4f4f0;
-  --surface-strong: #e9e9e3;
-  --navy: #11110f;
-  --text: #20201d;
-  --text-subtle: #64645e;
-  --text-faint: #92928a;
-  --primary: #e34b32;
-  --primary-hover: #c93c25;
-  --primary-soft: #fff0eb;
-  --blue: #3157d5;
-  --blue-soft: #edf1ff;
-  --mint: #18a77b;
-  --mint-soft: #e8f8f3;
-  --amber-soft: #fff2d8;
+  /*
+    web-agency UI-REDESIGN-GUIDE §2를 FIELDNOTE 체험판에 이식한 앱 토큰.
+    값은 FIELDNOTE 브랜드의 선명한 red를 유지하되, 화면 문법은
+    "앱 화면 = 좌측정렬·정보밀도·5단 타이포·명확한 상태" 쪽으로 맞춘다.
+  */
+  --background: #fbfaf7;
+  --surface: #f4f2ec;
+  --surface-strong: #ebe7dd;
+  --navy: #171310;
+  --text: #27221d;
+  --text-subtle: #655f57;
+  --text-faint: #969087;
+  --primary: #df4a32;
+  --primary-hover: #bf3924;
+  --primary-soft: #fff1ec;
+  --blue: #2f5ecf;
+  --blue-soft: #edf3ff;
+  --mint: #0f936f;
+  --mint-soft: #e7f7ef;
+  --amber-soft: #fff2d6;
   --violet: #6652c8;
-  --violet-soft: #f0edff;
-  --warning: #ef8f21;
+  --violet-soft: #f1edff;
+  --warning: #dc8322;
   --danger: #d94b54;
-  --border: #e4e7ec;
-  --border-strong: #d0d5dd;
+  --border: #e5dfd5;
+  --border-strong: #d2c9ba;
   --white: #ffffff;
-  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
-  --shadow-md: 0 8px 20px rgba(17, 17, 15, 0.07);
-  --shadow-hover: 0 18px 45px rgba(24, 31, 48, 0.12);
+  --shadow-sm: 0 1px 2px rgba(39, 34, 29, 0.05);
+  --shadow-md: 0 12px 34px rgba(39, 34, 29, 0.09);
+  --shadow-hover: 0 20px 55px rgba(39, 34, 29, 0.14);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --radius-sm: 2px;
-  --radius: 3px;
-  --radius-lg: 5px;
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 22px;
   --shell: min(1180px, calc(100% - 40px));
   /* 첫 후보가 웹에서 받아 오는 쪽(layout.tsx 참고). 그 뒤는 받기 전이나
      못 받았을 때를 위한 순서다 - 로컬에 Pretendard 가 있으면 그걸,
@@ -6731,4 +6736,275 @@ textarea:focus-visible,
 }
 .ranked-company {
   padding-block: 14px;
+}
+
+/* --------------------------------------------------------------------------
+   FIELDNOTE × web-agency design-pipeline refresh
+
+   web-agency/docs/UI-REDESIGN-GUIDE.md §2의 핵심을 고객 체험판에 맞게
+   이식한다. 기존 FIELDNOTE 도메인/데이터 흐름은 유지하고, visual grammar만
+   최신 데모 파이프라인 기준으로 보정한다.
+---------------------------------------------------------------------------- */
+.hero {
+  min-height: 520px;
+  background:
+    radial-gradient(
+      circle at 12% 18%,
+      rgba(223, 74, 50, 0.13),
+      transparent 28%
+    ),
+    linear-gradient(135deg, #fffaf5 0%, #f6f2ea 48%, #eef7f1 100%);
+}
+.hero-layout {
+  min-height: 520px;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.78fr);
+  gap: 56px;
+  padding-block: 58px;
+}
+.hero-badge,
+.kicker,
+.caption {
+  text-transform: none;
+  letter-spacing: -0.01em;
+}
+.hero h1 {
+  max-width: 720px;
+  font-size: clamp(38px, 4vw, 56px);
+  letter-spacing: -0.058em;
+}
+.hero-lead {
+  max-width: 640px;
+  color: var(--text-subtle);
+  font-size: 17px;
+}
+.hero-search,
+.career-preview,
+.featured-company,
+.ranked-note,
+.decision-card,
+.form-panel,
+.feed > article,
+.review-list article,
+.admin-panel,
+.account-card,
+.profile-card,
+.company-summary,
+.score-panel,
+.company-card {
+  border-color: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.hero-search,
+.filter-bar,
+.comment-box,
+.account-menu-pop {
+  border-radius: var(--radius-sm);
+}
+.career-preview,
+.featured-company {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.94),
+      rgba(255, 255, 255, 0.88)
+    ),
+    radial-gradient(circle at 100% 0%, rgba(223, 74, 50, 0.12), transparent 36%);
+  box-shadow: 0 24px 70px rgba(39, 34, 29, 0.13);
+}
+.company-logo,
+.account-chip-avatar {
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--primary-soft), #f3e7db);
+  color: var(--primary);
+}
+.account-chip-avatar {
+  border-radius: 999px;
+}
+.trust-bar {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(16px);
+}
+:root {
+  --section-gap: 72px;
+}
+.section-heading {
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.section-heading h2,
+.insight-section h2,
+.decision-card h2,
+.page-title h1,
+.admin-title h1 {
+  font-size: clamp(26px, 2.4vw, 32px);
+  line-height: 1.28;
+  letter-spacing: -0.048em;
+}
+.section-heading > div > p:last-child,
+.page-title p,
+.admin-title p {
+  max-width: 680px;
+  color: var(--text-subtle);
+  font-size: 14px;
+}
+.recommendation-layout {
+  align-items: stretch;
+}
+.ranked-companies {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.82);
+  overflow: hidden;
+}
+.ranked-heading,
+.ranked-company {
+  padding-inline: 18px;
+}
+.ranked-heading {
+  background: var(--surface);
+  color: var(--text-subtle);
+  font-size: 12px;
+  font-weight: 750;
+}
+.ranked-company {
+  border-top: 1px solid var(--border);
+  transition:
+    background 150ms ease,
+    transform 150ms ease;
+}
+.ranked-company:hover {
+  background: var(--primary-soft);
+  transform: translateX(2px);
+}
+.insight-section {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(244, 242, 236, 0.96),
+      rgba(250, 248, 244, 0.96)
+    ),
+    radial-gradient(
+      circle at 84% 12%,
+      rgba(15, 147, 111, 0.12),
+      transparent 28%
+    );
+}
+.insight-grid {
+  grid-template-columns: 0.58fr 1.42fr;
+  gap: 44px;
+}
+.story-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.88);
+  overflow: hidden;
+}
+.story-list a {
+  grid-template-columns: 86px 1fr auto;
+  padding: 17px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.story-list a:last-child {
+  border-bottom: 0;
+}
+.story-list a:hover {
+  background: var(--primary-soft);
+}
+.story-board,
+.post-board,
+.post-meta span,
+.post-meta b,
+.ai-label,
+.up,
+.down {
+  border-radius: 999px;
+}
+.story-list h3,
+.feed h2,
+.review-list h3,
+.company-card h3,
+.featured-company-main h3 {
+  color: var(--navy);
+}
+.company-card:hover,
+.feed > article:hover,
+.review-list article:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+.feed > article {
+  padding: 20px;
+}
+.feed h2 {
+  font-size: 19px;
+}
+.post-actions button,
+.button,
+.header-role,
+.header-write,
+.editor-toolbar button,
+input[type="file"]::file-selector-button {
+  border-radius: var(--radius-sm);
+}
+.button.primary {
+  box-shadow: 0 10px 24px rgba(223, 74, 50, 0.18);
+}
+.button.secondary:hover,
+.text-link:hover,
+.header-write:hover,
+.post-actions button:hover {
+  color: var(--primary);
+}
+.filter-bar,
+.board-tabs,
+.company-tabs,
+.admin-nav,
+.account-grid,
+.admin-grid {
+  gap: 12px;
+}
+.score-bars > div {
+  grid-template-columns: 128px 1fr 38px;
+}
+.score-bars > div > div {
+  height: 9px;
+  background: #ebe3d8;
+}
+.score-bars i {
+  background: linear-gradient(90deg, var(--primary), #f08a55);
+}
+.ai-answer,
+.ai-result {
+  border-color: #ded8ff;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #f8f7ff, #f3f1ff);
+}
+.admin-nav a,
+.account-menu-item,
+.board-tabs > button {
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
+}
+.board-tabs > button.active,
+.admin-nav a.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+@media (max-width: 900px) {
+  .hero-layout,
+  .insight-grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .hero-layout {
+    padding-block: 42px;
+  }
+  .story-list a {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
 }
