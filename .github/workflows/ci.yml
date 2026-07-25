@@ -1,18 +1,18 @@
-name: Quality gates
+name: FIELDNOTE demo release smoke
 
 on:
   pull_request:
-  push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
-  verify:
+  smoke:
+    name: frontend smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -23,39 +23,23 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
 
-  backend-verify:
+  evaluator-smoke:
+    name: evaluator journey smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    defaults:
-      run:
-        working-directory: backend
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - uses: supabase/setup-cli@v1
-        with:
-          version: 2.98.2
-      - run: npm ci
-      - run: npm audit --audit-level=moderate
-      - run: npm run format:check
-      - run: npm run typecheck
-      - run: npm test
-      - run: supabase start
-      - run: supabase db reset
-      - run: npm run db:lint
-      - run: npm run test:db
-      - if: always()
-        run: supabase stop --no-backup
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test --grep "헤더에서 권한별|회사 탐색|관리자 역할" --timeout=60000

@@ -1,0 +1,94 @@
+name: FIELDNOTE live backend smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_live_ai:
+        description: "Run live AI worker smoke if repository/environment secrets are configured"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  backend-verify:
+    name: backend database smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.98.2
+      - run: npm ci
+      - run: npm audit --audit-level=moderate
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: supabase start
+      - run: supabase db reset
+      - run: npm run db:lint
+      - run: npm run test:db
+      - if: always()
+        run: supabase stop --no-backup
+
+  live-ai-smoke:
+    name: optional live AI smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    if: ${{ inputs.run_live_ai == 'true' }}
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OUTBOX_DATABASE_URL: ${{ secrets.OUTBOX_DATABASE_URL }}
+      RUN_OPENAI_LIVE: "1"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check live AI secrets
+        id: live_ai_secrets
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "OPENAI_API_KEY is not configured; skipping live AI smoke."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: ${{ steps.live_ai_secrets.outputs.configured == 'true' }}
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - uses: supabase/setup-cli@v1
+        if: ${{ steps.live_ai_secrets.outputs.configured == 'true' }}
+        with:
+          version: 2.98.2
+      - if: ${{ steps.live_ai_secrets.outputs.configured == 'true' }}
+        run: npm ci
+      - if: ${{ steps.live_ai_secrets.outputs.configured == 'true' }}
+        run: supabase start
+      - if: ${{ steps.live_ai_secrets.outputs.configured == 'true' }}
+        run: supabase db reset
+      - if: ${{ steps.live_ai_secrets.outputs.configured == 'true' }}
+        run: npm run test -- --run test/demo-ai-live.test.ts
+      - if: ${{ always() && steps.live_ai_secrets.outputs.configured == 'true' }}
+        run: supabase stop --no-backup
