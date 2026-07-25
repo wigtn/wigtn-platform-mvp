@@ -1232,13 +1232,13 @@ function Home({ state }: { state: DemoState }) {
           <div className="hero-copy reveal">
             <p className="hero-badge">영업직 회사 리뷰</p>
             <h1>
-              목표, 인센티브, 리드 배분.
+              목표, 인센티브, 리드 배분을
               <br />
-              <em>입사 전에 확인하세요.</em>
+              <em>지원 전에 빠르게 검토하세요.</em>
             </h1>
             <p className="hero-lead">
-              현직자 리뷰에서 목표 수준, 인센티브 기준, 리드 배분 방식을
-              확인하세요.
+              회사 리포트, 현직자 리뷰, 커뮤니티 피드를 첫 화면에서 바로
+              훑어보고 지원할 회사를 비교하세요.
             </p>
             <form
               onInvalidCapture={koreanValidity}
@@ -1480,7 +1480,7 @@ function Home({ state }: { state: DemoState }) {
                 밀려났다. 블라인드된 글도 그대로 남아 있었다. */}
             {state.posts
               .filter((post) => !state.hiddenPostIds.includes(post.id))
-              .slice(0, 3)
+              .slice(0, 5)
               .map((post) => (
                 <Link href={`/posts/${post.id}`} key={post.id}>
                   <span className="story-board">{post.board}</span>
@@ -2759,7 +2759,8 @@ function PostDetail({
         })());
   const post =
     state.posts.find((item) => item.id === id && visible(item)) ??
-    (twin && state.posts.find((item) => sameStory(item, twin) && visible(item)));
+    (twin &&
+      state.posts.find((item) => sameStory(item, twin) && visible(item)));
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [reporting, setReporting] = useState(false);
   /* 훅을 다 부른 뒤에 돌려보낸다. 위에서 빠져나가면 렌더마다 훅 개수가
